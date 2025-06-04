@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+// No need for navigation imports since we're embedded in the building
+
 
 // Lazy load the Layout component
 const Layout = lazy(() => import('../../quiz/src/components/Layout'));
@@ -40,13 +40,8 @@ class ErrorBoundary extends React.Component<
 }
 
 export const ChatbotInterface: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Preserve any state passed through navigation
-  const state = location.state || {};
 
   useEffect(() => {
     const loadChatbot = async () => {
@@ -81,25 +76,11 @@ export const ChatbotInterface: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0e17]">
-      {/* Header with back button */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-[#0a0e17]/80 backdrop-blur-sm border-b border-primary/20">
-        <div className="container mx-auto px-4 py-3 flex items-center">
-          <button
-            onClick={() => navigate('/townsquare', { state })}
-            className="flex items-center text-primary hover:text-primary/80 transition-colors"
-            aria-label="Return to Townsquare"
-          >
-            <ArrowLeft size={20} className="mr-2" />
-            <span className="font-pixel">Back to Townsquare</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Chatbot Interface */}
-      <div className="pt-16">
+    <div className="h-full flex flex-col bg-[#0a0e17] overflow-hidden">
+      {/* Chatbot Interface - No header needed as we're inside the building */}
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="flex items-center justify-center h-full">
             <div className="animate-pulse-slow text-primary">
               <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
               <p className="mt-4 font-pixel text-sm">Loading K.A.N.A...</p>
@@ -109,7 +90,7 @@ export const ChatbotInterface: React.FC = () => {
           <ErrorBoundary>
             <Suspense
               fallback={
-                <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+                <div className="flex items-center justify-center h-full">
                   <div className="animate-pulse-slow text-primary">
                     <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
                     <p className="mt-4 font-pixel text-sm">Loading Components...</p>
@@ -124,4 +105,4 @@ export const ChatbotInterface: React.FC = () => {
       </div>
     </div>
   );
-}; 
+};

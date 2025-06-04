@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Trophy, Star, Target, Award, Medal, Filter, ChevronDown, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Trophy, Star, Target, Medal, Filter, ChevronDown, Search, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Achievement {
   id: string;
@@ -14,67 +15,182 @@ interface Achievement {
     tokens: number;
   };
   completed: boolean;
-  category: 'academic' | 'social' | 'special';
+  category: 'quizzing' | 'tournaments' | 'gamified' | 'social' | 'courses' | 'customization' | 'events' | 'wallet' | 'progress' | 'hidden';
   dateCompleted?: string;
 }
 
-export const Achievements = () => {
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+export default function Achievements() {
+  const navigate = useNavigate();
+  const [activeCategory, setActiveCategory] = useState<'all' | 'quizzing' | 'tournaments' | 'gamified' | 'social' | 'courses' | 'customization' | 'events' | 'wallet' | 'progress' | 'hidden'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'rarity' | 'progress' | 'recent'>('rarity');
   const [showFilters, setShowFilters] = useState(false);
 
   const achievements: Achievement[] = [
+    // QUIZZING
     {
       id: '1',
-      name: 'First Scholar',
-      desc: 'Complete your first course',
-      icon: '📚',
+      name: 'Quiz Novice',
+      desc: 'Complete your first quiz',
+      icon: '📝',
       progress: 100,
       total: 100,
       rarity: 'common',
       reward: {
         xp: 50,
-        tokens: 25
+        tokens: 10
       },
       completed: true,
-      category: 'academic',
-      dateCompleted: '2024-03-15'
+      category: 'quizzing',
+      dateCompleted: '2024-05-15'
     },
     {
       id: '2',
-      name: 'Knowledge Seeker',
-      desc: 'Complete 5 different subjects',
-      icon: '🔍',
+      name: 'Quiz Master',
+      desc: 'Get a perfect score on 5 quizzes',
+      icon: '🎯',
       progress: 3,
       total: 5,
       rarity: 'rare',
       reward: {
         xp: 200,
-        tokens: 100
+        tokens: 50
       },
       completed: false,
-      category: 'academic'
+      category: 'quizzing'
     },
     {
       id: '3',
-      name: 'Master Mind',
-      desc: 'Achieve 100% in any subject',
-      icon: '🧠',
-      progress: 92,
-      total: 100,
+      name: 'Quiz Creator',
+      desc: 'Create a quiz that is taken by 10 users',
+      icon: '✏️',
+      progress: 6,
+      total: 10,
       rarity: 'epic',
       reward: {
-        xp: 500,
-        tokens: 250
+        xp: 300,
+        tokens: 100
       },
       completed: false,
-      category: 'academic'
+      category: 'quizzing'
     },
     {
       id: '4',
+      name: 'Quiz Champion',
+      desc: 'Complete 100 quizzes with at least 80% score',
+      icon: '🏆',
+      progress: 47,
+      total: 100,
+      rarity: 'legendary',
+      reward: {
+        xp: 1000,
+        tokens: 500
+      },
+      completed: false,
+      category: 'quizzing'
+    },
+    
+    // TOURNAMENTS
+    {
+      id: '5',
+      name: 'Tournament Participant',
+      desc: 'Join your first tournament',
+      icon: '🎮',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 50,
+        tokens: 15
+      },
+      completed: true,
+      category: 'tournaments',
+      dateCompleted: '2024-05-10'
+    },
+    {
+      id: '6',
+      name: 'Top Contender',
+      desc: 'Reach the finals in any tournament',
+      icon: '🥈',
+      progress: 0,
+      total: 1,
+      rarity: 'rare',
+      reward: {
+        xp: 300,
+        tokens: 75
+      },
+      completed: false,
+      category: 'tournaments'
+    },
+    {
+      id: '7',
+      name: 'Tournament Victor',
+      desc: 'Win first place in a tournament',
+      icon: '🏅',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 500,
+        tokens: 200
+      },
+      completed: false,
+      category: 'tournaments'
+    },
+    
+    // GAMIFIED LEARNING
+    {
+      id: '8',
+      name: 'Game Starter',
+      desc: 'Complete your first learning game',
+      icon: '🎲',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 50,
+        tokens: 10
+      },
+      completed: true,
+      category: 'gamified',
+      dateCompleted: '2024-05-08'
+    },
+    {
+      id: '9',
+      name: 'Game Enthusiast',
+      desc: 'Play 10 different learning games',
+      icon: '🎯',
+      progress: 4,
+      total: 10,
+      rarity: 'rare',
+      reward: {
+        xp: 200,
+        tokens: 50
+      },
+      completed: false,
+      category: 'gamified'
+    },
+    {
+      id: '10',
+      name: 'Brain Challenger',
+      desc: 'Complete a difficult learning game with a perfect score',
+      icon: '🧠',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 400,
+        tokens: 150
+      },
+      completed: false,
+      category: 'gamified'
+    },
+    
+    // SOCIAL & SQUAD
+    {
+      id: '11',
       name: 'Team Player',
-      desc: 'Join a study group',
+      desc: 'Join a squad',
       icon: '👥',
       progress: 100,
       total: 100,
@@ -85,10 +201,10 @@ export const Achievements = () => {
       },
       completed: true,
       category: 'social',
-      dateCompleted: '2024-03-10'
+      dateCompleted: '2024-04-10'
     },
     {
-      id: '5',
+      id: '12',
       name: 'Helpful Hand',
       desc: 'Answer 10 community questions',
       icon: '🤝',
@@ -103,7 +219,340 @@ export const Achievements = () => {
       category: 'social'
     },
     {
-      id: '6',
+      id: '13',
+      name: 'Squad Leader',
+      desc: 'Lead your squad to victory in a team challenge',
+      icon: '👑',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 400,
+        tokens: 200
+      },
+      completed: false,
+      category: 'social'
+    },
+    
+    // COURSES & TEACHING
+    {
+      id: '14',
+      name: 'First Scholar',
+      desc: 'Complete your first course',
+      icon: '📚',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 50,
+        tokens: 25
+      },
+      completed: true,
+      category: 'courses',
+      dateCompleted: '2024-03-15'
+    },
+    {
+      id: '15',
+      name: 'Knowledge Seeker',
+      desc: 'Complete 5 different courses',
+      icon: '🔍',
+      progress: 3,
+      total: 5,
+      rarity: 'rare',
+      reward: {
+        xp: 200,
+        tokens: 100
+      },
+      completed: false,
+      category: 'courses'
+    },
+    {
+      id: '16',
+      name: 'Teaching Assistant',
+      desc: 'Help 5 students complete a course',
+      icon: '👨‍🏫',
+      progress: 2,
+      total: 5,
+      rarity: 'epic',
+      reward: {
+        xp: 300,
+        tokens: 150
+      },
+      completed: false,
+      category: 'courses'
+    },
+    {
+      id: '17',
+      name: 'Academic Excellence',
+      desc: 'Complete 25 courses with at least 90% score',
+      icon: '🎓',
+      progress: 5,
+      total: 25,
+      rarity: 'legendary',
+      reward: {
+        xp: 1000,
+        tokens: 500
+      },
+      completed: false,
+      category: 'courses'
+    },
+
+    // CUSTOMIZATION
+    {
+      id: '18',
+      name: 'Personal Touch',
+      desc: 'Customize your profile for the first time',
+      icon: '🎨',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 25,
+        tokens: 10
+      },
+      completed: true,
+      category: 'customization',
+      dateCompleted: '2024-04-05'
+    },
+    {
+      id: '19',
+      name: 'Avatar Collector',
+      desc: 'Unlock 10 different avatar options',
+      icon: '👤',
+      progress: 5,
+      total: 10,
+      rarity: 'rare',
+      reward: {
+        xp: 100,
+        tokens: 75
+      },
+      completed: false,
+      category: 'customization'
+    },
+    {
+      id: '20',
+      name: 'Theme Master',
+      desc: 'Create a custom theme that is used by 50 users',
+      icon: '💅',
+      progress: 12,
+      total: 50,
+      rarity: 'epic',
+      reward: {
+        xp: 300,
+        tokens: 150
+      },
+      completed: false,
+      category: 'customization'
+    },
+
+    // EVENTS
+    {
+      id: '21',
+      name: 'Event Attendee',
+      desc: 'Attend your first virtual event',
+      icon: '📅',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 50,
+        tokens: 25
+      },
+      completed: true,
+      category: 'events',
+      dateCompleted: '2024-05-02'
+    },
+    {
+      id: '22',
+      name: 'Event Host',
+      desc: 'Host a virtual event with at least 10 attendees',
+      icon: '🎤',
+      progress: 0,
+      total: 10,
+      rarity: 'rare',
+      reward: {
+        xp: 200,
+        tokens: 100
+      },
+      completed: false,
+      category: 'events'
+    },
+    {
+      id: '23',
+      name: 'Conference Speaker',
+      desc: 'Present at a major virtual conference',
+      icon: '💬',
+      progress: 0,
+      total: 1,
+      rarity: 'legendary',
+      reward: {
+        xp: 750,
+        tokens: 500
+      },
+      completed: false,
+      category: 'events'
+    },
+
+    // WALLET & BLOCKCHAIN
+    {
+      id: '24',
+      name: 'Wallet Creator',
+      desc: 'Create your first blockchain wallet',
+      icon: '💰',
+      progress: 100,
+      total: 100,
+      rarity: 'common',
+      reward: {
+        xp: 50,
+        tokens: 50
+      },
+      completed: true,
+      category: 'wallet',
+      dateCompleted: '2024-03-25'
+    },
+    {
+      id: '25',
+      name: 'Token Collector',
+      desc: 'Collect 1000 INK tokens',
+      icon: '🪙',
+      progress: 425,
+      total: 1000,
+      rarity: 'rare',
+      reward: {
+        xp: 300,
+        tokens: 100
+      },
+      completed: false,
+      category: 'wallet'
+    },
+    {
+      id: '26',
+      name: 'NFT Creator',
+      desc: 'Mint your first educational NFT',
+      icon: '🎭',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 500,
+        tokens: 250
+      },
+      completed: false,
+      category: 'wallet'
+    },
+
+    // PROGRESS & DEDICATION
+    {
+      id: '27',
+      name: 'Daily Learner',
+      desc: 'Log in for 7 consecutive days',
+      icon: '📆',
+      progress: 7,
+      total: 7,
+      rarity: 'common',
+      reward: {
+        xp: 70,
+        tokens: 35
+      },
+      completed: true,
+      category: 'progress',
+      dateCompleted: '2024-04-22'
+    },
+    {
+      id: '28',
+      name: 'Study Streak',
+      desc: 'Complete learning activities for 30 consecutive days',
+      icon: '🔥',
+      progress: 14,
+      total: 30,
+      rarity: 'rare',
+      reward: {
+        xp: 300,
+        tokens: 150
+      },
+      completed: false,
+      category: 'progress'
+    },
+    {
+      id: '29',
+      name: 'Brain Dedication',
+      desc: 'Spend 100 hours in learning activities',
+      icon: '⏱️',
+      progress: 46,
+      total: 100,
+      rarity: 'epic',
+      reward: {
+        xp: 750,
+        tokens: 350
+      },
+      completed: false,
+      category: 'progress'
+    },
+    {
+      id: '30',
+      name: 'Learning Legend',
+      desc: 'Complete 1000 learning activities of any kind',
+      icon: '👑',
+      progress: 214,
+      total: 1000,
+      rarity: 'legendary',
+      reward: {
+        xp: 2000,
+        tokens: 1000
+      },
+      completed: false,
+      category: 'progress'
+    },
+
+    // HIDDEN & RARE
+    {
+      id: '31',
+      name: 'Easter Egg Hunter',
+      desc: 'Find a hidden feature in the platform',
+      icon: '🥚',
+      progress: 100,
+      total: 100,
+      rarity: 'rare',
+      reward: {
+        xp: 100,
+        tokens: 50
+      },
+      completed: true,
+      category: 'hidden',
+      dateCompleted: '2024-05-01'
+    },
+    {
+      id: '32',
+      name: 'Night Owl',
+      desc: 'Study for 2 hours between 12 AM and 5 AM',
+      icon: '🦉',
+      progress: 85,
+      total: 120,
+      rarity: 'rare',
+      reward: {
+        xp: 150,
+        tokens: 75
+      },
+      completed: false,
+      category: 'hidden'
+    },
+    {
+      id: '33',
+      name: 'Lucky Number',
+      desc: 'Score exactly 777 points in a game',
+      icon: '🎰',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 777,
+        tokens: 77
+      },
+      completed: false,
+      category: 'hidden'
+    },
+    {
+      id: '34',
       name: 'Early Bird',
       desc: 'Join during beta phase',
       icon: '🌟',
@@ -115,8 +564,250 @@ export const Achievements = () => {
         tokens: 500
       },
       completed: true,
-      category: 'special',
+      category: 'hidden',
       dateCompleted: '2024-03-01'
+    },
+    
+    // ADDITIONAL ACHIEVEMENTS TO REACH 50
+    {
+      id: '35',
+      name: 'Quiz Streak',
+      desc: 'Complete 10 quizzes in a row with at least 80% score',
+      icon: '🔄',
+      progress: 6,
+      total: 10,
+      rarity: 'rare',
+      reward: {
+        xp: 250,
+        tokens: 125
+      },
+      completed: false,
+      category: 'quizzing'
+    },
+    {
+      id: '36',
+      name: 'Tournament Organizer',
+      desc: 'Create and host a tournament with at least 8 participants',
+      icon: '📋',
+      progress: 0,
+      total: 8,
+      rarity: 'epic',
+      reward: {
+        xp: 400,
+        tokens: 200
+      },
+      completed: false,
+      category: 'tournaments'
+    },
+    {
+      id: '37',
+      name: 'Game Designer',
+      desc: 'Create a learning game that is played by 25 users',
+      icon: '🎲',
+      progress: 0,
+      total: 25,
+      rarity: 'epic',
+      reward: {
+        xp: 500,
+        tokens: 250
+      },
+      completed: false,
+      category: 'gamified'
+    },
+    {
+      id: '38',
+      name: 'Battle Royale Champion',
+      desc: 'Win a learning battle royale game',
+      icon: '⚔️',
+      progress: 0,
+      total: 1,
+      rarity: 'legendary',
+      reward: {
+        xp: 750,
+        tokens: 500
+      },
+      completed: false,
+      category: 'gamified'
+    },
+    {
+      id: '39',
+      name: 'Social Butterfly',
+      desc: 'Connect with 25 other students',
+      icon: '🦋',
+      progress: 12,
+      total: 25,
+      rarity: 'rare',
+      reward: {
+        xp: 200,
+        tokens: 100
+      },
+      completed: false,
+      category: 'social'
+    },
+    {
+      id: '40',
+      name: 'Course Creator',
+      desc: 'Create a course that is taken by 50 students',
+      icon: '📚',
+      progress: 8,
+      total: 50,
+      rarity: 'legendary',
+      reward: {
+        xp: 1000,
+        tokens: 500
+      },
+      completed: false,
+      category: 'courses'
+    },
+    {
+      id: '41',
+      name: 'Badge Designer',
+      desc: 'Create a custom badge that is approved by admins',
+      icon: '🏷️',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 350,
+        tokens: 175
+      },
+      completed: false,
+      category: 'customization'
+    },
+    {
+      id: '42',
+      name: 'Event Series',
+      desc: 'Attend 10 events in the same series',
+      icon: '🎪',
+      progress: 4,
+      total: 10,
+      rarity: 'epic',
+      reward: {
+        xp: 400,
+        tokens: 200
+      },
+      completed: false,
+      category: 'events'
+    },
+    {
+      id: '43',
+      name: 'Blockchain Scholar',
+      desc: 'Complete the blockchain fundamentals course',
+      icon: '⛓️',
+      progress: 75,
+      total: 100,
+      rarity: 'rare',
+      reward: {
+        xp: 300,
+        tokens: 150
+      },
+      completed: false,
+      category: 'wallet'
+    },
+    {
+      id: '44',
+      name: 'Weekly Warrior',
+      desc: 'Complete at least 20 learning activities every week for a month',
+      icon: '📊',
+      progress: 2,
+      total: 4,
+      rarity: 'epic',
+      reward: {
+        xp: 600,
+        tokens: 300
+      },
+      completed: false,
+      category: 'progress'
+    },
+    {
+      id: '45',
+      name: 'Secret Society',
+      desc: 'Join a hidden study group',
+      icon: '🎭',
+      progress: 0,
+      total: 1,
+      rarity: 'epic',
+      reward: {
+        xp: 500,
+        tokens: 250
+      },
+      completed: false,
+      category: 'hidden'
+    },
+    {
+      id: '46',
+      name: 'Quiz Creator Elite',
+      desc: 'Create 25 quizzes that are taken by at least 10 users each',
+      icon: '✨',
+      progress: 4,
+      total: 25,
+      rarity: 'legendary',
+      reward: {
+        xp: 1250,
+        tokens: 625
+      },
+      completed: false,
+      category: 'quizzing'
+    },
+    {
+      id: '47',
+      name: 'Global Tournament',
+      desc: 'Participate in an international tournament',
+      icon: '🌎',
+      progress: 0,
+      total: 1,
+      rarity: 'legendary',
+      reward: {
+        xp: 800,
+        tokens: 400
+      },
+      completed: false,
+      category: 'tournaments'
+    },
+    {
+      id: '48',
+      name: 'Friend Referrer',
+      desc: 'Refer 5 friends who join the platform',
+      icon: '👋',
+      progress: 2,
+      total: 5,
+      rarity: 'rare',
+      reward: {
+        xp: 250,
+        tokens: 125
+      },
+      completed: false,
+      category: 'social'
+    },
+    {
+      id: '49',
+      name: 'Coding Maestro',
+      desc: 'Solve 50 coding challenges',
+      icon: '💻',
+      progress: 22,
+      total: 50,
+      rarity: 'epic',
+      reward: {
+        xp: 600,
+        tokens: 300
+      },
+      completed: false,
+      category: 'courses'
+    },
+    {
+      id: '50',
+      name: 'Brain Legend',
+      desc: 'Unlock 40 other achievements',
+      icon: '🧩',
+      progress: 5,
+      total: 40,
+      rarity: 'legendary',
+      reward: {
+        xp: 2500,
+        tokens: 1000
+      },
+      completed: false,
+      category: 'hidden'
     }
   ];
 
@@ -147,15 +838,15 @@ export const Achievements = () => {
   };
 
   const filteredAchievements = achievements
-    .filter(achievement => 
+    .filter((achievement: Achievement) => 
       (activeCategory === 'all' || achievement.category === activeCategory) &&
       (achievement.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
        achievement.desc.toLowerCase().includes(searchQuery.toLowerCase()))
     )
-    .sort((a, b) => {
+    .sort((a: Achievement, b: Achievement) => {
       switch (sortBy) {
         case 'rarity':
-          const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
+          const rarityOrder: Record<string, number> = { legendary: 0, epic: 1, rare: 2, common: 3 };
           return rarityOrder[a.rarity] - rarityOrder[b.rarity];
         case 'progress':
           return (b.progress / b.total) - (a.progress / a.total);
@@ -170,10 +861,10 @@ export const Achievements = () => {
     });
 
   const stats = {
-    total: achievements.length,
-    completed: achievements.filter(a => a.completed).length,
-    totalXP: achievements.reduce((sum, a) => sum + (a.completed ? a.reward.xp : 0), 0),
-    totalTokens: achievements.reduce((sum, a) => sum + (a.completed ? a.reward.tokens : 0), 0)
+    total: 50, // Total number of achievements in the system
+    completed: achievements.filter((a: Achievement) => a.completed).length,
+    totalXP: achievements.reduce((sum: number, a: Achievement) => sum + (a.completed ? a.reward.xp : 0), 0),
+    totalTokens: achievements.reduce((sum: number, a: Achievement) => sum + (a.completed ? a.reward.tokens : 0), 0)
   };
 
   return (
@@ -181,7 +872,18 @@ export const Achievements = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="font-pixel text-2xl text-primary">Achievements</h1>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => navigate('/townsquare')}
+              className="p-2 rounded-lg hover:bg-primary/20 transition-colors"
+            >
+              <ArrowLeft size={20} className="text-primary" />
+            </button>
+            <div className="flex items-center gap-3">
+              <Trophy size={24} className="text-primary" />
+              <h1 className="font-pixel text-2xl text-primary">Achievements</h1>
+            </div>
+          </div>
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -238,40 +940,53 @@ export const Achievements = () => {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Category Filter */}
         {showFilters && (
-          <div className="mb-6 p-4 bg-dark/50 border border-primary/20 rounded-lg">
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Category</label>
-                <div className="flex gap-2">
-                  {['all', 'academic', 'social', 'special'].map(category => (
-                    <button
-                      key={category}
-                      onClick={() => setActiveCategory(category)}
-                      className={`px-3 py-1 rounded-lg text-sm capitalize ${
-                        activeCategory === category
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
+          <div className="bg-dark/30 border border-primary/20 rounded-lg p-4 mb-6">
+            <div className="mb-4">
+              <h3 className="font-pixel text-primary mb-2">Categories</h3>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  'all',
+                  'quizzing',
+                  'tournaments',
+                  'gamified',
+                  'social',
+                  'courses',
+                  'customization',
+                  'events',
+                  'wallet',
+                  'progress',
+                  'hidden'
+                ].map(category => (
+                  <button
+                    key={category}
+                    onClick={() => setActiveCategory(category as 'all' | 'quizzing' | 'tournaments' | 'gamified' | 'social' | 'courses' | 'customization' | 'events' | 'wallet' | 'progress' | 'hidden')}
+                    className={`px-3 py-1 rounded-lg text-sm capitalize whitespace-nowrap ${activeCategory === category ? 'bg-primary/20 text-primary' : 'bg-dark/50 text-gray-400 hover:bg-primary/10'}`}
+                  >
+                    {category === 'gamified' ? 'gamified learning' : 
+                     category === 'social' ? 'social & squad' : 
+                     category === 'courses' ? 'courses & teaching' : 
+                     category === 'customization' ? 'customization' : 
+                     category === 'events' ? 'events' : 
+                     category === 'wallet' ? 'wallet & blockchain' : 
+                     category === 'progress' ? 'progress & dedication' : 
+                     category === 'hidden' ? 'hidden & rare' : category}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Sort By</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'rarity' | 'progress' | 'recent')}
-                  className="bg-dark/50 border border-primary/20 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-primary"
-                >
-                  <option value="rarity">Rarity</option>
-                  <option value="progress">Progress</option>
-                  <option value="recent">Recently Completed</option>
-                </select>
-              </div>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'rarity' | 'progress' | 'recent')}
+                className="bg-dark/50 border border-primary/20 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-primary"
+              >
+                <option value="rarity">Rarity</option>
+                <option value="progress">Progress</option>
+                <option value="recent">Recently Completed</option>
+              </select>
             </div>
           </div>
         )}
@@ -366,4 +1081,4 @@ export const Achievements = () => {
       </div>
     </div>
   );
-}; 
+}

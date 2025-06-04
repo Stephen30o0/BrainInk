@@ -30,16 +30,23 @@ export const WalletProvider: React.FC<{
   // Load wallet state from localStorage
   useEffect(() => {
     const savedWallet = localStorage.getItem('wallet');
+    const defaultWallet = {
+      balance: 0,
+      address: null,
+      transactions: []
+    };
+    
     if (savedWallet) {
-      const {
-        balance,
-        address,
-        transactions
-      } = JSON.parse(savedWallet);
-      setBalance(balance);
-      setAddress(address);
-      setTransactions(transactions);
+      const walletData = JSON.parse(savedWallet);
+      setBalance(walletData.balance || defaultWallet.balance);
+      setAddress(walletData.address || defaultWallet.address);
+      setTransactions(walletData.transactions || defaultWallet.transactions);
       setIsConnected(true);
+    } else {
+      // Initialize with default values if no saved wallet exists
+      setBalance(defaultWallet.balance);
+      setAddress(defaultWallet.address);
+      setTransactions(defaultWallet.transactions);
     }
   }, []);
   // Save wallet state to localStorage

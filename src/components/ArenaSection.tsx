@@ -227,7 +227,7 @@ export const ArenaSection = () => {
             </div>}
         </div>
         <div className="text-center mt-12">
-          <PixelButton>View All Tournaments</PixelButton>
+          <PixelButton href="#hero">View All Tournaments</PixelButton>
         </div>
       </div>
     </section>;
