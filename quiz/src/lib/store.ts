@@ -19,11 +19,12 @@ const setToStorage = <T,>(key: string, value: T): void => {
   }
 };
 // Messages store with subject support
-interface MessageWithSubject extends Message {
+export interface MessageWithSubject extends Message {
   subject?: string;
   conversationId?: string;
   content: string | React.ReactNode | any;
   type: 'text' | 'quiz-start' | 'quiz-question' | 'quiz-result' | 'past-paper' | 'pdf';
+  title?: string;
 }
 export const useMessages = () => {
   const [messages, setMessages] = useState<MessageWithSubject[]>(() => getFromStorage(MESSAGES_STORAGE_KEY, []));
@@ -36,20 +37,21 @@ export const useMessages = () => {
   }, [subjectMessages]);
   // Add a message with subject tagging
   const addMessage = useCallback((message: MessageWithSubject) => {
-    const messageWithDefaults = {
+    const currentSubject = message.subject || 'General';
+    const messageWithDefaults: MessageWithSubject = {
       ...message,
       conversationId: message.conversationId || uuidv4(),
       timestamp: message.timestamp || Date.now(),
-      subject: message.subject || 'General',
+      subject: currentSubject,
       title: message.title || (typeof message.content === 'string' ? message.content.slice(0, 50) + '...' : 'New Chat')
     };
     setMessages(prev => [...prev, messageWithDefaults]);
     // Update subject messages
     setSubjectMessages(prev => {
-      const existingMessages = prev[messageWithDefaults.subject] || [];
+      const existingMessages = prev[currentSubject] || [];
       return {
         ...prev,
-        [messageWithDefaults.subject]: [...existingMessages, messageWithDefaults]
+        [currentSubject]: [...existingMessages, messageWithDefaults]
       };
     });
   }, []);
@@ -60,7 +62,7 @@ export const useMessages = () => {
   }, []);
   // Add a function to add a past paper to history
   const addPastPaper = useCallback((paper: any, subject: string) => {
-    const message = {
+    const message: MessageWithSubject = {
       id: paper.id,
       sender: 'kana',
       content: paper,

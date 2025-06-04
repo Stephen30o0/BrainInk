@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { HudNavigation } from './components/HudNavigation';
 import { HeroSection } from './components/HeroSection';
 import { KanaSection } from './components/KanaSection';
@@ -20,7 +20,7 @@ import { TownSquare } from './pages/TownSquare';
 import { MessagingPage } from './pages/MessagingPage';
 import { WalletProvider } from './components/shared/WalletContext';
 import { ChatbotInterface } from './pages/ChatbotInterface';
-import { Achievements } from './pages/Achievements';
+import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
 
 export function App() {

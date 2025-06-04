@@ -23,7 +23,7 @@ const Layout = () => {
   const handleNewChat = () => {
     setActiveChat(null);
   };
-  return <div className="flex h-screen w-full bg-[#0a0e17] text-white overflow-hidden">
+  return <div className="flex h-full w-full bg-[#0a0e17] text-white overflow-hidden">
       <Sidebar onChatSelect={handleChatSelect} activeChat={activeChat} />
       <ChatArea openPDFReader={openPDFReader} toggleHistoryPanel={() => setIsHistoryPanelOpen(!isHistoryPanelOpen)} activeChat={activeChat} onChatSelect={handleChatSelect} />
       {isPDFReaderOpen && <PDFReaderModal pdfUrl={selectedPDF} onClose={() => setIsPDFReaderOpen(false)} />}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, BookOpen, Trophy, Users, Search, Bell, Mail, Menu, User, Sparkles, Wallet } from 'lucide-react';
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel';
 import { MessagesPanel } from '../components/dashboard/MessagesPanel';
@@ -26,7 +27,6 @@ interface NavItem {
 
 export const TownSquare = () => {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState<Section>('lab');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [activeHUDButton, setActiveHUDButton] = useState<string | null>(null);
@@ -189,19 +189,28 @@ export const TownSquare = () => {
       </nav>
 
       {/* Side Panels */}
-      {activeSidePanel && (
-        <div className="fixed left-64 top-16 bottom-0 w-96 bg-dark/95 border-r border-primary/20 overflow-y-auto z-30">
-          {activeSidePanel === 'profile' && <ProfilePanel />}
-          {activeSidePanel === 'quests' && <QuestLogPanel />}
-          {activeSidePanel === 'inventory' && <InventoryPanel />}
-          {activeSidePanel === 'achievements' && <AchievementsPanel />}
-          {activeSidePanel === 'friends' && <FriendsPanel />}
-          {activeSidePanel === 'messages' && <MessagesPanel isOpen={true} onClose={() => setActiveSidePanel(null)} />}
-        </div>
-      )}
+      <AnimatePresence>
+        {activeSidePanel && (
+          <motion.div
+            key={activeSidePanel} // Ensures AnimatePresence tracks the component correctly
+            className="fixed left-64 top-16 bottom-0 w-96 bg-dark/95 border-r border-primary/20 overflow-y-auto z-30"
+            initial={{ x: "-100%", opacity: 0 }}
+            animate={{ x: "0%", opacity: 1 }}
+            exit={{ x: "-100%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            {activeSidePanel === 'profile' && <ProfilePanel />}
+            {activeSidePanel === 'quests' && <QuestLogPanel />}
+            {activeSidePanel === 'inventory' && <InventoryPanel />}
+            {activeSidePanel === 'achievements' && <AchievementsPanel />}
+            {activeSidePanel === 'friends' && <FriendsPanel />}
+            {activeSidePanel === 'messages' && <MessagesPanel isOpen={true} onClose={() => setActiveSidePanel(null)} />}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Area */}
-      <main className={`lg:ml-64 ${activeSidePanel ? 'lg:ml-[384px]' : ''} pt-16 min-h-screen transition-all duration-300`}>
+      <main className={`flex-1 pt-16 min-h-screen transition-all duration-300 ${isMobileMenuOpen ? 'ml-64' : 'ml-0'} ${activeSidePanel ? 'lg:ml-[40rem]' : 'lg:ml-64'}`}>
         <GameEnvironment />
       </main>
 

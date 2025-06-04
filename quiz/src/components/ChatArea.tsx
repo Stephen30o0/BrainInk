@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef, isValidElement } from 'react';
-import { Send, Mic, Search, X, File, BarChart2, Clock, AlertCircle, BookOpen, Plus } from 'lucide-react';
-import { useMessages, useXP, useQuizAttempts } from '../lib/store';
+import { Send, Mic, Search, X, File, BarChart2, BookOpen } from 'lucide-react';
+import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
 import { v4 as uuidv4 } from 'uuid';
 import MessageAnimation from './MessageAnimation';
 import { useTimer } from '../lib/hooks/useTimer';
 import quizzes from './data/QuizData';
 import pastPapers from './data/PastPaperData';
 import QuizSelectionModal from './QuizSelectionModal';
-import { Quiz, QuizQuestion } from '../lib/types';
+import { Quiz, QuizQuestion, QuizAttempt } from '../lib/types';
 import { useQuiz } from '../lib/hooks/useQuiz';
-import QuizCard from './quiz/QuizCard';
 import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
@@ -36,15 +35,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const {
     messages,
     addMessage,
-    getMessagesForSubject,
     setMessages
   } = useMessages();
   const {
-    xp,
     setXp
   } = useXP();
   const {
-    attempts,
     setAttempts
   } = useQuizAttempts();
   const [input, setInput] = useState('');
@@ -55,8 +51,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [currentQuizQuestion, setCurrentQuizQuestion] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, any>>({});
-  const [quizCompleted, setQuizCompleted] = useState(false);
-  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
+  const [showingExplanation, setShowingExplanation] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [quizSession, setQuizSession] = useState<{
     id: string;
@@ -64,17 +60,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     startTime: number;
   } | null>(null);
   const {
-    timeLeft,
     formattedTime,
-    start: startTimer,
-    isActive: timerActive,
     reset: resetTimer,
     setTimeLeft
   } = useTimer({
     initialTime: currentQuiz?.timeLimit || 60,
     onTimeUp: () => {
       if (currentQuiz) {
-        handleQuizTimeout();
+        // Auto-submit the quiz when time runs out
+        finishQuiz();
       }
     }
   });
@@ -114,10 +108,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     if (!input.trim()) return;
     // Create a conversation ID if none exists
     const conversationId = activeChat?.id?.toString() || uuidv4();
-    const subject = activeChat?.subject || detectSubject(input) || 'General';
+    const subject = activeChat?.subject || 'General';
     const title = activeChat?.title || input.slice(0, 50) + '...';
     // Add user message
-    const userMessage = {
+    const userMessage: MessageWithSubject = {
       id: uuidv4(),
       sender: 'user',
       content: input.trim(),
@@ -143,7 +137,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         responseText = `I understand you're asking about "${input}". I can help you learn about this topic. Would you like a detailed explanation, a quiz to test your knowledge, or some past paper questions on this subject?`;
       }
       // Create response message with same conversationId and subject
-      const responseMessage = {
+      const responseMessage: MessageWithSubject = {
         id: uuidv4(),
         sender: 'kana',
         content: responseText,
@@ -171,7 +165,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     // Set current quiz
     setCurrentQuiz(selectedQuiz);
     // Add quiz start message
-    const startMessage = {
+    const startMessage: MessageWithSubject = {
       id: uuidv4(),
       sender: 'kana',
       content: <div className="space-y-4">
@@ -199,7 +193,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const conversationId = activeChat?.id?.toString() || Date.now().toString();
     const subject = activeChat?.subject || paper.subject;
     // Create the initial message for this past paper
-    const paperMessage = {
+    const paperMessage: MessageWithSubject = {
       id: uuidv4(),
       sender: 'kana',
       content: <div className="space-y-4">
@@ -229,7 +223,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     // Add the message using addMessage
     addMessage(paperMessage);
     // Add a follow-up message
-    const followUpMessage = {
+    const followUpMessage: MessageWithSubject = {
       id: uuidv4(),
       sender: 'kana',
       content: `Would you like to:
@@ -244,208 +238,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     };
     addMessage(followUpMessage);
   };
-  const answerQuestion = (questionId: string, answer: any) => {
-    if (!currentQuiz || !quizSession) return;
-    // Save answer
-    setUserAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
-    // Move to next question or finish quiz
-    if (currentQuizQuestion < currentQuiz.questions.length - 1) {
-      // Progress to next question
-      const nextQuestionIndex = currentQuizQuestion + 1;
-      setCurrentQuizQuestion(nextQuestionIndex);
-      // Add next question message
-      const nextQuestion = currentQuiz.questions[nextQuestionIndex];
-      const questionMessage = {
-        id: uuidv4(),
-        sender: 'kana',
-        content: renderQuizQuestion(nextQuestion, nextQuestionIndex),
-        timestamp: Date.now(),
-        type: 'quiz-question'
-      };
-      setMessages(prevMessages => [...prevMessages, questionMessage]);
-      setInput('');
-    } else {
-      // Complete quiz
-      finishQuiz();
-    }
-  };
-  const finishQuiz = () => {
-    if (!currentQuiz || !quizSession) return;
-    // Calculate score
-    let correctAnswers = 0;
-    currentQuiz.questions.forEach(question => {
-      if (userAnswers[question.id] === question.correctAnswer) {
-        correctAnswers++;
-      }
-    });
-    const score = Math.round(correctAnswers / currentQuiz.questions.length * 100);
-    setQuizCompleted(true);
-    // Add XP based on score
-    const earnedXP = Math.round(score / 10) * 5;
-    setXp(prev => prev + earnedXP);
-    // Save quiz attempt
-    const attempt = {
-      id: uuidv4(),
-      quizId: currentQuiz.id,
-      startTime: quizSession.startTime,
-      endTime: Date.now(),
-      answers: userAnswers,
-      score,
-      completed: true
-    };
-    setAttempts(prev => [...prev, attempt]);
-    // Reset quiz session
-    setQuizSession(null);
-    // Show results
-    const resultMessage = {
-      id: uuidv4(),
-      sender: 'kana',
-      content: <div className="space-y-4">
-          <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
-            <h3 className="text-lg font-medium mb-2">
-              Quiz Results: {currentQuiz.title}
-            </h3>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <p className="text-sm text-gray-400">Score</p>
-                <p className={`text-xl font-bold ${score >= 70 ? 'text-green-500' : score >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
-                  {score}%
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">XP Earned</p>
-                <p className="text-xl font-bold text-blue-400">
-                  +{earnedXP} XP
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Time Taken</p>
-                <p className="text-xl font-bold">
-                  {Math.round((currentQuiz.timeLimit - timeLeft) / 60)} min
-                </p>
-              </div>
-            </div>
-            <div className="space-y-4 mt-6">
-              <h4 className="font-medium">Question Review</h4>
-              {currentQuiz.questions.map((question, idx) => {
-              const isCorrect = userAnswers[question.id] === question.correctAnswer;
-              return <div key={question.id} className={`p-3 rounded-md border ${isCorrect ? 'border-green-500 bg-green-500 bg-opacity-10' : 'border-red-500 bg-red-500 bg-opacity-10'}`}>
-                    <div className="flex justify-between">
-                      <p className="font-medium">Question {idx + 1}</p>
-                      {isCorrect ? <span className="text-green-500 font-medium">
-                          Correct
-                        </span> : <span className="text-red-500 font-medium">
-                          Incorrect
-                        </span>}
-                    </div>
-                    <p className="text-sm mt-1">{question.question}</p>
-                    <button onClick={() => setShowingExplanation(question.id)} className="text-xs text-blue-400 mt-2 flex items-center">
-                      View Explanation
-                    </button>
-                    {showingExplanation === question.id && <div className="mt-2 p-2 bg-[#1a223a] rounded text-sm">
-                        <p className="font-medium mb-1">Explanation:</p>
-                        <p>{question.explanation}</p>
-                      </div>}
-                  </div>;
-            })}
-            </div>
-            <div className="flex space-x-3 mt-6">
-              <button onClick={toggleHistoryPanel} className="flex-1 py-2 bg-[#1a223a] hover:bg-[#232d4a] rounded-md font-medium transition-colors flex items-center justify-center">
-                <BarChart2 className="h-4 w-4 mr-2" />
-                View History
-              </button>
-              <button onClick={() => startQuiz(currentQuiz.id)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors">
-                Try Again
-              </button>
-            </div>
-          </div>
-          <div>
-            <p>Great job completing the quiz! Would you like to:</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <button onClick={() => {
-              const randomQuiz = quizzes.find(q => q.id !== currentQuiz.id);
-              if (randomQuiz) startQuiz(randomQuiz.id);
-            }} className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
-                Try another quiz
-              </button>
-              <button className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
-                Practice weak areas
-              </button>
-              <button className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
-                Continue learning
-              </button>
-            </div>
-          </div>
-        </div>,
-      timestamp: Date.now(),
-      type: 'quiz-result'
-    };
-    setMessages(prevMessages => [...prevMessages, resultMessage]);
-  };
-  const handleQuizTimeout = () => {
-    if (!currentQuiz || !quizSession) return;
-    // Save incomplete attempt
-    const attempt = {
-      id: uuidv4(),
-      quizId: currentQuiz.id,
-      startTime: quizSession.startTime,
-      endTime: Date.now(),
-      answers: userAnswers,
-      score: 0,
-      completed: false
-    };
-    setAttempts(prev => [...prev, attempt]);
-    // Reset quiz session
-    setQuizSession(null);
-    setQuizCompleted(true);
-    // Add timeout message
-    const timeoutMessage = {
-      id: uuidv4(),
-      sender: 'kana',
-      content: <div className="space-y-4">
-          <div className="bg-[#141b2d] p-4 rounded-lg border border-red-500">
-            <div className="flex items-center mb-3">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-              <h3 className="text-lg font-medium text-red-500">Time's Up!</h3>
-            </div>
-            <p>
-              You've run out of time for this quiz. Don't worry, you can always
-              try again!
-            </p>
-            <div className="flex space-x-3 mt-4">
-              <button onClick={() => startQuiz(currentQuiz.id)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors">
-                Try Again
-              </button>
-              <button className="flex-1 py-2 bg-[#1a223a] hover:bg-[#232d4a] rounded-md font-medium transition-colors">
-                Review Material
-              </button>
-            </div>
-          </div>
-        </div>,
-      timestamp: Date.now(),
-      type: 'quiz-result'
-    };
-    setMessages(prevMessages => [...prevMessages, timeoutMessage]);
-  };
-  const renderTimer = () => {
-    const percentage = timeLeft / (currentQuiz?.timeLimit || 60) * 100;
-    const color = percentage > 50 ? 'text-green-500' : percentage > 25 ? 'text-yellow-500' : 'text-red-500';
-    return <div className="relative inline-flex items-center">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <svg className="w-12 h-12">
-            <circle className="text-[#1a223a]" strokeWidth="4" stroke="currentColor" fill="transparent" r="20" cx="24" cy="24" />
-            <circle className={`${color} transition-all duration-1000 ease-in-out`} strokeWidth="4" strokeDasharray={125.6} strokeDashoffset={125.6 * ((100 - percentage) / 100)} strokeLinecap="round" stroke="currentColor" fill="transparent" r="20" cx="24" cy="24" />
-          </svg>
-        </div>
-        <span className={`text-sm font-medium ${color} ml-3 relative z-10`}>
-          {formattedTime}
-        </span>
-      </div>;
-  };
-  const renderQuizQuestion = (question: QuizQuestion | undefined, index: number) => {
+  // Function to render a quiz question
+  const renderQuizQuestion = (question: QuizQuestion, index: number) => {
     if (!currentQuiz || !question) {
       return <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
           <p>Loading question...</p>
@@ -457,7 +251,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             {currentQuiz.title} - Question {index + 1}/
             {currentQuiz.questions.length}
           </h3>
-          {renderTimer()}
+          {formattedTime}
         </div>
         <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
           <p className="mb-4">{question.question}</p>
@@ -474,6 +268,198 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </div>}
         </div>
       </div>;
+  };
+
+  const handleQuizCompletion = () => {
+    if (!currentQuiz || !quizSession) return; // Ensure currentQuiz and quizSession are available
+
+    // Calculate the score
+    const correctCount = Object.keys(userAnswers).filter(id => {
+      const question = currentQuiz.questions.find(q => q.id === id);
+      return question && userAnswers[id] === question.correctAnswer;
+    }).length;
+    
+    const score = Math.round((correctCount / currentQuiz.questions.length) * 100);
+    const earnedXP = score >= 70 ? 100 : score >= 50 ? 50 : 25;
+    
+    // Add XP
+    setXp(prevXP => prevXP + earnedXP);
+    
+    // Save the attempt
+    const attemptId = uuidv4();
+    const endTime = Date.now();
+    const newAttempt: QuizAttempt = {
+      id: attemptId,
+      quizId: currentQuiz.id,
+      startTime: quizSession.startTime, 
+      endTime: endTime,
+      answers: userAnswers,
+      score: score,
+      completed: true,
+    };
+    setAttempts(prev => [...prev, newAttempt]);
+    
+    // Mark quiz as completed in local state if needed (quizCompleted state variable)
+    setQuizCompleted(true);
+    
+    // Add result message
+    const resultMessage: MessageWithSubject = {
+      id: uuidv4(),
+      sender: 'kana',
+      subject: activeChat?.subject || 'Quiz',
+      conversationId: activeChat?.id?.toString() || uuidv4(),
+      content: (<>
+        <div className="space-y-6">
+          <div className="grid grid-cols-3 gap-4 bg-[#1a223a]/50 p-4 rounded-lg">
+            <div>
+              <p className="text-sm text-gray-400">Score</p>
+              <p className={`text-xl font-bold ${score >= 70 ? 'text-green-500' : score >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                {score}%
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400">XP Earned</p>
+              <p className="text-xl font-bold text-blue-400">
+                +{earnedXP} XP
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400">Time Taken</p>
+              <p className="text-xl font-bold">
+                {Math.round((endTime - quizSession.startTime) / (1000 * 60))} min
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4 mt-6">
+            <h4 className="font-medium">Question Review</h4>
+            {currentQuiz.questions.map((question, idx) => {
+              const isCorrect = userAnswers[question.id] === question.correctAnswer;
+              return <div key={question.id} className={`p-3 rounded-md border ${isCorrect ? 'border-green-500 bg-green-500 bg-opacity-10' : 'border-red-500 bg-red-500 bg-opacity-10'}`}>
+                <div className="flex justify-between">
+                  <p className="font-medium">Question {idx + 1}</p>
+                  {isCorrect ? <span className="text-green-500 font-medium">
+                      Correct
+                    </span> : <span className="text-red-500 font-medium">
+                      Incorrect
+                    </span>}
+                </div>
+                <p className="text-sm mt-1">{question.question}</p>
+                <button onClick={() => setShowingExplanation(prev => prev === question.id ? null : question.id)} className="text-xs text-blue-400 mt-2 flex items-center">
+                  View Explanation
+                </button>
+                {showingExplanation === question.id && <div className="mt-2 p-2 bg-[#1a223a] rounded text-sm">
+                    <p className="font-medium mb-1">Explanation:</p>
+                    <p>{question.explanation}</p>
+                  </div>}
+              </div>;
+            })}
+          </div>
+          <div className="flex space-x-3 mt-6">
+            <button onClick={toggleHistoryPanel} className="flex-1 py-2 bg-[#1a223a] hover:bg-[#232d4a] rounded-md font-medium transition-colors flex items-center justify-center">
+              <BarChart2 className="h-4 w-4 mr-2" />
+              View History
+            </button>
+            <button onClick={() => startQuiz(currentQuiz.id)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors">
+              Try Again
+            </button>
+          </div>
+        </div>
+        <div>
+          <p>Great job completing the quiz! Would you like to:</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <button onClick={() => {
+              const randomQuiz = quizzes.find(q => q.id !== currentQuiz.id);
+              if (randomQuiz) startQuiz(randomQuiz.id);
+            }} className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
+              Try another quiz
+            </button>
+            <button className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
+              Practice weak areas
+            </button>
+            <button className="px-3 py-1 bg-[#1a223a] hover:bg-[#232d4a] rounded-md text-sm transition-colors">
+              Continue learning
+            </button>
+          </div>
+        </div>
+      </>),
+      timestamp: Date.now(),
+      type: 'quiz-result'
+    };
+    setMessages(prevMessages => [...prevMessages, resultMessage]);
+    
+    // Optionally, reset quiz state here if not handled by a parent component or effect
+    // setQuizSession(null);
+    // setCurrentQuiz(null);
+    // setUserAnswers({});
+    // setCurrentQuizQuestion(0);
+  };
+
+  const answerQuestion = (questionId: string, answer: any) => {
+    if (!currentQuiz || !quizSession) return;
+    // Save answer
+    setUserAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+    // Move to next question or finish quiz
+    if (currentQuizQuestion < currentQuiz.questions.length - 1) {
+      // Progress to next question
+      const nextQuestionIndex = currentQuizQuestion + 1;
+      setCurrentQuizQuestion(nextQuestionIndex);
+      // Add next question message
+      const nextQuestion = currentQuiz.questions[nextQuestionIndex];
+      const questionMessage: MessageWithSubject = {
+        id: uuidv4(),
+        sender: 'kana',
+        content: renderQuizQuestion(nextQuestion, nextQuestionIndex),
+        timestamp: Date.now(),
+        type: 'quiz-question'
+      };
+      setMessages(prevMessages => [...prevMessages, questionMessage]);
+      setInput('');
+    } else {
+      handleQuizCompletion();
+    }
+  };
+
+  // Function to finish the quiz (handles premature ending, e.g., timer out)
+  const finishQuiz = () => {
+    if (!currentQuiz || !quizSession) return;
+    // Save incomplete attempt if not already completed by answering last question
+    if (!quizCompleted) { // Check if quiz wasn't completed via normal flow
+      const attemptId = uuidv4();
+      const newAttempt: QuizAttempt = {
+        id: attemptId,
+        quizId: currentQuiz.id,
+        startTime: quizSession.startTime,
+        endTime: Date.now(),
+        answers: userAnswers,
+        // Score might be 0 or partially calculated if desired for incomplete attempts
+        score: 0, 
+        completed: false, // Explicitly false for premature finish
+      };
+      setAttempts(prev => [...prev, newAttempt]);
+      
+      // Add a message indicating the quiz ended, if desired
+      const prematureFinishMessage: MessageWithSubject = {
+        id: uuidv4(),
+        sender: 'kana',
+        subject: activeChat?.subject || 'Quiz',
+        conversationId: activeChat?.id?.toString() || uuidv4(),
+        content: 'The quiz time ran out or was ended prematurely.',
+        timestamp: Date.now(),
+        type: 'text' // Or a specific type like 'quiz-ended-prematurely'
+      };
+      addMessage(prematureFinishMessage);
+    }
+
+    // Reset quiz session states
+    setQuizSession(null);
+    setCurrentQuiz(null);
+    setUserAnswers({});
+    setCurrentQuizQuestion(0);
+    setQuizCompleted(false); // Reset for next quiz
+    resetTimer(); // Reset the timer as well
   };
   const handlePastPapersClick = () => {
     setQuizSelectionType('pastpaper');
@@ -516,7 +502,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       if (results) {
         setAttempts(prev => [...prev, results]);
         // Add review message
-        const reviewMessage = {
+        const reviewMessage: MessageWithSubject = {
           id: uuidv4(),
           sender: 'kana',
           content: <QuizReview title={results.title} questions={results.questions} answers={results.answers} score={results.score} onRetry={() => startQuiz(results.quizId)} />,
@@ -549,23 +535,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         </button>
       </div>
     </div>;
-  const detectSubject = (message: string): string | null => {
-    const subjects = {
-      Mathematics: ['math', 'algebra', 'geometry', 'calculus'],
-      Physics: ['physics', 'force', 'motion', 'energy'],
-      Chemistry: ['chemistry', 'molecule', 'reaction', 'acid'],
-      Biology: ['biology', 'cell', 'organism', 'photosynthesis'],
-      English: ['english', 'grammar', 'literature', 'writing']
-    };
-    const lowercaseMessage = message.toLowerCase();
-    for (const [subject, keywords] of Object.entries(subjects)) {
-      if (keywords.some(keyword => lowercaseMessage.includes(keyword))) {
-        return subject;
-      }
-    }
-    return null;
-  };
-  return <>
+
+  return (<>
       <div className="flex-1 h-full flex flex-col relative">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-[#1a223a]">
@@ -632,9 +603,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               Practice Quiz
             </button>
           </div>
-        </div>
-      </div>
-      <QuizSelectionModal isOpen={isQuizSelectionOpen} onClose={() => setIsQuizSelectionOpen(false)} onSelectQuiz={handleQuizSelection} type={quizSelectionType} />
-    </>;
+      
+    </div>
+  </div>
+    <QuizSelectionModal isOpen={isQuizSelectionOpen} onClose={() => setIsQuizSelectionOpen(false)} onSelectQuiz={handleQuizSelection} type={quizSelectionType} />
+  </>);
 };
+
 export default ChatArea;

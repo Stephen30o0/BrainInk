@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, X, Users } from 'react-feather';
+import { X, ChevronLeft, Users } from 'lucide-react';
+import { ArenaHub } from '../arena/ArenaHub';
+import { EchoChambers } from '../echo/EchoChambers';
+import { CreatorsGuild } from '../creators/CreatorsGuild';
+import { LibraryHub } from '../library/LibraryHub';
+import { Marketplace } from '../marketplace/Marketplace';
+import { ChatbotInterface } from '../../pages/ChatbotInterface';
 
 interface Position {
   top?: string;
@@ -19,12 +25,6 @@ interface Building {
   notification?: number;
   animation: 'pulse' | 'float' | 'glow' | 'bounce' | 'shake';
   icon: string;
-}
-
-interface BuildingInteriorProps {
-  buildingId: string;
-  onExit: () => void;
-  buildings: Building[];
 }
 
 interface Particle {
@@ -53,6 +53,9 @@ interface InteriorFeature {
   description: string;
   icon: string;
   activeUsers?: number;
+  isLocked?: boolean;
+  level?: number;
+  interaction?: () => void;
   subFeatures?: {
     id: string;
     name: string;
@@ -70,57 +73,7 @@ interface Interior {
   features: InteriorFeature[];
 }
 
-const BuildingInterior = ({
-  buildingId,
-  onExit,
-  buildings
-}: BuildingInteriorProps) => {
-  const getBuildingDetails = () => {
-    const building = buildings.find(b => b.id === buildingId);
-    return {
-      name: building?.name || 'Unknown Location',
-      color: building?.color || '#ffffff',
-      icon: building?.icon || '❓'
-    };
-  };
-  const {
-    name,
-    color,
-    icon
-  } = getBuildingDetails();
-  return <motion.div initial={{
-    opacity: 0,
-    scale: 0.8
-  }} animate={{
-    opacity: 1,
-    scale: 1
-  }} exit={{
-    opacity: 0,
-    scale: 0.8
-  }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-      <div className="relative w-4/5 h-4/5 max-w-4xl bg-gray-900 rounded-xl border-2" style={{
-      borderColor: color
-    }}>
-        <div className="absolute top-0 left-0 w-full bg-gray-800 rounded-t-xl px-6 py-4 flex justify-between items-center border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <span className="text-3xl">{icon}</span>
-            <h2 className="text-xl font-bold text-white">{name}</h2>
-          </div>
-          <button onClick={onExit} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-all duration-200">
-            Exit
-          </button>
-        </div>
-        <div className="p-6 mt-16 text-white">
-          <div className="flex items-center justify-center h-full">
-            <p className="text-lg text-center text-gray-400">
-              Interior content for {name} would go here...
-            </p>
-          </div>
-        </div>
-      </div>
-    </motion.div>;
-};
-const interiorData = {
+const interiorData: Record<string, Interior> = {
   arena: {
     title: 'Battle Arena',
     description: 'Test your knowledge in epic tournaments',
@@ -364,6 +317,7 @@ const interiorData = {
     }]
   }
 };
+
 const EnhancedGameEnvironment = () => {
   const [activeBuilding, setActiveBuilding] = useState<string | null>(null);
   const [hoverBuilding, setHoverBuilding] = useState<string | null>(null);
@@ -377,7 +331,8 @@ const EnhancedGameEnvironment = () => {
     height: 0
   });
   const [isMobile, setIsMobile] = useState(false);
-  const [interiors, setInteriors] = useState<Record<string, Interior>>(interiorData);
+  const [interiors] = useState<Record<string, Interior>>(interiorData); // Using const destructuring without the setter
+
   // Handle viewport size detection
   useEffect(() => {
     const handleResize = () => {
@@ -392,6 +347,7 @@ const EnhancedGameEnvironment = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
   // Time cycle effect
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -399,6 +355,7 @@ const EnhancedGameEnvironment = () => {
     }, 60000); // Change every minute
     return () => clearTimeout(timer);
   }, [time]);
+
   // Get building positions adjusted for mobile
   const getAdjustedPositions = (building: Building) => {
     if (!isMobile) return building.position;
@@ -411,8 +368,16 @@ const EnhancedGameEnvironment = () => {
       marketplace: { bottom: '20%', left: '30%' },
       library: { bottom: '20%', right: '30%' }
     };
-    return mobilePositions[building.id] || building.position;
+    const position = mobilePositions[building.id] || building.position;
+    // Ensure all positions are percentages
+    return {
+      top: position.top || position.bottom ? position.top : '50%',
+      left: position.left || position.right ? position.left : '50%',
+      right: position.right,
+      bottom: position.bottom
+    };
   };
+
   // Generate connection lines between buildings - with mobile adjustments
   useEffect(() => {
     const lines: Connection[] = [];
@@ -427,7 +392,7 @@ const EnhancedGameEnvironment = () => {
       const buildingB = buildings.find(b => b.id === pair[1]);
       if (buildingA && buildingB) {
         // Calculate center positions (approximate based on percentages)
-        const getPosition = pos => {
+        const getPosition = (pos: Position) => {
           const result = {
             x: 50,
             y: 50
@@ -606,12 +571,24 @@ const EnhancedGameEnvironment = () => {
     setActiveStation(null);
     setActiveSubFeature(null);
   };
-  const handleFeatureClick = (featureId: string) => {
-    setActiveStation(featureId);
-    setActiveSubFeature(null);
-  };
   const handleSubFeatureClick = (subFeatureId: string) => {
     setActiveSubFeature(subFeatureId);
+
+    // Special case for the Arena building
+    if (activeBuilding === 'arena') {
+      console.log('Arena sub-feature selected:', subFeatureId);
+      setActiveStation(activeStation);
+      return;
+    }
+
+    // Special case for the Library building
+    if (activeBuilding === 'library') {
+      console.log('Library sub-feature selected:', subFeatureId);
+      setActiveStation(activeStation);
+      return;
+    }
+
+    // For other buildings, use the interaction function if available
     const feature = interiors[activeBuilding!]?.features.find(f => f.id === activeStation);
     const subFeature = feature?.subFeatures?.find(sf => sf.id === subFeatureId);
     if (subFeature?.interaction) {
@@ -717,28 +694,42 @@ const EnhancedGameEnvironment = () => {
       </svg>
 
       {/* Buildings */}
-      {buildings.map(building => <motion.div key={building.id} className={`
+      {buildings.map(building => (
+        <motion.div 
+          key={building.id} 
+          className={`
             absolute ${getBuildingSize(building.size)}
             transform -translate-x-1/2 -translate-y-1/2
             cursor-pointer z-20
-          `} style={{
-      ...getAdjustedPositions(building) // Use responsive positions
-    }} initial={{
-      scale: 0.9,
-      opacity: 0
-    }} animate={{
-      scale: hoverBuilding === building.id ? 1.1 : 1,
-      opacity: 1,
-      y: hoverBuilding === building.id ? isMobile ? -5 : -10 : 0
-    }} transition={{
-      type: 'spring',
-      stiffness: 300,
-      damping: 20,
-      delay: Math.random() * 0.5
-    }} onClick={() => handleBuildingClick(building.id)} onMouseEnter={() => setHoverBuilding(building.id)} onMouseLeave={() => setHoverBuilding(null)} whileHover={{
-      scale: 1.1,
-      y: isMobile ? -5 : -10
-    }}>
+          `}
+          style={{
+            ...getAdjustedPositions(building),
+            position: 'absolute',
+            visibility: 'visible'
+          }}
+          initial={{
+            scale: 0.9,
+            opacity: 0
+          }}
+          animate={{
+            scale: hoverBuilding === building.id ? 1.1 : 1,
+            opacity: 1,
+            y: hoverBuilding === building.id ? isMobile ? -5 : -10 : 0
+          }}
+          transition={{
+            type: 'spring',
+            stiffness: 300,
+            damping: 20,
+            delay: Math.random() * 0.5
+          }}
+          onClick={() => handleBuildingClick(building.id)}
+          onMouseEnter={() => setHoverBuilding(building.id)}
+          onMouseLeave={() => setHoverBuilding(null)}
+          whileHover={{
+            scale: 1.1,
+            y: isMobile ? -5 : -10
+          }}
+        >
           {/* Building structure */}
           <div className={`
               relative w-full h-full rounded-xl
@@ -811,9 +802,8 @@ const EnhancedGameEnvironment = () => {
               {isMobile ? building.description.substring(0, 60) + (building.description.length > 60 ? '...' : '') : building.description}
             </p>
           </motion.div>
-        </motion.div>)}
-
-      {/* Building Interior Modal */}
+        </motion.div>
+      ))} {/* Building Interior Modal */}
       {activeBuilding && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="w-full h-full max-w-7xl bg-dark/95 rounded-lg border-2 border-primary/30 flex flex-col">
             {/* Header */}
@@ -847,43 +837,83 @@ const EnhancedGameEnvironment = () => {
               </button>
             </div>
             {/* Content */}
-            <div className="flex-1 flex overflow-hidden">
-              {/* Features List */}
-              <div className="w-72 border-r border-primary/20 overflow-y-auto">
-                {interiors[activeBuilding]?.features.map(feature => <div key={feature.id} className={`p-4 border-b border-primary/10 cursor-pointer transition-all
-                      ${activeStation === feature.id ? 'bg-primary/20' : 'hover:bg-primary/10'}`} onClick={() => handleFeatureClick(feature.id)}>
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">{feature.icon}</div>
-                      <div className="flex-1">
-                        <h3 className="font-pixel text-sm text-primary">
-                          {feature.name}
-                        </h3>
-                        <p className="text-gray-400 text-xs">
-                          {feature.description}
-                        </p>
-                      </div>
-                      {feature.activeUsers && <div className="text-xs text-gray-400 flex items-center gap-1">
-                          <Users size={12} />
-                          {feature.activeUsers}
-                        </div>}
-                    </div>
-                  </div>)}
-              </div>
+            <div className="flex-1 overflow-hidden">
               {/* Feature Content */}
-              <div className="flex-1 overflow-y-auto p-6">
-                {activeStation ? <div className="h-full">
+              <div className="w-full h-full overflow-y-auto p-6">
+                {activeBuilding === 'arena' ? (
+                  <div className="h-full">
+                    <ArenaHub
+                      onExit={() => {
+                        // Reset sub-feature when exiting the game
+                        setActiveSubFeature(null);
+                      }}
+                      initialMode={'hub'}
+                      featureId={undefined}
+                      subFeatureId={undefined}
+                    />
+                  </div>
+                ) : activeBuilding === 'library' ? (
+                  <div className="h-full">
+                    <LibraryHub
+                      onExit={() => {
+                        // Reset sub-feature when exiting the library
+                        setActiveSubFeature(null);
+                      }}
+                      initialMode="hub"
+                      featureId={undefined}
+                      subFeatureId={undefined}
+                    />
+                  </div>
+                ) : activeBuilding === 'echo-chambers' ? (
+                  <div className="h-full">
+                    <EchoChambers
+                      onExit={() => {
+                        // Reset sub-feature when exiting the echo chambers
+                        setActiveSubFeature(null);
+                      }}
+                      activeStation={activeStation}
+                      activeSubFeature={activeSubFeature}
+                    />
+                  </div>
+                ) : activeBuilding === 'guild-hall' ? (
+                  <div className="h-full">
+                    <CreatorsGuild
+                      onExit={() => {
+                        // Reset sub-feature when exiting the creators guild
+                        setActiveSubFeature(null);
+                      }}
+                      activeStation={activeStation}
+                      activeSubFeature={activeSubFeature}
+                    />
+                  </div>
+                ) : activeBuilding === 'marketplace' ? (
+                  <div className="h-full">
+                    <Marketplace
+                      onExit={() => {
+                        // Reset sub-feature when exiting the marketplace
+                        setActiveSubFeature(null);
+                      }}
+                      activeStation={activeStation}
+                      activeSubFeature={activeSubFeature}
+                    />
+                  </div>
+                ) : activeBuilding === 'kana-lab' ? (
+                  <div className="h-full">
+                    <ChatbotInterface />
+                  </div>
+                ) : activeStation ? <div className="h-full">
                     {/* Feature Content */}
                     <div className="mb-6">
                       <h2 className="font-pixel text-xl mb-2 text-primary">
-                        {interiors[activeBuilding]?.features.find(f => f.id === activeStation)?.name}
+                        {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.name}
                       </h2>
                       <p className="text-gray-300">
-                        {interiors[activeBuilding]?.features.find(f => f.id === activeStation)?.description}
+                        {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.description}
                       </p>
                     </div>
                     {/* Sub-features Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {interiors[activeBuilding]?.features.find(f => f.id === activeStation)?.subFeatures?.map(sub => <div key={sub.id} className={`
+                      {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.subFeatures?.map((sub: { id: string; name: string; description: string; icon: string; interaction?: () => void }) => <div key={sub.id} className={`
                               bg-dark/50 border rounded-lg p-6 transition-all cursor-pointer
                               ${activeSubFeature === sub.id ? 'border-primary scale-105' : 'border-primary/30'}
                               hover:border-primary/50 hover:scale-[1.02]
