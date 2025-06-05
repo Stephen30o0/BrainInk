@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useWallet } from '../shared/WalletContext'; // Added for Ink token payments
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ShoppingCart, DollarSign, BookOpen, Users, BarChart2, Search, Plus } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, DollarSign, BookOpen, Users, BarChart2, Search, Plus, X } from 'lucide-react'; // Added X icon
 
 interface MarketplaceProps {
   onExit: () => void;
@@ -44,6 +45,8 @@ interface MarketStats {
 }
 
 // Mock data for the marketplace
+const MARKETPLACE_TREASURY_ADDRESS = '0xMarketplaceTreasuryAddressPlaceholder'; // TODO: Replace with actual address
+
 const mockResources: Resource[] = [
   {
     id: 1,
@@ -198,9 +201,20 @@ export function Marketplace({ onExit, activeStation, activeSubFeature }: Marketp
   const [currentScreen, setCurrentScreen] = useState<string>(activeStation || 'hub');
   const [currentSubFeature, setCurrentSubFeature] = useState<string | null>(activeSubFeature || null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const { balance, sendTokens, isConnected } = useWallet(); // Added for Ink token payments
   const [cartItems, setCartItems] = useState<Resource[]>([]);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [selectedTutor, setSelectedTutor] = useState<Tutor | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState<{ type: 'success' | 'error' | ''; message: string } | null>(null);
+
+  const removeFromCart = (itemIndex: number) => {
+    setCartItems(currentItems => currentItems.filter((_, index) => index !== itemIndex));
+    // If the cart becomes empty after removing, clear any checkout status messages
+    if (cartItems.length === 1) {
+      setCheckoutStatus(null);
+    }
+  };
   
   // Animation variants
   const containerVariants = {
@@ -269,19 +283,22 @@ export function Marketplace({ onExit, activeStation, activeSubFeature }: Marketp
           </div>
           <div className="flex items-center">
             <button 
-              onClick={onExit}
+              onClick={onExit} // Keep this for main exit
               className="p-2 rounded-full bg-dark-800 hover:bg-dark-700 transition-colors"
             >
               <ChevronLeft size={24} className="text-gray-400" />
             </button>
-            <div className="relative ml-4">
+            <button 
+              onClick={() => navigateTo('cart')}
+              className="relative ml-4 p-2 rounded-full bg-dark-800 hover:bg-dark-700 transition-colors"
+            >
               <ShoppingCart size={24} className="text-yellow-400" />
               {cartItems.length > 0 && (
-                <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
                   {cartItems.length}
                 </span>
               )}
-            </div>
+            </button>
           </div>
         </div>
 
@@ -865,6 +882,151 @@ export function Marketplace({ onExit, activeStation, activeSubFeature }: Marketp
     );
   };
 
+  // Render Cart Screen
+  const renderCartScreen = () => {
+    const totalItems = cartItems.length;
+    const totalPrice = cartItems.reduce((sum, item) => sum + item.price, 0);
+
+    const handleCheckout = async () => {
+    setIsCheckingOut(true);
+    setCheckoutStatus(null);
+      if (!isConnected) {
+        alert('Please connect your wallet first.');
+        return;
+      }
+      if (totalPrice === 0) {
+        alert('Your cart is empty.');
+        return;
+      }
+      if (balance < totalPrice) {
+        alert('Insufficient Ink balance.');
+        return;
+      }
+      try {
+        // Attempt to send tokens
+        await sendTokens(totalPrice, MARKETPLACE_TREASURY_ADDRESS, `Marketplace purchase: ${cartItems.map(item => item.title).join(', ')}`);
+        setCheckoutStatus({ type: 'success', message: `Successfully purchased items for ${totalPrice} INK!` });
+        setTimeout(() => {
+          setCartItems([]); // Clear cart on successful purchase
+          navigateTo('hub'); // Optionally navigate to hub or a success page
+          setCheckoutStatus(null); // Clear message after navigation
+        }, 2000); // Delay for user to see message
+      } catch (error: any) {
+        console.error('Checkout error:', error);
+        setCheckoutStatus({ type: 'error', message: error.message || 'An unexpected error occurred during checkout. Please try again.' });
+      } finally {
+        setIsCheckingOut(false);
+      }
+    };
+
+    return (
+      <motion.div
+        className="w-full h-full p-6 overflow-y-auto"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+      >
+        <div className="flex items-center mb-6">
+          <button 
+            onClick={() => navigateTo('hub')} // Or previous screen, e.g., resource-exchange
+            className="p-2 rounded-full bg-dark-800 hover:bg-dark-700 transition-colors mr-4"
+          >
+            <ChevronLeft size={20} className="text-gray-400" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-yellow-400 mb-1 font-pixel">Shopping Cart</h1>
+            <p className="text-gray-400 text-sm">Review your items before purchase</p>
+          </div>
+        </div>
+
+        {cartItems.length === 0 ? (
+          <div className="text-center text-gray-400 py-10">
+            <ShoppingCart size={48} className="mx-auto mb-4 opacity-50" />
+            <p>Your cart is empty.</p>
+            <button 
+              onClick={() => navigateTo('resource-exchange')}
+              className="mt-4 px-4 py-2 bg-yellow-400 text-dark-900 rounded-lg font-medium hover:bg-yellow-500 transition-colors"
+            >
+              Browse Resources
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4 mb-6">
+              {cartItems.map((item, index) => (
+                <motion.div 
+                  key={`${item.id}-${index}`} // Ensure unique key if items can be duplicated
+                  variants={itemVariants}
+                  className="bg-dark-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between"
+                >
+                  <div className="flex items-center">
+                    <div className="text-3xl mr-4">{item.thumbnail}</div>
+                    <div>
+                      <h3 className="font-medium text-white">{item.title}</h3>
+                      <p className="text-sm text-gray-400">{item.type.charAt(0).toUpperCase() + item.type.slice(1)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <p className="text-lg font-bold text-yellow-400 mr-4">${item.price}</p>
+                    <button 
+                      onClick={() => removeFromCart(index)}
+                      className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                      aria-label="Remove item"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            
+            <div className="bg-dark-800 border border-gray-700 rounded-lg p-6">
+              <h2 className="text-lg font-bold text-white mb-4">Order Summary</h2>
+              <div className="flex justify-between text-gray-300 mb-2">
+                <span>Subtotal ({totalItems} item{totalItems === 1 ? '' : 's'})</span>
+                <span>${totalPrice.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-gray-300 mb-2">
+                <span>Transaction Fee</span>
+                <span>$0.00</span> {/* Placeholder */}
+              </div>
+              <hr className="border-gray-700 my-3" />
+              <div className="flex justify-between text-white font-bold text-xl mb-6">
+                <span>Total</span>
+                <span>${totalPrice.toFixed(2)} INK</span>
+              </div>
+              <button 
+                onClick={handleCheckout}
+                disabled={!isConnected || cartItems.length === 0 || balance < totalPrice || isCheckingOut}
+                className="w-full px-4 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isCheckingOut ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      style={{ width: 20, height: 20, borderWidth: 2, borderStyle: 'solid', borderColor: 'white', borderTopColor: 'transparent'}}
+                      className="rounded-full mr-2"
+                    />
+                    Processing...
+                  </>
+                ) : isConnected ? `Pay ${totalPrice.toFixed(2)} INK` : 'Connect Wallet to Pay'}
+              </button>
+              {!isConnected && <p className="text-xs text-red-400 text-center mt-2">Please connect your wallet to proceed.</p>}
+              {isConnected && balance < totalPrice && cartItems.length > 0 && !isCheckingOut && <p className="text-xs text-red-400 text-center mt-2">Insufficient INK balance.</p>}
+              {checkoutStatus && (
+                <div className={`mt-4 p-3 rounded-md text-sm ${checkoutStatus.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+                  {checkoutStatus.message}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </motion.div>
+    );
+  };
+
   // Render tutor detail
   const renderTutorDetail = () => {
     if (!selectedTutor) return null;
@@ -997,6 +1159,7 @@ export function Marketplace({ onExit, activeStation, activeSubFeature }: Marketp
         {currentScreen === 'marketplace-stats' && renderMarketAnalytics()}
         {currentScreen === 'resource-detail' && renderResourceDetail()}
         {currentScreen === 'tutor-detail' && renderTutorDetail()}
+        {currentScreen === 'cart' && renderCartScreen()}
       </AnimatePresence>
     </div>
   );

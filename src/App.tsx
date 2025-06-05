@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { HudNavigation } from './components/HudNavigation';
 import { HeroSection } from './components/HeroSection';
@@ -22,6 +22,7 @@ import { WalletProvider } from './components/shared/WalletContext';
 import { ChatbotInterface } from './pages/ChatbotInterface';
 import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
+import { QuizInterface } from './components/quiz/QuizInterface';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -85,6 +86,7 @@ export function App() {
                   <Route path="/chatbot" element={<ChatbotInterface />} />
                   <Route path="/achievements" element={<Achievements />} />
                   <Route path="/notifications" element={<Notifications />} />
+            <Route path="/quiz/math" element={<QuizInterface />} />
                 </Routes>
               )}
             </div>
