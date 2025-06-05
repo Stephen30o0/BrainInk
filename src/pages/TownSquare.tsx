@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, BookOpen, Trophy, Users, Search, Bell, Mail, Menu, User, Sparkles, Wallet } from 'lucide-react';
+import { Brain, BookOpen, Trophy, Users, Search, Bell, Mail, Menu, User, Sparkles, Wallet, Edit3 } from 'lucide-react'; // Added Edit3 for quiz link
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel';
 import { MessagesPanel } from '../components/dashboard/MessagesPanel';
 import { GameHUD } from '../components/dashboard/GameHUD';
@@ -14,7 +14,7 @@ import { WalletPanel } from '../components/wallet/WalletPanel';
 import { useWallet } from '../components/shared/WalletContext';
 import { useNavigate } from 'react-router-dom';
 
-type Section = 'arena' | 'echo' | 'vault' | 'guild' | 'lab' | 'messages' | 'profile' | 'quests' | 'inventory' | 'achievements' | 'friends';
+type Section = 'arena' | 'echo' | 'vault' | 'guild' | 'lab' | 'messages' | 'profile' | 'quests' | 'inventory' | 'achievements' | 'friends' | 'quiz';
 
 interface NavItem {
   id: Section;
@@ -56,6 +56,13 @@ export const TownSquare = () => {
     gradientFrom: 'from-purple-500',
     gradientTo: 'to-pink-500'
   }, {
+    id: 'quiz',
+    label: 'Math Quiz',
+    icon: <Edit3 size={24} />,
+    color: '#f59e0b', // amber-500
+    gradientFrom: 'from-amber-500',
+    gradientTo: 'to-yellow-500'
+  }, {
     id: 'achievements',
     label: 'Achievements',
     icon: <Trophy size={24} />,
@@ -92,6 +99,8 @@ export const TownSquare = () => {
       navigate('/messages');
     } else if (item === 'achievements') {
       navigate('/achievements');
+    } else if (item === 'quiz') {
+      navigate('/quiz/math');
     } else {
       setActiveSidePanel(activeSidePanel === item ? null : item);
     }

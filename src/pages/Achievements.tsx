@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useWallet } from '../components/shared/WalletContext'; 
 import { Trophy, Star, Target, Medal, Filter, ChevronDown, Search, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,6 +22,16 @@ interface Achievement {
 
 export default function Achievements() {
   const navigate = useNavigate();
+  const { addTokens, isConnected } = useWallet();
+  const [claimedAchievements, setClaimedAchievements] = useState<string[]>([]);
+
+  // Load claimed achievements from localStorage on mount
+  useEffect(() => {
+    const storedClaimed = localStorage.getItem('claimedAchievements');
+    if (storedClaimed) {
+      setClaimedAchievements(JSON.parse(storedClaimed));
+    }
+  }, []);
   const [activeCategory, setActiveCategory] = useState<'all' | 'quizzing' | 'tournaments' | 'gamified' | 'social' | 'courses' | 'customization' | 'events' | 'wallet' | 'progress' | 'hidden'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'rarity' | 'progress' | 'recent'>('rarity');
@@ -811,6 +822,32 @@ export default function Achievements() {
     }
   ];
 
+  // Process achievements for token rewards - MUST be AFTER 'achievements' array definition
+  useEffect(() => {
+    if (!isConnected || !achievements || achievements.length === 0) {
+      // console.log('Token processing skipped: Wallet not connected or achievements not loaded/empty.');
+      return;
+    }
+
+    const newClaimedAchievements = [...claimedAchievements];
+    let updated = false;
+
+    achievements.forEach((achievement: Achievement) => {
+      if (achievement.completed && achievement.reward.tokens > 0 && !newClaimedAchievements.includes(achievement.id)) {
+        addTokens(achievement.reward.tokens, `Achievement: ${achievement.name}`);
+        newClaimedAchievements.push(achievement.id);
+        updated = true;
+        // console.log(`Awarded ${achievement.reward.tokens} tokens for ${achievement.name}`);
+      }
+    });
+
+    if (updated) {
+      setClaimedAchievements(newClaimedAchievements);
+      localStorage.setItem('claimedAchievements', JSON.stringify(newClaimedAchievements));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [achievements, claimedAchievements, addTokens, isConnected]); // achievements is now a dependency
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'legendary':
@@ -837,8 +874,7 @@ export default function Achievements() {
     }
   };
 
-  const filteredAchievements = achievements
-    .filter((achievement: Achievement) => 
+  const filteredAchievements = achievements.filter((achievement: Achievement) => 
       (activeCategory === 'all' || achievement.category === activeCategory) &&
       (achievement.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
        achievement.desc.toLowerCase().includes(searchQuery.toLowerCase()))
