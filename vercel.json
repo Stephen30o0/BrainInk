@@ -9,7 +9,7 @@
       "src": "quiz/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist" 
+        "distDir": "dist"
       }
     }
   ],
@@ -23,7 +23,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "quiz/index.html" 
+      "dest": "/index.html"
     }
   ]
 }
