@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MessageSquareIcon, SendIcon, MicIcon, BrainIcon } from 'lucide-react';
 import { PixelButton } from './shared/PixelButton';
 import { useNavigate } from 'react-router-dom';
@@ -6,29 +6,32 @@ import { useNavigate } from 'react-router-dom';
 export const KanaSection = () => {
   const navigate = useNavigate();
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState([{
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([{
     type: 'system',
-    text: 'K.A.N.A. initialized. How can I help with your studies today?'
-  }, {
-    type: 'user',
-    text: 'Can you explain photosynthesis?'
-  }, {
-    type: 'assistant',
-    text: "Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize foods with carbon dioxide and water. It's how plants convert light energy into chemical energy!"
-  }]);
+    text: 'K.A.N.A. initialized. How can I help with your studies today?', id: 'system-init' }
+  ]);
+  // Define type for chat messages
+  interface ChatMessage {
+    id: string; // All messages must have an ID
+    type: 'user' | 'assistant' | 'system';
+    text: string;
+    isLoading?: boolean; // Optional, for loading states
+  }
   const handleSend = () => {
     if (!message.trim()) return;
     // Add user message
     setChatHistory([...chatHistory, {
       type: 'user',
-      text: message
+      text: message,
+      id: `user-${Date.now()}`
     }]);
     setMessage('');
     // Simulate AI response
     setTimeout(() => {
       setChatHistory(prev => [...prev, {
         type: 'assistant',
-        text: "I'm analyzing your question... This is a simulated response from K.A.N.A., your AI learning buddy! In a real implementation, I would provide an educational answer based on your question."
+        text: "I'm analyzing your question... This is a simulated response from K.A.N.A., your AI learning buddy! In a real implementation, I would provide an educational answer based on your question.",
+        id: `assistant-${Date.now()}`
       }]);
     }, 1000);
   };
@@ -90,7 +93,7 @@ export const KanaSection = () => {
               <div className="h-64 overflow-y-auto p-4 custom-scrollbar">
                 {chatHistory.map((msg, i) => <div key={i} className={`mb-4 flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-xs p-3 rounded-lg ${msg.type === 'system' ? 'bg-gray-800 text-gray-300' : msg.type === 'user' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-secondary/20 text-secondary border border-secondary/30'}`}>
-                      <p className="text-sm">{msg.text}</p>
+                      <p className="text-sm">{msg.isLoading ? <span className='italic'>{msg.text}</span> : msg.text}</p>
                     </div>
                   </div>)}
               </div>
