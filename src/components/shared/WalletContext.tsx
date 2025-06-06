@@ -56,6 +56,84 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [inkTokenContract, setInkTokenContract] = useState<Contract | null>(null);
   const [tokenDecimals, setTokenDecimals] = useState<number>(18); // Default to 18, fetch dynamically
 
+  // Memoized disconnect function to prevent re-renders
+  const disconnectWallet = useCallback(() => {
+    setAddress(null);
+    setBalance(0);
+    setIsConnected(false);
+    setProvider(null);
+    setSigner(null);
+    setInkTokenContract(null);
+    setTokenDecimals(0); // Reset decimals
+    setTransactions([]); // Clear transactions on disconnect
+    console.log('Wallet disconnected');
+  }, []);
+
+  const connectWallet = useCallback(async () => {
+    console.log('[ConnectWallet] Attempting to connect...');
+    if (window.ethereum) {
+      try {
+        console.log('[ConnectWallet] MetaMask detected. Creating BrowserProvider...');
+        const newProvider = new ethers.BrowserProvider(window.ethereum);
+        console.log('[ConnectWallet] BrowserProvider created. Setting provider state...');
+        setProvider(newProvider);
+        console.log('[ConnectWallet] Provider state set.');
+
+        console.log('[ConnectWallet] Requesting accounts via eth_requestAccounts...');
+        const accounts = await newProvider.send('eth_requestAccounts', []);
+        console.log('[ConnectWallet] Accounts received:', accounts);
+        if (accounts.length === 0) {
+          console.error('[ConnectWallet] No accounts found/selected in MetaMask.');
+          return;
+        }
+        const currentAddress = accounts[0];
+        console.log('[ConnectWallet] Current address:', currentAddress);
+        console.log('[ConnectWallet] Setting address and isConnected state...');
+        setAddress(currentAddress);
+        setIsConnected(true);
+        console.log('[ConnectWallet] Address and isConnected state set.');
+
+        console.log('[ConnectWallet] Getting signer...');
+        const newSigner = await newProvider.getSigner();
+        console.log('[ConnectWallet] Signer obtained. Setting signer state...');
+        setSigner(newSigner);
+        console.log('[ConnectWallet] Signer state set.');
+
+        console.log('[ConnectWallet] Creating contract instance...');
+        const contract = new ethers.Contract(INK_TOKEN_ADDRESS, INK_TOKEN_ABI, newSigner);
+        console.log('[ConnectWallet] Contract instance created. Setting contract state...');
+        setInkTokenContract(contract);
+        console.log('[ConnectWallet] Contract state set.');
+
+        console.log('[ConnectWallet] Fetching token decimals...');
+        const decimals = await contract.decimals();
+        console.log('[ConnectWallet] Decimals fetched:', Number(decimals));
+        console.log('[ConnectWallet] Setting token decimals state...');
+        setTokenDecimals(Number(decimals));
+        console.log('[ConnectWallet] Token decimals state set.');
+
+        console.log('[ConnectWallet] Fetching token balance for address:', currentAddress);
+        const rawBalance = await contract.balanceOf(currentAddress);
+        console.log('[ConnectWallet] Raw balance fetched:', rawBalance.toString());
+        console.log('[ConnectWallet] Setting balance state...');
+        setBalance(parseFloat(formatUnits(rawBalance, Number(decimals))));
+        console.log('[ConnectWallet] Balance state set.');
+        
+        console.log('[ConnectWallet] Wallet connection successful. Final state logged above.');
+        console.log('Wallet connected:', currentAddress);
+        console.log('Token Decimals:', Number(decimals));
+        console.log('Balance fetched:', parseFloat(formatUnits(rawBalance, Number(decimals))));
+
+      } catch (error) {
+        console.error('[ConnectWallet] Failed during connection process:', error);
+        disconnectWallet();
+      }
+    } else {
+      console.error('[ConnectWallet] MetaMask is not installed!');
+      alert('MetaMask is not installed. Please install it to use this feature.');
+    }
+  }, [disconnectWallet]); // Added disconnectWallet to dependency array as it's called in catch
+
   // Load wallet state from localStorage (address only, balance/txns re-fetched or managed by events)
   useEffect(() => {
     const savedAddress = localStorage.getItem('walletAddress');
@@ -66,7 +144,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         connectWallet();
       }
     }
-  }, []);
+  }, [connectWallet]);
 
   // Save address to localStorage when connected/disconnected
   useEffect(() => {
@@ -107,62 +185,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         (window.ethereum as any).removeListener('chainChanged', handleChainChanged);
       };
     }
-  }, []); // Empty dependency array means this runs once on mount and cleans up on unmount
-
-  const connectWallet = useCallback(async () => {
-    if (window.ethereum) {
-      try {
-        const newProvider = new ethers.BrowserProvider(window.ethereum);
-        setProvider(newProvider);
-
-        const accounts = await newProvider.send('eth_requestAccounts', []);
-        if (accounts.length === 0) {
-          console.error('No accounts found/selected in MetaMask.');
-          disconnectWallet();
-          return;
-        }
-        const currentAddress = accounts[0];
-        setAddress(currentAddress);
-        setIsConnected(true);
-
-        const newSigner = await newProvider.getSigner();
-        setSigner(newSigner);
-
-        const contract = new ethers.Contract(INK_TOKEN_ADDRESS, INK_TOKEN_ABI, newSigner);
-        setInkTokenContract(contract);
-
-        const decimals = await contract.decimals();
-        setTokenDecimals(Number(decimals));
-
-        const rawBalance = await contract.balanceOf(currentAddress);
-        setBalance(parseFloat(formatUnits(rawBalance, Number(decimals))));
-        
-        console.log('Wallet connected:', currentAddress);
-        console.log('Token Decimals:', Number(decimals));
-        console.log('Balance fetched:', parseFloat(formatUnits(rawBalance, Number(decimals))));
-
-      } catch (error) {
-        console.error('Failed to connect wallet:', error);
-        disconnectWallet();
-      }
-    } else {
-      console.error('MetaMask is not installed!');
-      alert('MetaMask is not installed. Please install it to use this feature.');
-    }
-  }, []);
-
-  const disconnectWallet = useCallback(() => {
-    setAddress(null);
-    setBalance(0);
-    setIsConnected(false);
-    setTransactions([]);
-    setProvider(null);
-    setSigner(null);
-    setInkTokenContract(null);
-    localStorage.removeItem('walletAddress'); // Clear saved address
-    localStorage.removeItem('walletTransactions'); // Clear saved transactions if any
-    console.log('Wallet disconnected');
-  }, []);
+  }, [connectWallet, disconnectWallet]); // Add connectWallet and disconnectWallet to dependencies
 
   const sendTokens = useCallback(async (toAddress: string, amount: number) => {
     if (!inkTokenContract || !signer || !address) {
