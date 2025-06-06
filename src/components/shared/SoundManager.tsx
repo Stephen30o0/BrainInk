@@ -17,23 +17,12 @@ export const SoundProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const audioRefs = useRef<Record<SoundEffect, HTMLAudioElement>>({
-    footstep: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-quick-jump-arcade-game-239.mp3'),
-    door: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-ancient-clock-opening-1385.mp3'),
-    rain: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-light-rain-loop-1251.mp3'),
-    ambient: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-wandering-around-in-a-cave-439.mp3'),
-    dialogue: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-fairy-bells-583.mp3'),
-    quest: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-magical-shine-583.mp3')
-  });
+  const audioRefs = useRef<Record<SoundEffect, HTMLAudioElement>>({} as Record<SoundEffect, HTMLAudioElement>);
   useEffect(() => {
-    // Loop ambient and rain sounds
-    audioRefs.current.ambient.loop = true;
-    audioRefs.current.rain.loop = true;
-    // Start ambient sound
-    audioRefs.current.ambient.play();
-    audioRefs.current.ambient.volume = 0.1;
+    // Sound effects have been disabled.
+    // If you re-enable them, ensure proper initialization and cleanup.
     return () => {
-      Object.values(audioRefs.current).forEach(audio => audio.pause());
+      // Perform cleanup if any sounds were to be played.
     };
   }, []);
   const playSound = (effect: SoundEffect) => {
