@@ -1,4 +1,5 @@
 import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import { ethers, Contract, BrowserProvider, Signer, formatUnits, parseUnits } from 'ethers';
 
 // Define constants for the InkToken contract
@@ -54,7 +55,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<Signer | null>(null);
   const [inkTokenContract, setInkTokenContract] = useState<Contract | null>(null);
-  const [tokenDecimals, setTokenDecimals] = useState<number>(18); // Default to 18, fetch dynamically
+  const [tokenDecimals, setTokenDecimals] = useState<number | undefined>(undefined); // Default to 18, fetch dynamically
 
   // Memoized disconnect function to prevent re-renders
   const disconnectWallet = useCallback(() => {
@@ -63,8 +64,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsConnected(false);
     setProvider(null);
     setSigner(null);
+    toast.success('Wallet disconnected.');
     setInkTokenContract(null);
-    setTokenDecimals(0); // Reset decimals
+    setTokenDecimals(undefined); // Reset decimals
     setTransactions([]); // Clear transactions on disconnect
     console.log('Wallet disconnected');
   }, []);
@@ -120,17 +122,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log('[ConnectWallet] Balance state set.');
         
         console.log('[ConnectWallet] Wallet connection successful. Final state logged above.');
+      toast.success(`Wallet connected: ${currentAddress.substring(0, 6)}...${currentAddress.substring(currentAddress.length - 4)}`);
         console.log('Wallet connected:', currentAddress);
         console.log('Token Decimals:', Number(decimals));
         console.log('Balance fetched:', parseFloat(formatUnits(rawBalance, Number(decimals))));
 
       } catch (error) {
         console.error('[ConnectWallet] Failed during connection process:', error);
+      toast.error('Failed to connect wallet.');
         disconnectWallet();
       }
     } else {
       console.error('[ConnectWallet] MetaMask is not installed!');
-      alert('MetaMask is not installed. Please install it to use this feature.');
+      toast.error('MetaMask is not installed! Please install it.');
     }
   }, [disconnectWallet]); // Added disconnectWallet to dependency array as it's called in catch
 
@@ -197,7 +201,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       alert('Amount must be greater than zero.');
       return;
     }
-    console.log('[sendTokens] Validating toAddress:', JSON.stringify(toAddress)); // Log the address being validated
+    console.log(`[sendTokens] Attempting to send ${amount} INK to ${toAddress}`);
+    const toastId = toast.loading('Preparing transaction...');
     if (!ethers.isAddress(toAddress)) {
         alert('Invalid recipient address.');
         return;
@@ -206,7 +211,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const amountToSend = parseUnits(amount.toString(), tokenDecimals);
       const tx = await inkTokenContract.transfer(toAddress, amountToSend);
-      console.log('Transaction sent:', tx.hash);
+      console.log('[sendTokens] Transaction sent, hash:', tx.hash);
+    toast.loading(`Transaction submitted: ${tx.hash.substring(0, 6)}...${tx.hash.substring(tx.hash.length - 4)}. Waiting for confirmation...`, { id: toastId });
       
       const newTransaction: Transaction = {
         id: tx.hash, // Use tx hash as ID for uniqueness
@@ -225,17 +231,31 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTransactions(prev => 
         prev.map(t => t.id === tx.hash ? { ...t, status: 'completed' } : t)
       );
+      toast.success(`Transaction confirmed: ${tx.hash.substring(0, 6)}...${tx.hash.substring(tx.hash.length - 4)}`, { id: toastId });
 
       // Refresh balance after successful transaction
       const rawBalance = await inkTokenContract.balanceOf(address);
       setBalance(parseFloat(formatUnits(rawBalance, tokenDecimals)));
 
-    } catch (error) {
-      console.error('Failed to send tokens:', error);
-      alert('Transaction failed. See console for details.');
+    } catch (e: any) { 
+      console.error('Failed to send tokens:', e);
+      let errorMessage = 'Unknown transaction error';
+      if (e && typeof e === 'object') {
+        if ('reason' in e && typeof e.reason === 'string') {
+          errorMessage = e.reason;
+        } else if ('message' in e && typeof e.message === 'string') {
+          errorMessage = e.message;
+        } else if ('data' in e && e.data && typeof e.data === 'object' && 'message' in e.data && typeof e.data.message === 'string') {
+          // Ethers.js often wraps the actual error message in data.message
+          errorMessage = e.data.message;
+        }
+      }
+      toast.error(`Error: ${errorMessage}`, { id: toastId });
+      // Consider removing the alert if toast notifications are sufficient
+      // alert('Transaction failed. See console for details.'); 
       setTransactions(prev => 
         prev.map(t => (t.txHash && t.status === 'pending') ? { ...t, status: 'failed' } : t)
-      );
+      ); // Update status for the pending transaction if it exists
     }
   }, [inkTokenContract, signer, address, tokenDecimals]);
 
@@ -256,6 +276,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <WalletContext.Provider value={{
+      // Toaster needs to be rendered, typically at the root of your app or here
+      // However, to ensure it's available, we'll add it here. 
+      // Consider moving <Toaster /> to your App.tsx or main layout for global availability if preferred.
       balance,
       address,
       isConnected,
@@ -269,6 +292,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       addTokens
     }}>
       {children}
+      <Toaster position="bottom-right" reverseOrder={false} />
     </WalletContext.Provider>
   );
 };
