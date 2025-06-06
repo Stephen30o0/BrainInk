@@ -53,12 +53,44 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [userAnswers, setUserAnswers] = useState<Record<string, any>>({});
   const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
   const [showingExplanation, setShowingExplanation] = useState<string | null>(null);
+  const [isKanaTyping, setIsKanaTyping] = useState<boolean>(false);
+  const [typingKanaMessage, setTypingKanaMessage] = useState<{ id: string; fullText: string; currentIndex: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [activePdfContextUrl, setActivePdfContextUrl] = useState<string | null>(null);
   const [quizSession, setQuizSession] = useState<{
     id: string;
     type: 'quiz' | 'pastpaper';
     startTime: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (typingKanaMessage) {
+      if (typingKanaMessage.currentIndex < typingKanaMessage.fullText.length) {
+        const timerId = setTimeout(() => {
+          // Update the message content in the main messages array directly
+          // This is crucial for the UI to reflect the typing
+          setMessages(prevMessages => 
+            prevMessages.map(msg => 
+              msg.id === typingKanaMessage.id 
+                ? { ...msg, content: typingKanaMessage.fullText.substring(0, typingKanaMessage.currentIndex + 1) } 
+                : msg
+            )
+          );
+          // Then, advance the typing state for the next character
+          setTypingKanaMessage(prev => {
+            if (!prev) return null;
+            return { ...prev, currentIndex: prev.currentIndex + 1 };
+          });
+        }, 5); // Typing speed: 5ms per character
+        return () => clearTimeout(timerId); // Cleanup timer on unmount or re-run
+      } else {
+        // Typing is complete for the current message.
+        // The message in the store should now have its full content because of the direct update above.
+        // No further action needed on the message content itself here.
+        setTypingKanaMessage(null); // Reset typing state, ready for next interaction.
+      }
+    }
+  }, [typingKanaMessage, setMessages]); // Added setMessages to dependency array
   const {
     formattedTime,
     reset: resetTimer,
@@ -122,36 +154,67 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       title // Add title for new conversations
     };
     addMessage(userMessage);
+    const userMessageContent = input.trim();
     setInput('');
-    // Process user message and generate response
-    setTimeout(() => {
-      let responseText = '';
-      // Generate response based on input
-      if (input.toLowerCase().includes('hello') || input.toLowerCase().includes('hi')) {
-        responseText = "Hello! I'm K.A.N.A., your Knowledge Assistant for Natural Academics. How can I help with your studies today?";
-      } else if (input.toLowerCase().includes('photosynthesis')) {
-        responseText = "Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize foods with carbon dioxide and water. It's how plants convert light energy into chemical energy!";
-      } else if (input.toLowerCase().includes('math') || input.toLowerCase().includes('algebra')) {
-        responseText = 'I can help with mathematics! Would you like to practice some algebra problems? I can generate a quiz or explain specific concepts.';
-      } else {
-        responseText = `I understand you're asking about "${input}". I can help you learn about this topic. Would you like a detailed explanation, a quiz to test your knowledge, or some past paper questions on this subject?`;
+    setIsKanaTyping(true);
+
+    // Call the backend API to get K.A.N.A.'s response
+    fetch('http://localhost:3001/api/kana/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: userMessageContent,
+        ...(activePdfContextUrl && { activePdfUrl: activePdfContextUrl }),
+      }),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      // Create response message with same conversationId and subject
-      const responseMessage: MessageWithSubject = {
+      return response.json();
+    })
+    .then(data => {
+      setIsKanaTyping(false); // K.A.N.A. is no longer "thinking", will start "typing"
+      if (data.kanaResponse) {
+        const newKanaMessageId = uuidv4();
+        const responseMessagePlaceholder: MessageWithSubject = {
+          id: newKanaMessageId,
+          sender: 'kana',
+          content: '', // Start with empty content
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title // Use same title for the conversation
+        };
+        addMessage(responseMessagePlaceholder);
+        setTypingKanaMessage({ id: newKanaMessageId, fullText: data.kanaResponse, currentIndex: 0 });
+        setXp(prev => prev + 5); // Keep XP gain for now
+      } else {
+        throw new Error('Invalid response structure from backend');
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching K.A.N.A. response:', error);
+      setIsKanaTyping(false); // Also stop "thinking" indicator on error
+      // Optionally, add a message to the chat indicating an error
+      const errorMessage: MessageWithSubject = {
         id: uuidv4(),
         sender: 'kana',
-        content: responseText,
+        content: 'Sorry, I encountered an error trying to respond. Please try again later.',
         timestamp: Date.now(),
         type: 'text',
         subject,
         conversationId,
-        title // Use same title for the conversation
+        title
       };
-      addMessage(responseMessage);
-      setXp(prev => prev + 5);
-    }, 1000);
+      addMessage(errorMessage);
+    });
   };
   const startQuiz = (quizId: string) => {
+    setActivePdfContextUrl(null); // Clear PDF context when starting a quiz
     const selectedQuiz = quizzes.find(q => q.id === quizId);
     if (!selectedQuiz) return;
     // Initialize quiz
@@ -187,8 +250,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     addMessage(startMessage);
   };
   const startPastPaper = (paperId: string) => {
+    setCurrentQuiz(null); // Clear any active quiz
+    setQuizCompleted(false);
+    setUserAnswers({});
     const paper = pastPapers.find(p => p.id === paperId);
     if (!paper) return;
+    setActivePdfContextUrl(paper.pdfUrl); // Set active PDF for Q&A
     // Use existing conversation ID from activeChat or create new one
     const conversationId = activeChat?.id?.toString() || Date.now().toString();
     const subject = activeChat?.subject || paper.subject;
@@ -568,14 +635,59 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         {/* Messages */}
         {!messagesToDisplay || messagesToDisplay.length === 0 ? welcomeMessage : <>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {messagesToDisplay.map(message => <MessageAnimation key={message.id} isVisible={true}>
-                  <div className={`max-w-[80%] ${message.sender === 'user' ? 'ml-auto bg-blue-600' : 'bg-[#141b2d]'} rounded-lg p-4`}>
-                    {isValidElement(message.content) ? message.content : <p>{String(message.content)}</p>}
-                    {message.subject && <div className="mt-2 text-xs text-gray-400">
-                        Subject: {message.subject}
-                      </div>}
+{messagesToDisplay.map(message => {
+                const isUser = message.sender === 'user';
+                // Basic timestamp - you might want to format this more nicely later
+                const timestamp = new Date(message.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                  <MessageAnimation key={message.id} isVisible={true}>
+                    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
+                      <div className={`flex items-end gap-2 max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                        {/* Avatar Placeholder */}
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white text-sm ${isUser ? 'ml-2' : 'mr-2'}`}>
+                          {isUser ? 'U' : 'K'}
+                        </div>
+                        {/* Message Bubble */}
+                        <div
+                          className={`
+                            ${isUser ? 'bg-blue-600 text-white' : 'bg-[#2a3b5f] text-gray-200'} 
+                            rounded-xl p-3 shadow-md
+                          `}
+                        >
+                          {/* Message Content */}
+                          {isValidElement(message.content) ? message.content : <p className="text-sm">{String(message.content)}</p>}
+                          
+                          {/* Subject (if any) - styling can be improved */}
+                          {message.subject && (
+                            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-xs text-gray-400">
+                              Subject: {message.subject}
+                            </div>
+                          )}
+                          {/* Timestamp */}
+                          <div className={`text-xs mt-1.5 ${isUser ? 'text-blue-200 text-right' : 'text-gray-400 text-left'}`}>
+                            {timestamp}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </MessageAnimation>
+                );
+              })}
+
+              {/* K.A.N.A. Typing Indicator - updated to match K.A.N.A. bubble style */}
+              {isKanaTyping && (
+                <div className="flex justify-start w-full">
+                  <div className="flex items-end gap-2 max-w-[80%] flex-row">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white text-sm mr-2">
+                      K
+                    </div>
+                    <div className="bg-[#2a3b5f] text-gray-200 rounded-xl p-3 shadow-md animate-pulse">
+                      <p className="text-sm text-gray-400 italic">K.A.N.A. is typing...</p>
+                    </div>
                   </div>
-                </MessageAnimation>)}
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </>}
