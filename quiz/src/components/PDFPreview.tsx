@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { Maximize2 } from 'lucide-react';
 interface PDFPreviewProps {
   pdfUrl: string;
@@ -10,9 +10,9 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
   title,
   onOpenFull
 }) => {
-  // Using Mozilla's PDF viewer with the sample PDF
-  const samplePdfUrl = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
-  const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(samplePdfUrl)}`;
+  // Using Mozilla's PDF viewer with the passed PDF URL
+  const absoluteProxiedPdfUrl = `http://localhost:3001/api/kana/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
+  const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(absoluteProxiedPdfUrl)}`;
   return <div className="bg-[#141b2d] rounded-lg border border-[#1a223a] overflow-hidden">
       <div className="flex justify-between items-center p-4 border-b border-[#1a223a]">
         <h3 className="font-medium">{title}</h3>

@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 interface PDFReaderModalProps {
   pdfUrl: string;
@@ -8,9 +8,9 @@ const PDFReaderModal: React.FC<PDFReaderModalProps> = ({
   pdfUrl,
   onClose
 }) => {
-  // Using Mozilla's PDF viewer with the sample PDF
-  const samplePdfUrl = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
-  const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(samplePdfUrl)}`;
+  // Using Mozilla's PDF viewer with the passed PDF URL
+  const absoluteProxiedPdfUrl = `http://localhost:3001/api/kana/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
+  const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(absoluteProxiedPdfUrl)}`;
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
