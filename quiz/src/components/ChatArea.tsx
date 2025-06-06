@@ -159,7 +159,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     setIsKanaTyping(true);
 
     // Call the backend API to get K.A.N.A.'s response
-    fetch('/api/kana/chat', {
+    fetch('http://localhost:3001/api/kana/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
