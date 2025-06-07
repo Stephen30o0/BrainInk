@@ -15,6 +15,7 @@ import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
 
 const KANA_API_BASE_URL = process.env.REACT_APP_KANA_API_BASE_URL || 'http://localhost:3001/api/kana';
+console.log('KANA_API_BASE_URL in ChatArea.tsx:', KANA_API_BASE_URL);
 // import MessageItem from './MessageItem'; // Temporarily commented out
 
 interface ChatAreaProps {
