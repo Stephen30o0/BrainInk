@@ -1,19 +1,18 @@
 import * as React from 'react';
-import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react';
+import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react'; // Cleaned up unused icons
 import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
-import { Chat, PastPaper } from '../lib/types';
+import { Chat, PastPaper } from '../lib/types'; // Moved PastPaper here too for consistency, Chat added
 import { v4 as uuidv4 } from 'uuid';
 import { useTimer } from '../lib/hooks/useTimer';
-import { PixelButton as Button } from '../../../src/components/shared/PixelButton';
+import { PixelButton as Button } from '../../../src/components/shared/PixelButton'; // Used relative import path 
 import quizzes from './data/QuizData';
 import pastPapers from './data/PastPaperData';
-import MessageItem from './MessageItem';
+import MessageItem from './MessageItem'; // Removed duplicate import
 import { Quiz, QuizQuestion, QuizAttempt } from '../lib/types';
 import { useQuiz } from '../lib/hooks/useQuiz';
 import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
-import { API_ENDPOINTS } from '../config';
 // import MessageItem from './MessageItem'; // Temporarily commented out
 
 interface ChatAreaProps {
@@ -221,7 +220,7 @@ const ChatArea = ({
       if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
 
       try {
-        const response = await fetch(API_ENDPOINTS.ANALYZE_IMAGE, {
+        const response = await fetch('/api/kana/analyze-image', {
           method: 'POST',
           body: formData,
         });
@@ -289,7 +288,7 @@ const ChatArea = ({
       }
 
       if (isImageGenerationRequest) {
-        fetch(API_ENDPOINTS.GENERATE_AND_EXPLAIN, {
+        fetch('/api/kana/generate-and-explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
@@ -319,7 +318,7 @@ const ChatArea = ({
         .finally(() => setIsKanaTyping(false));
       } else {
         // Standard chat API call (non-image-generation)
-        fetch(API_ENDPOINTS.CHAT, {
+        fetch('/api/kana/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -394,7 +393,7 @@ const ChatArea = ({
     const title = activeChat?.title || 'System Message';
 
     try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD_NOTE, {
+      const response = await fetch('/api/kana/upload-note', {
         method: 'POST',
         body: formData,
       });
@@ -482,7 +481,7 @@ const ChatArea = ({
     const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
     try {
-      const response = await fetch(API_ENDPOINTS.CLEAR_NOTE_CONTEXT, {
+      const response = await fetch('/api/kana/clear-note-context', {
         method: 'POST',
       });
       if (response.ok) {

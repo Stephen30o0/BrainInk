@@ -1,6 +1,5 @@
 import React from 'react';
 import { Maximize2 } from 'lucide-react';
-import { API_ENDPOINTS } from '../config';
 interface PDFPreviewProps {
   pdfUrl: string;
   title: string;
@@ -12,7 +11,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
   onOpenFull
 }) => {
   // Using Mozilla's PDF viewer with the passed PDF URL
-  const absoluteProxiedPdfUrl = `${API_ENDPOINTS.PDF_PROXY}?url=${encodeURIComponent(pdfUrl)}`;
+  const absoluteProxiedPdfUrl = `http://localhost:3001/api/kana/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
   const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(absoluteProxiedPdfUrl)}`;
   return <div className="bg-[#141b2d] rounded-lg border border-[#1a223a] overflow-hidden">
       <div className="flex justify-between items-center p-4 border-b border-[#1a223a]">

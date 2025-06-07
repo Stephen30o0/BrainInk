@@ -1,5 +1,47 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+  "version": 2,
+  "builds": [
+    {
+      "src": "quiz/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
+    },
+    {
+      "src": "api/kana.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/kana/(.*)",
+      "dest": "/api/kana.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/quiz/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/static/(.*)",
+      "dest": "/quiz/static/$1"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/quiz/manifest.json"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/quiz/favicon.ico"
+    },
+    {
+      "src": "/logo(.*)",
+      "dest": "/quiz/logo$1"
+    },
+    {
+      "src": "/.*",
+      "dest": "/quiz/index.html"
+    }
   ]
 }
