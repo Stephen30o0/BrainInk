@@ -4,7 +4,7 @@
     {
       "src": "quiz/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist" } 
+      "config": { "distDir": "dist" }
     },
     {
       "src": "api/kana.js",
@@ -17,11 +17,19 @@
       "dest": "/api/kana.js"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/quiz/assets/$1"
+    },
+    {
+      "src": "/vite.svg",
+      "dest": "/quiz/vite.svg"
+    },
+    {
       "handle": "filesystem"
     },
     {
       "src": "/.*",
-      "dest": "/index.html"
+      "dest": "/quiz/index.html"
     }
   ]
 }
