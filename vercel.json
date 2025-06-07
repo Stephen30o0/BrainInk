@@ -1,35 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "quiz/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    },
-    {
-      "src": "api/kana.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/kana/(.*)",
-      "dest": "/api/kana.js"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/quiz/assets/$1"
-    },
-    {
-      "src": "/vite.svg",
-      "dest": "/quiz/vite.svg"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/quiz/index.html"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
   ]
 }
