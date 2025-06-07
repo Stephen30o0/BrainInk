@@ -62,24 +62,35 @@ let genAI, geminiModel;
 let visionClient; // Google Cloud Vision client
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"}); // Trying gemini-1.5-flash-latest
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
   console.log('DEBUG: Google AI SDK initialized.');
+  
+  // Initialize Vision Client with more specific error handling
   try {
     if (process.env.VERCEL_ENV && process.env.GOOGLE_CREDENTIALS_CONTENT) {
-      // For Vercel deployment, parse credentials from environment variable content
-      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+      console.log('DEBUG: Attempting to initialize Vision client from GOOGLE_CREDENTIALS_CONTENT.');
+      let credentials;
+      try {
+        credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+      } catch (parseError) {
+        console.error('DEBUG: Failed to parse GOOGLE_CREDENTIALS_CONTENT. Ensure it is valid JSON.', parseError.message);
+        // Optionally, re-throw or handle as a critical failure if Vision API is essential
+        throw new Error('Invalid GOOGLE_CREDENTIALS_CONTENT format.'); 
+      }
       visionClient = new ImageAnnotatorClient({ credentials });
       console.log('DEBUG: Google Cloud Vision client initialized from VERCEL_ENV/GOOGLE_CREDENTIALS_CONTENT.');
     } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      // For local development, use the file path from GOOGLE_APPLICATION_CREDENTIALS
+      console.log('DEBUG: Attempting to initialize Vision client from GOOGLE_APPLICATION_CREDENTIALS file path.');
       visionClient = new ImageAnnotatorClient(); 
       console.log('DEBUG: Google Cloud Vision client initialized from GOOGLE_APPLICATION_CREDENTIALS file path.');
     } else {
-      console.error('DEBUG: Google Cloud Vision credentials not found (GOOGLE_CREDENTIALS_CONTENT or GOOGLE_APPLICATION_CREDENTIALS).');
+      console.error('DEBUG: Google Cloud Vision credentials not found (GOOGLE_CREDENTIALS_CONTENT or GOOGLE_APPLICATION_CREDENTIALS). Vision client not initialized.');
+      // Depending on requirements, you might want to throw an error here if Vision is critical
     }
-  } catch (error) {
-    console.error('DEBUG: Failed to initialize Google Cloud Vision client:', error.message);
+  } catch (visionError) {
+    console.error('DEBUG: Overall failure to initialize Google Cloud Vision client:', visionError.message);
     // Depending on requirements, you might want to prevent app start or run in a degraded mode.
+    // visionClient will remain undefined, and routes using it should check for its existence.
   }
 } else {
   console.error('DEBUG: GOOGLE_API_KEY not found. Google AI SDK not initialized.');

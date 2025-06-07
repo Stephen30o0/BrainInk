@@ -393,7 +393,7 @@ const ChatArea = ({
     const title = activeChat?.title || 'System Message';
 
     try {
-      const response = await fetch('http://localhost:3001/api/kana/upload-note', {
+      const response = await fetch('/api/upload-note', {
         method: 'POST',
         body: formData,
       });
