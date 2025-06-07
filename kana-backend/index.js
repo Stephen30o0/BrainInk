@@ -53,7 +53,29 @@ const MAX_CACHE_SIZE = 50; // Store up to 50 PDFs' text
 let cacheKeys = []; // To track insertion order for LRU-like eviction
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+  'https://brain-ink.vercel.app',
+  'http://localhost:3000', // For local frontend dev (if you use port 3000)
+  'http://localhost:5173'  // For local Vite frontend dev (default Vite port)
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true, // If you plan to use cookies or authorization headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
+}));
+
+// Explicitly handle preflight requests for all routes
+app.options('*', cors()); // This should use the same cors options as above or be more permissive for OPTIONS
 app.use(express.json());
 
 // Google Gemini API details
