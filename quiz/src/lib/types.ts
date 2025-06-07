@@ -1,9 +1,11 @@
 export interface Message {
   id: string;
-  sender: 'user' | 'kana';
+  sender: 'user' | 'kana' | 'system';
   content: string | React.ReactNode;
   timestamp: number;
-  type: 'text' | 'quiz-start' | 'quiz-question' | 'quiz-result' | 'past-paper' | 'pdf';
+  type: 'text' | 'quiz-start' | 'quiz-question' | 'quiz-result' | 'past-paper' | 'pdf' | 'image_with_explanation' | 'typing' | 'mathematical_graph'; // Added image_with_explanation, typing, and mathematical_graph
+  imageUrl?: string;      // Added for generated images
+  explanation?: string;   // Added for image explanations
 }
 export interface Quiz {
   id: string;
@@ -39,4 +41,10 @@ export interface PastPaper {
   pdfUrl: string;
   description: string;
   pages: number;
+}
+
+export interface Chat {
+  id: number;
+  title: string;
+  subject: string;
 }
