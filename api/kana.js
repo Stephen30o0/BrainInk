@@ -394,4 +394,4 @@ app.post('/plot-graph', async (req, res) => {
 
 // Export the app for Vercel. Vercel will wrap this Express app in a single serverless function.
 // All routes defined on `app` will be available under /api/kana/*
-module.exports = app
+module.exports = app;
