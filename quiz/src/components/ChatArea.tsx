@@ -57,6 +57,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [typingKanaMessage, setTypingKanaMessage] = useState<{ id: string; fullText: string; currentIndex: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [activePdfContextUrl, setActivePdfContextUrl] = useState<string | null>(null);
+  const [useDocumentContext, setUseDocumentContext] = useState(true); // Default to using document context
   const [quizSession, setQuizSession] = useState<{
     id: string;
     type: 'quiz' | 'pastpaper';
@@ -64,33 +65,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (typingKanaMessage) {
-      if (typingKanaMessage.currentIndex < typingKanaMessage.fullText.length) {
-        const timerId = setTimeout(() => {
-          // Update the message content in the main messages array directly
-          // This is crucial for the UI to reflect the typing
-          setMessages(prevMessages => 
-            prevMessages.map(msg => 
-              msg.id === typingKanaMessage.id 
-                ? { ...msg, content: typingKanaMessage.fullText.substring(0, typingKanaMessage.currentIndex + 1) } 
-                : msg
-            )
-          );
-          // Then, advance the typing state for the next character
-          setTypingKanaMessage(prev => {
-            if (!prev) return null;
-            return { ...prev, currentIndex: prev.currentIndex + 1 };
-          });
-        }, 5); // Typing speed: 5ms per character
-        return () => clearTimeout(timerId); // Cleanup timer on unmount or re-run
-      } else {
-        // Typing is complete for the current message.
-        // The message in the store should now have its full content because of the direct update above.
-        // No further action needed on the message content itself here.
-        setTypingKanaMessage(null); // Reset typing state, ready for next interaction.
-      }
+    if (typingKanaMessage && typingKanaMessage.fullText) {
+      // Instantly set the full message content
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === typingKanaMessage.id 
+            ? { ...msg, content: typingKanaMessage.fullText } 
+            : msg
+        )
+      );
+      // Reset typing state immediately after setting the full message
+      setTypingKanaMessage(null);
     }
-  }, [typingKanaMessage, setMessages]); // Added setMessages to dependency array
+  }, [typingKanaMessage, setMessages]);
   const {
     formattedTime,
     reset: resetTimer,
@@ -166,7 +153,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       },
       body: JSON.stringify({
         message: userMessageContent,
-        ...(activePdfContextUrl && { activePdfUrl: activePdfContextUrl }),
+        ...(useDocumentContext && activePdfContextUrl && { activePdfUrl: activePdfContextUrl }),
       }),
     })
     .then(response => {
@@ -715,6 +702,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               Practice Quiz
             </button>
           </div>
+          {/* Toggle for using document context */}
+          {activePdfContextUrl && (
+            <div className="flex items-center mt-3">
+              <input
+                type="checkbox"
+                id="useDocContextToggle"
+                checked={useDocumentContext}
+                onChange={(e) => setUseDocumentContext(e.target.checked)}
+                className="mr-2 h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
+              />
+              <label htmlFor="useDocContextToggle" className="text-sm text-gray-400 cursor-pointer select-none">
+                Use Document Context ({activePdfContextUrl ? 'PDF Loaded' : 'No PDF Loaded'})
+              </label>
+            </div>
+          )}
       
     </div>
   </div>

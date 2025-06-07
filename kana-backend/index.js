@@ -4,22 +4,34 @@ const axios = require('axios');
 const path = require('path'); // Added for explicit .env path
 const pdf = require('pdf-parse');
 require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true }); // Explicitly set path and override existing vars
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Log loaded env variables for debugging
-console.log('DEBUG: Loaded HUGGING_FACE_MODEL_URL:', process.env.HUGGING_FACE_MODEL_URL); 
-console.log('DEBUG: Loaded HUGGING_FACE_API_TOKEN:', process.env.HUGGING_FACE_API_TOKEN ? 'Token Loaded' : 'Token NOT Loaded');
+console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
 
 const app = express();
+
+// In-memory cache for PDF text
+const pdfCache = {};
+// Simple cache eviction strategy: limit cache size
+const MAX_CACHE_SIZE = 50; // Store up to 50 PDFs' text
+let cacheKeys = []; // To track insertion order for LRU-like eviction
 const port = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Hugging Face API details
-const HUGGING_FACE_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN; // Still from .env
-const HUGGING_FACE_MODEL_URL = process.env.HUGGING_FACE_MODEL_URL;
-console.log('DEBUG: Loaded HUGGING_FACE_MODEL_URL:', HUGGING_FACE_MODEL_URL);
+// Google Gemini API details
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+let genAI, geminiModel;
+if (GOOGLE_API_KEY) {
+  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"}); // Trying gemini-1.5-flash-latest
+  console.log('DEBUG: Google AI SDK initialized.');
+} else {
+  console.error('DEBUG: GOOGLE_API_KEY not found. Google AI SDK not initialized.');
+}
 
 // Simple test route
 app.get('/', (req, res) => {
@@ -70,129 +82,81 @@ app.post('/api/kana/chat', async (req, res) => {
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  if (!HUGGING_FACE_API_TOKEN || !HUGGING_FACE_MODEL_URL) {
-    console.error('Hugging Face API Token or Model URL is not configured.');
+  if (!GOOGLE_API_KEY || !geminiModel) {
+    console.error('Google API Key is not configured or Gemini model failed to initialize.');
     return res.status(500).json({ error: 'AI service not configured' });
   }
 
   try {
-    // Construct the payload for Hugging Face API
-    // For DialoGPT, the 'inputs' field can directly take the user's text
-    // or an object with 'text', 'past_user_inputs', 'generated_responses'.
-    // We'll start simple and can enhance with history later.
     let systemPrompt = "You are K.A.N.A., the Knowledge Assistant for Natural Academics. Your purpose is to help students learn and understand academic topics. You are friendly, patient, clear, and encouraging. Your primary focus is academic subjects. If the user asks a question clearly outside of academics (e.g., asking for random jokes or personal opinions unrelated to learning), politely state that you're here to help with studies and try to guide them back to an educational topic. Do not invent information; if you don't know something, say so. You are an AI learning buddy.";
     let pdfContext = '';
 
     if (activePdfUrl) {
       try {
-        console.log(`Fetching PDF for Q&A from: ${activePdfUrl}`);
-        const pdfResponse = await axios.get(activePdfUrl, { responseType: 'arraybuffer' });
-        const pdfData = await pdf(pdfResponse.data);
-
-        const MIN_TEXT_LENGTH = 200; // Minimum characters to be considered useful content
-        const watermarkPattern = /CamScanner/ig; // Basic watermark check
-
-        if (pdfData.text && pdfData.text.length >= MIN_TEXT_LENGTH && !watermarkPattern.test(pdfData.text.substring(0, MIN_TEXT_LENGTH * 2))) {
-          const MAX_PDF_CONTEXT_LENGTH = 10000; // Reset to a reasonable length for pdf-parse
-          pdfContext = pdfData.text.substring(0, MAX_PDF_CONTEXT_LENGTH);
-          console.log(`Extracted ${pdfContext.length} characters of text from PDF using pdf-parse.`);
+        if (pdfCache[activePdfUrl]) {
+          pdfContext = pdfCache[activePdfUrl];
+          console.log(`Cache HIT for PDF: ${activePdfUrl}. Using cached text.`);
         } else {
-          pdfContext = ''; // Set to empty if text is too short or likely just watermarks
-          if (!pdfData.text || pdfData.text.length < MIN_TEXT_LENGTH) {
-            console.log(`Extracted text is too short (${pdfData.text ? pdfData.text.length : 0} chars). Skipping PDF context.`);
-          }
-          if (pdfData.text && watermarkPattern.test(pdfData.text.substring(0, MIN_TEXT_LENGTH * 2))) {
-            console.log('Extracted text appears to be primarily watermarks. Skipping PDF context.');
+          console.log(`Cache MISS for PDF: ${activePdfUrl}. Fetching and parsing...`);
+          const pdfResponse = await axios.get(activePdfUrl, { responseType: 'arraybuffer' });
+          const pdfData = await pdf(pdfResponse.data);
+          console.log('DEBUG: Initial pdfData.text (first 500 chars):', pdfData.text ? pdfData.text.substring(0, 500) : 'No text found'); // Log initial snippet
+          const MIN_TEXT_LENGTH = 200;
+          const watermarkPattern = /CamScanner/ig;
+          if (pdfData.text && pdfData.text.length >= MIN_TEXT_LENGTH && !watermarkPattern.test(pdfData.text.substring(0, MIN_TEXT_LENGTH * 2))) {
+            const MAX_PDF_CONTEXT_LENGTH = 15000; // Max context for Gemini (adjust as needed for model limits)
+            pdfContext = pdfData.text.substring(0, MAX_PDF_CONTEXT_LENGTH);
+            console.log(`Extracted ${pdfContext.length} characters of text from PDF using pdf-parse.`);
+            if (cacheKeys.length >= MAX_CACHE_SIZE) {
+              const oldestKey = cacheKeys.shift();
+              delete pdfCache[oldestKey];
+              console.log(`Cache full. Evicted: ${oldestKey}`);
+            }
+            pdfCache[activePdfUrl] = pdfContext;
+            cacheKeys.push(activePdfUrl);
+            console.log(`Stored PDF text in cache: ${activePdfUrl}`);
+          } else {
+            pdfContext = '';
+            if (!pdfData.text || pdfData.text.length < MIN_TEXT_LENGTH) console.log(`Extracted text is too short (${pdfData.text ? pdfData.text.length : 0} chars). Skipping PDF context.`);
+            if (pdfData.text && watermarkPattern.test(pdfData.text.substring(0, MIN_TEXT_LENGTH * 2))) console.log('Extracted text appears to be primarily watermarks. Skipping PDF context.');
           }
         }
       } catch (pdfError) {
         console.error('Error fetching or parsing PDF for Q&A:', pdfError.message);
-        // Optionally, inform the user that the PDF couldn't be processed for Q&A
-        // For now, we'll just proceed without PDF context if it fails.
       }
     }
 
-    let fullPrompt;
+    // Construct prompt for Gemini
+    // For gemini-pro, a direct instruction-like prompt works well.
+    // The system prompt sets the persona, PDF context provides specific info, and message is the user's query.
+    let fullPromptForGemini = systemPrompt; // Start with the system prompt defining K.A.N.A.
     if (pdfContext) {
-      fullPrompt = `${systemPrompt}\n\nDocument Context:\n${pdfContext}\n\nUser: ${message}\nK.A.N.A.:`;
-    } else {
-      fullPrompt = `${systemPrompt}\n\nUser: ${message}\nK.A.N.A.:`;
+      fullPromptForGemini += `\n\nConsider the following document context before answering the user's question:\n---BEGIN DOCUMENT CONTEXT---\n${pdfContext}\n---END DOCUMENT CONTEXT---`;
     }
+    fullPromptForGemini += `\n\nUser's question: ${message}\n\nK.A.N.A.'s Answer:`; // Clearly demarcate where K.A.N.A. should respond
 
-    console.log('Full prompt being sent to Hugging Face:', fullPrompt);
+    console.log('Sending prompt to Google Gemini:', fullPromptForGemini);
 
-    const payload = {
-      inputs: fullPrompt, // Use the full prompt with persona and user message
-      parameters: {
-        return_full_text: false, // IMPORTANT: Keep this false, as we only want the text generated after 'K.A.N.A.:'
-        repetition_penalty: 1.2,
-        max_new_tokens: 300, // Further increased for more complete responses
-        temperature: 0.6, // Lowered for more focused and less random responses
-      }
-    };
-
-    console.log('Sending to Hugging Face:', payload);
-
-    const hfResponse = await axios.post(
-      HUGGING_FACE_MODEL_URL,
-      payload,
-      {
-        headers: {
-          'Authorization': `Bearer ${HUGGING_FACE_API_TOKEN}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json' // Added to request more detailed errors
-        },
-      }
-    );
-
-    // The response structure for many conversational models (like DialoGPT, GPT-2) 
-    // when not using return_full_text:false (or when it's not supported and returns full by default)
-    // is typically an array with one object containing `generated_text`.
-    // Or, if parameters like `return_full_text: false` are used and respected, it might be directly the text.
-    // We will try to cater to the common { generated_text: "..." } structure within an array.
-    let aiResponseText = "Sorry, I couldn't parse the AI response.";
-    if (hfResponse.data && Array.isArray(hfResponse.data) && hfResponse.data.length > 0 && hfResponse.data[0].generated_text) {
-      aiResponseText = hfResponse.data[0].generated_text;
-    } else if (hfResponse.data && hfResponse.data.generated_text) { // Some models might return it directly
-      aiResponseText = hfResponse.data.generated_text;
-    } else if (typeof hfResponse.data === 'string') { // Or just a string
-      aiResponseText = hfResponse.data;
-    }
-    console.log('Received from Hugging Face (attempting to parse):', hfResponse.data);
-    console.log('Parsed AI Response Text:', aiResponseText);
+    const result = await geminiModel.generateContent(fullPromptForGemini);
+    const response = await result.response;
+    const aiResponseText = await response.text();
+    
+    console.log('Received from Google Gemini:', aiResponseText);
     res.json({ kanaResponse: aiResponseText });
 
   } catch (error) {
-    console.error('Error calling Hugging Face API:');
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error('Status:', error.response.status);
-      // console.error('Headers:', error.response.headers); // Can be verbose
-      console.error('Raw Error Data from Hugging Face:', error.response.data);
-
-      // Attempt to provide more specific guidance based on common issues
-      if (error.response.status === 401) {
-        console.error("Authentication Error (401): Please check your HUGGING_FACE_API_TOKEN in the .env file. Ensure it's correct and has inference permissions.");
-        return res.status(500).json({ error: 'AI service authentication failed. Check API token.' });
-      } else if (error.response.status === 404) {
-        console.error("Not Found Error (404): The model URL might be incorrect or the model isn't available. Current URL:", HUGGING_FACE_MODEL_URL);
-        return res.status(500).json({ error: 'AI model not found. Check configuration.' });
-      } else if (error.response.status === 503 && error.response.data && typeof error.response.data === 'object' && error.response.data.error && error.response.data.error.includes('is currently loading')) {
-        console.error("Model Loading Error (503): The AI model is currently loading on Hugging Face's side.");
-        return res.status(503).json({ error: `AI model is currently loading. Estimated time: ${error.response.data.estimated_time || 'a few moments'}. Please try again shortly.` });
-      }
-      // General error for other statuses
-      return res.status(500).json({ error: 'Failed to get response from AI service due to server-side error on their end.' });
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error('Request:', error.request);
-      return res.status(500).json({ error: 'No response from AI service.' });
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error('Error Message:', error.message);
-      return res.status(500).json({ error: 'Error setting up AI request.' });
+    console.error('Error calling Google Gemini API:', error);
+    // Add more specific error handling for Gemini if needed, e.g., checking error.message or error.code
+    // For now, a general error message:
+    let errorMessage = 'Failed to get response from AI service.';
+    if (error.message && error.message.includes('API key not valid')) {
+        errorMessage = 'AI service authentication failed. Check your Google API Key.';
+    } else if (error.message && error.message.includes('quota')) {
+        errorMessage = 'AI service quota exceeded. Please check your Google Cloud project quotas.';
     }
+    // Check for specific error types from the Gemini SDK if available, e.g. error.status or error.details
+    // This is a generic catch-all for now.
+    res.status(500).json({ error: errorMessage, details: error.message });
   }
 });
 
