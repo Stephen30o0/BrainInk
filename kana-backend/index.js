@@ -95,7 +95,7 @@ app.get('/', (req, res) => {
 });
 
 // PDF Proxy Endpoint
-app.get('/api/kana/pdf-proxy', async (req, res) => {
+app.get('/pdf-proxy', async (req, res) => {
   const { url } = req.query;
 
   if (!url) {
@@ -132,7 +132,7 @@ app.get('/api/kana/pdf-proxy', async (req, res) => {
 
 // K.A.N.A. Chat API endpoint
 // Endpoint to upload a note
-app.post('/api/kana/upload-note', upload.single('noteFile'), async (req, res) => {
+app.post('/upload-note', upload.single('noteFile'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ type: 'error', message: 'No file uploaded.' });
   }
@@ -164,7 +164,7 @@ app.post('/api/kana/upload-note', upload.single('noteFile'), async (req, res) =>
 
 // Endpoint to clear uploaded note context
 // New Endpoint for Image Analysis (OCR + Gemini)
-app.post('/api/kana/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
+app.post('/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
   const { message, subject, conversationId, title, activePdfUrl, uploadedNoteName } = req.body;
   
   if (!req.file) {
@@ -285,7 +285,7 @@ app.post('/api/kana/clear-note-context', (req, res) => {
   res.json({ type: 'success', message: 'Uploaded note context has been cleared.' });
 });
 
-app.post('/api/kana/chat', async (req, res) => {
+app.post('/chat', async (req, res) => {
   const { message, activePdfUrl } = req.body; // Get message and optional activePdfUrl
 
   if (!message) {
@@ -592,7 +592,7 @@ app.post('/api/kana/chat', async (req, res) => {
 });
 
 // K.A.N.A. Image Generation and Explanation API endpoint
-app.post('/api/kana/generate-and-explain', async (req, res) => {
+app.post('/generate-and-explain', async (req, res) => {
   const { message } = req.body;
 
   if (!message) {
