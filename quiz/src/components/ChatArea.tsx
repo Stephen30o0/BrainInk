@@ -13,6 +13,8 @@ import { useQuiz } from '../lib/hooks/useQuiz';
 import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
+
+const KANA_API_BASE_URL = process.env.REACT_APP_KANA_API_BASE_URL || 'http://localhost:3001/api/kana';
 // import MessageItem from './MessageItem'; // Temporarily commented out
 
 interface ChatAreaProps {
@@ -220,7 +222,7 @@ const ChatArea = ({
       if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
 
       try {
-        const response = await fetch('http://localhost:3001/api/kana/analyze-image', {
+        const response = await fetch(`${KANA_API_BASE_URL}/analyze-image`, {
           method: 'POST',
           body: formData,
         });
@@ -288,7 +290,7 @@ const ChatArea = ({
       }
 
       if (isImageGenerationRequest) {
-        fetch('http://localhost:3001/api/kana/generate-and-explain', {
+        fetch(`${KANA_API_BASE_URL}/generate-and-explain`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
@@ -318,7 +320,7 @@ const ChatArea = ({
         .finally(() => setIsKanaTyping(false));
       } else {
         // Standard chat API call (non-image-generation)
-        fetch('http://localhost:3001/api/kana/chat', {
+        fetch(`${KANA_API_BASE_URL}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -393,7 +395,7 @@ const ChatArea = ({
     const title = activeChat?.title || 'System Message';
 
     try {
-      const response = await fetch('http://localhost:3001/api/kana/upload-note', {
+      const response = await fetch(`${KANA_API_BASE_URL}/upload-note`, {
         method: 'POST',
         body: formData,
       });
@@ -481,7 +483,7 @@ const ChatArea = ({
     const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
     try {
-      const response = await fetch('http://localhost:3001/api/kana/clear-note-context', {
+      const response = await fetch(`${KANA_API_BASE_URL}/clear-note-context`, {
         method: 'POST',
       });
       if (response.ok) {
