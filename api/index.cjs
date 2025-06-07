@@ -6,4 +6,4 @@
 const app = require('../kana-backend/index.cjs');
 
 // Export the app for Vercel to use
-module.exports = app;
+module.exports = app
