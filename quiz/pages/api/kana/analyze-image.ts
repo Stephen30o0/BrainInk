@@ -2,24 +2,39 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { IncomingForm, File as FormidableFile } from 'formidable';
 import { promises as fs } from 'fs';
-import { promisify } from 'util';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 // Disable Next.js body parsing, we'll handle it with formidable
-// This is a Next.js specific configuration
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+// Enable CORS
+const allowCors = (fn: any) => async (req: NextApiRequest, res: NextApiResponse) => {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-V, Authorization'
+  );
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  return await fn(req, res);
+};
+
+const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
   }
 
   try {
@@ -35,6 +50,11 @@ export default async function handler(
     const { fields, files } = formData;
     const imageFile = files?.imageFile?.[0] as FormidableFile | undefined;
     const message = fields.message?.[0] || '';
+    const subject = fields.subject?.[0] || 'General';
+    const conversationId = fields.conversationId?.[0] || '';
+    const title = fields.title?.[0] || '';
+    const activePdfUrl = fields.activePdfUrl?.[0];
+    const uploadedNoteName = fields.uploadedNoteName?.[0];
 
     if (!imageFile) {
       return res.status(400).json({ error: 'Image file is required' });
@@ -66,14 +86,20 @@ export default async function handler(
       kanaResponse: text,
       type: 'image_with_explanation',
       explanation: text,
-      // In a real app, you'd upload this to a CDN and return the URL
-      // For now, we'll just return the base64 data URL
       imageUrl: `data:${mimeType};base64,${base64Image}`,
+      subject,
+      conversationId,
+      title,
+      activePdfUrl,
+      uploadedNoteName
     });
   } catch (error: any) {
     console.error('Error in analyze-image API:', error);
     return res.status(500).json({
-      error: error.message || 'An error occurred while processing the image'
+      error: error.message || 'An error occurred while processing the image',
+      details: error
     });
   }
-}
+};
+
+export default allowCors(handler);
