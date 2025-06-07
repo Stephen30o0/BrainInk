@@ -1,4 +1,5 @@
 import React from 'react';
+const KANA_API_BASE_URL = process.env.REACT_APP_KANA_API_BASE_URL || 'http://localhost:3001/api/kana';
 import { X } from 'lucide-react';
 interface PDFReaderModalProps {
   pdfUrl: string;
@@ -9,7 +10,7 @@ const PDFReaderModal: React.FC<PDFReaderModalProps> = ({
   onClose
 }) => {
   // Using Mozilla's PDF viewer with the passed PDF URL
-  const absoluteProxiedPdfUrl = `http://localhost:3001/api/kana/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
+  const absoluteProxiedPdfUrl = `${KANA_API_BASE_URL}/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`;
   const viewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(absoluteProxiedPdfUrl)}`;
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
