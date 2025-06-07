@@ -62,35 +62,14 @@ let genAI, geminiModel;
 let visionClient; // Google Cloud Vision client
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"}); // Trying gemini-1.5-flash-latest
   console.log('DEBUG: Google AI SDK initialized.');
-  
-  // Initialize Vision Client with more specific error handling
   try {
-    if (process.env.VERCEL_ENV && process.env.GOOGLE_CREDENTIALS_CONTENT) {
-      console.log('DEBUG: Attempting to initialize Vision client from GOOGLE_CREDENTIALS_CONTENT.');
-      let credentials;
-      try {
-        credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
-      } catch (parseError) {
-        console.error('DEBUG: Failed to parse GOOGLE_CREDENTIALS_CONTENT. Ensure it is valid JSON.', parseError.message);
-        // Optionally, re-throw or handle as a critical failure if Vision API is essential
-        throw new Error('Invalid GOOGLE_CREDENTIALS_CONTENT format.'); 
-      }
-      visionClient = new ImageAnnotatorClient({ credentials });
-      console.log('DEBUG: Google Cloud Vision client initialized from VERCEL_ENV/GOOGLE_CREDENTIALS_CONTENT.');
-    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      console.log('DEBUG: Attempting to initialize Vision client from GOOGLE_APPLICATION_CREDENTIALS file path.');
-      visionClient = new ImageAnnotatorClient(); 
-      console.log('DEBUG: Google Cloud Vision client initialized from GOOGLE_APPLICATION_CREDENTIALS file path.');
-    } else {
-      console.error('DEBUG: Google Cloud Vision credentials not found (GOOGLE_CREDENTIALS_CONTENT or GOOGLE_APPLICATION_CREDENTIALS). Vision client not initialized.');
-      // Depending on requirements, you might want to throw an error here if Vision is critical
-    }
-  } catch (visionError) {
-    console.error('DEBUG: Overall failure to initialize Google Cloud Vision client:', visionError.message);
+    visionClient = new ImageAnnotatorClient(); // Assumes GOOGLE_APPLICATION_CREDENTIALS is set
+    console.log('DEBUG: Google Cloud Vision client initialized.');
+  } catch (error) {
+    console.error('DEBUG: Failed to initialize Google Cloud Vision client:', error.message);
     // Depending on requirements, you might want to prevent app start or run in a degraded mode.
-    // visionClient will remain undefined, and routes using it should check for its existence.
   }
 } else {
   console.error('DEBUG: GOOGLE_API_KEY not found. Google AI SDK not initialized.');
@@ -106,7 +85,7 @@ app.get('/', (req, res) => {
 });
 
 // PDF Proxy Endpoint
-app.get('/pdf-proxy', async (req, res) => {
+app.get('/api/kana/pdf-proxy', async (req, res) => {
   const { url } = req.query;
 
   if (!url) {
@@ -143,7 +122,7 @@ app.get('/pdf-proxy', async (req, res) => {
 
 // K.A.N.A. Chat API endpoint
 // Endpoint to upload a note
-app.post('/upload-note', upload.single('noteFile'), async (req, res) => {
+app.post('/api/kana/upload-note', upload.single('noteFile'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ type: 'error', message: 'No file uploaded.' });
   }
@@ -175,7 +154,7 @@ app.post('/upload-note', upload.single('noteFile'), async (req, res) => {
 
 // Endpoint to clear uploaded note context
 // New Endpoint for Image Analysis (OCR + Gemini)
-app.post('/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
+app.post('/api/kana/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
   const { message, subject, conversationId, title, activePdfUrl, uploadedNoteName } = req.body;
   
   if (!req.file) {
@@ -296,7 +275,7 @@ app.post('/api/kana/clear-note-context', (req, res) => {
   res.json({ type: 'success', message: 'Uploaded note context has been cleared.' });
 });
 
-app.post('/chat', async (req, res) => {
+app.post('/api/kana/chat', async (req, res) => {
   const { message, activePdfUrl } = req.body; // Get message and optional activePdfUrl
 
   if (!message) {
@@ -603,7 +582,7 @@ app.post('/chat', async (req, res) => {
 });
 
 // K.A.N.A. Image Generation and Explanation API endpoint
-app.post('/generate-and-explain', async (req, res) => {
+app.post('/api/kana/generate-and-explain', async (req, res) => {
   const { message } = req.body;
 
   if (!message) {
@@ -695,6 +674,17 @@ app.post('/generate-and-explain', async (req, res) => {
   }
 });
 
+// Basic error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`K.A.N.A. backend server listening at http://localhost:${port}`);
+});
+
 
 // Catch-all for 404 Not Found errors
 app.use((req, res, next) => {
@@ -707,12 +697,6 @@ app.use((err, req, res, next) => {
   res.status(500).send('Something broke!');
 });
 
-// Start the server (commented out for Vercel deployment)
-/*
 app.listen(port, () => {
   console.log(`K.A.N.A. backend server listening at http://localhost:${port}`);
 });
-*/
-
-// Export the app for Vercel serverless function
-module.exports = app;

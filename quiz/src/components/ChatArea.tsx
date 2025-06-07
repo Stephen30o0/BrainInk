@@ -220,7 +220,7 @@ const ChatArea = ({
       if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
 
       try {
-        const response = await fetch('/api/analyze-image', {
+        const response = await fetch('http://localhost:3001/api/kana/analyze-image', {
           method: 'POST',
           body: formData,
         });
@@ -288,7 +288,7 @@ const ChatArea = ({
       }
 
       if (isImageGenerationRequest) {
-        fetch('/api/generate-and-explain', {
+        fetch('http://localhost:3001/api/kana/generate-and-explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
@@ -318,7 +318,7 @@ const ChatArea = ({
         .finally(() => setIsKanaTyping(false));
       } else {
         // Standard chat API call (non-image-generation)
-        fetch('/api/chat', {
+        fetch('http://localhost:3001/api/kana/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -393,7 +393,7 @@ const ChatArea = ({
     const title = activeChat?.title || 'System Message';
 
     try {
-      const response = await fetch('/api/upload-note', {
+      const response = await fetch('http://localhost:3001/api/kana/upload-note', {
         method: 'POST',
         body: formData,
       });
@@ -481,7 +481,7 @@ const ChatArea = ({
     const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
     try {
-      const response = await fetch('/api/clear-note-context', {
+      const response = await fetch('http://localhost:3001/api/kana/clear-note-context', {
         method: 'POST',
       });
       if (response.ok) {
