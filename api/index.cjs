@@ -3,7 +3,7 @@
 
 // Adjust the path to correctly point to your Express app's main file
 // The '../' goes up from 'api' to 'Brain', then into 'kana-backend'
-const app = require('../kana-backend/index.js');
+const app = require('../kana-backend/index.cjs');
 
 // Export the app for Vercel to use
 module.exports = app;
