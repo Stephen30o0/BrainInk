@@ -73,9 +73,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed methods
   allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
 }));
-
-// Explicitly handle preflight requests for all routes
-app.options('*', cors()); // This should use the same cors options as above or be more permissive for OPTIONS
 app.use(express.json());
 
 // Google Gemini API details
