@@ -1,17 +1,21 @@
-import React, { useEffect, useMemo, useState, useRef, isValidElement } from 'react';
-import { Send, Mic, Search, X, File, BarChart2, BookOpen } from 'lucide-react';
+import * as React from 'react';
+import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react';
 import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
+import { Chat, PastPaper } from '../lib/types';
 import { v4 as uuidv4 } from 'uuid';
-import MessageAnimation from './MessageAnimation';
 import { useTimer } from '../lib/hooks/useTimer';
+import { PixelButton as Button } from '../../../src/components/shared/PixelButton';
 import quizzes from './data/QuizData';
 import pastPapers from './data/PastPaperData';
-import QuizSelectionModal from './QuizSelectionModal';
+import MessageItem from './MessageItem';
 import { Quiz, QuizQuestion, QuizAttempt } from '../lib/types';
 import { useQuiz } from '../lib/hooks/useQuiz';
 import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
+import { API_ENDPOINTS } from '../config';
+// import MessageItem from './MessageItem'; // Temporarily commented out
+
 interface ChatAreaProps {
   openPDFReader: (pdfUrl: string) => void;
   toggleHistoryPanel: () => void;
@@ -26,12 +30,12 @@ interface ChatAreaProps {
     title: string;
   }) => void;
 }
-const ChatArea: React.FC<ChatAreaProps> = ({
+const ChatArea = ({
   openPDFReader,
   toggleHistoryPanel,
   activeChat,
   onChatSelect
-}) => {
+}: ChatAreaProps): JSX.Element => {
   const {
     messages,
     addMessage,
@@ -43,28 +47,33 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const {
     setAttempts
   } = useQuizAttempts();
-  const [input, setInput] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredMessages, setFilteredMessages] = useState(messages);
-  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
-  const [currentQuizQuestion, setCurrentQuizQuestion] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, any>>({});
-  const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
-  const [showingExplanation, setShowingExplanation] = useState<string | null>(null);
-  const [isKanaTyping, setIsKanaTyping] = useState<boolean>(false);
-  const [typingKanaMessage, setTypingKanaMessage] = useState<{ id: string; fullText: string; currentIndex: number } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [activePdfContextUrl, setActivePdfContextUrl] = useState<string | null>(null);
-  const [useDocumentContext, setUseDocumentContext] = useState(true); // Default to using document context
-  const [quizSession, setQuizSession] = useState<{
+  const [input, setInput] = React.useState('');
+  const [searchTerm] = React.useState(''); // setSearchTerm removed as it's unused
+  const [currentQuiz, setCurrentQuiz] = React.useState<Quiz | null>(null);
+  const [currentQuizQuestion, setCurrentQuizQuestion] = React.useState(0);
+  const [userAnswers, setUserAnswers] = React.useState<Record<string, string | number>>({});
+  const [quizCompleted, setQuizCompleted] = React.useState(false);
+  const [showingExplanation, setShowingExplanation] = React.useState<string | null>(null);
+  const [isKanaTyping, setIsKanaTyping] = React.useState(false);
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [uploadedNoteName, setUploadedNoteName] = React.useState<string | null>(null);
+  const [isUploading, setIsUploading] = React.useState<boolean>(false);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [pastedImageFile, setPastedImageFile] = React.useState<File | null>(null);
+  const [isSendingImage, setIsSendingImage] = React.useState<boolean>(false);
+  const [typingKanaMessage, setTypingKanaMessage] = React.useState<{ id: string; fullText: string; currentIndex: number } | null>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const [activePdfContextUrl, setActivePdfContextUrl] = React.useState<string | null>(null);
+  const [useDocumentContext] = React.useState(true); // Default to using document context, setUseDocumentContext removed as it's unused
+  const chatContainerRef = React.useRef<HTMLDivElement>(null);
+  const [isQuizMode, setIsQuizMode] = React.useState(false); // Default to false
+  const [quizSession, setQuizSession] = React.useState<{
     id: string;
     type: 'quiz' | 'pastpaper';
     startTime: number;
   } | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (typingKanaMessage && typingKanaMessage.fullText) {
       // Instantly set the full message content
       setMessages(prevMessages => 
@@ -74,31 +83,81 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             : msg
         )
       );
+      setIsQuizMode(false);
       // Reset typing state immediately after setting the full message
       setTypingKanaMessage(null);
     }
   }, [typingKanaMessage, setMessages]);
+
   const {
     formattedTime,
     reset: resetTimer,
-    setTimeLeft
+    setTimeLeft,
+    timeLeft, // Added
+    isActive  // Added
   } = useTimer({
-    initialTime: currentQuiz?.timeLimit || 60,
-    onTimeUp: () => {
-      if (currentQuiz) {
-        // Auto-submit the quiz when time runs out
-        finishQuiz();
-      }
-    }
+    initialTime: currentQuiz?.timeLimit || 60
   });
-  const [isQuizSelectionOpen, setIsQuizSelectionOpen] = useState(false);
-  const [quizSelectionType, setQuizSelectionType] = useState<'quiz' | 'pastpaper'>('quiz');
+
+  // Function to finish the quiz (handles premature ending, e.g., timer out)
+  const finishQuiz = React.useCallback(() => {
+    if (!currentQuiz || !quizSession) return;
+    // Save incomplete attempt if not already completed by answering last question
+    if (!quizCompleted) { // Check if quiz wasn't completed via normal flow
+      const attemptId = uuidv4();
+      const newAttempt: QuizAttempt = {
+        id: attemptId,
+        quizId: currentQuiz.id,
+        startTime: quizSession.startTime,
+        endTime: Date.now(),
+        answers: userAnswers,
+        // Score might be 0 or partially calculated if desired for incomplete attempts
+        score: 0, 
+        completed: false, // Explicitly false for premature finish
+      };
+      setAttempts(prev => [...prev, newAttempt]);
+      
+      // Add a message indicating the quiz ended, if desired
+      const prematureFinishMessage: MessageWithSubject = {
+        id: uuidv4(),
+        sender: 'kana',
+        subject: activeChat?.subject || 'Quiz',
+        conversationId: activeChat?.id?.toString() || uuidv4(),
+        content: 'The quiz time ran out or was ended prematurely.',
+        timestamp: Date.now(),
+        type: 'text' // Or a specific type like 'quiz-ended-prematurely'
+      };
+      addMessage(prematureFinishMessage);
+    }
+
+    // Reset quiz session states
+    setQuizSession(null);
+    setCurrentQuiz(null);
+    setUserAnswers({});
+    setCurrentQuizQuestion(0);
+    setQuizCompleted(false); // Reset for next quiz
+    resetTimer(); // Reset the timer as well
+  }, [
+    currentQuiz, quizSession, quizCompleted, userAnswers, 
+    setAttempts, addMessage, activeChat, 
+    setQuizSession, setCurrentQuiz, setUserAnswers, 
+    setCurrentQuizQuestion, setQuizCompleted, resetTimer
+  ]);
+
+  React.useEffect(() => {
+    if (isActive && timeLeft === 0 && currentQuiz) {
+      finishQuiz();
+    }
+  }, [isActive, timeLeft, currentQuiz, finishQuiz]);
+
+  const [isQuizSelectionOpen, setIsQuizSelectionOpen] = React.useState(false); // Controls visibility of quiz/past paper selection modal
+  const [quizSelectionType, setQuizSelectionType] = React.useState<'quiz' | 'pastpaper'>('quiz'); // 'quiz' or 'pastpaper'
   const quiz = useQuiz();
-  useEffect(() => {
+  React.useEffect(() => {
     scrollToBottom();
   }, [messages]);
   // Get messages to display based on search term and active chat
-  const messagesToDisplay = useMemo(() => {
+  const messagesToDisplay = React.useMemo(() => {
     if (searchTerm) {
       return messages.filter(message => typeof message.content === 'string' && message.content.toLowerCase().includes(searchTerm.toLowerCase()));
     }
@@ -109,98 +168,368 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     // Show messages for active chat's subject
     return messages.filter(message => message.subject === activeChat.subject);
   }, [messages, searchTerm, activeChat]);
-  // Update the useEffect for search filtering
-  useEffect(() => {
-    if (searchTerm) {
-      const filtered = messages.filter(message => typeof message.content === 'string' && message.content.toLowerCase().includes(searchTerm.toLowerCase()));
-      setFilteredMessages(filtered);
-    } else {
-      setFilteredMessages(messages);
-    }
-  }, [searchTerm, messages]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth'
     });
   };
-  const handleSendMessage = () => {
-    if (!input.trim()) return;
-    // Create a conversation ID if none exists
-    const conversationId = activeChat?.id?.toString() || uuidv4();
-    const subject = activeChat?.subject || 'General';
-    const title = activeChat?.title || input.slice(0, 50) + '...';
-    // Add user message
-    const userMessage: MessageWithSubject = {
-      id: uuidv4(),
-      sender: 'user',
-      content: input.trim(),
-      timestamp: Date.now(),
-      type: 'text',
-      subject,
-      conversationId,
-      title // Add title for new conversations
-    };
-    addMessage(userMessage);
-    const userMessageContent = input.trim();
-    setInput('');
-    setIsKanaTyping(true);
+  const handleSendMessage = async () => {
+    if (!input.trim() && !pastedImageFile) return;
 
-    // Call the backend API to get K.A.N.A.'s response
-    fetch('http://localhost:3001/api/kana/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: userMessageContent,
-        ...(useDocumentContext && activePdfContextUrl && { activePdfUrl: activePdfContextUrl }),
-      }),
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      setIsKanaTyping(false); // K.A.N.A. is no longer "thinking", will start "typing"
-      if (data.kanaResponse) {
-        const newKanaMessageId = uuidv4();
-        const responseMessagePlaceholder: MessageWithSubject = {
-          id: newKanaMessageId,
-          sender: 'kana',
-          content: '', // Start with empty content
-          timestamp: Date.now(),
-          type: 'text',
-          subject,
-          conversationId,
-          title // Use same title for the conversation
-        };
-        addMessage(responseMessagePlaceholder);
-        setTypingKanaMessage({ id: newKanaMessageId, fullText: data.kanaResponse, currentIndex: 0 });
-        setXp(prev => prev + 5); // Keep XP gain for now
-      } else {
-        throw new Error('Invalid response structure from backend');
-      }
-    })
-    .catch(error => {
-      console.error('Error fetching K.A.N.A. response:', error);
-      setIsKanaTyping(false); // Also stop "thinking" indicator on error
-      // Optionally, add a message to the chat indicating an error
-      const errorMessage: MessageWithSubject = {
+    const currentInput = input.trim(); // Capture input before clearing
+    const currentPastedFile = pastedImageFile; // Capture file before clearing
+
+    // Define subject, conversationId, and title based on activeChat or defaults
+    const subject = activeChat?.subject || 'General';
+    const conversationId = activeChat?.id?.toString() || uuidv4();
+    // For title, if it's a new chat (no activeChat.id yet), use a generic or input-derived title
+    // If it's an existing chat, use activeChat.title
+    const title = activeChat?.title || (currentInput.length > 0 ? currentInput.slice(0, 30) + '...' : 'New Chat');
+
+    // Add user message to UI immediately if there's text
+    if (currentInput) {
+      const userMessage: MessageWithSubject = {
         id: uuidv4(),
-        sender: 'kana',
-        content: 'Sorry, I encountered an error trying to respond. Please try again later.',
+        sender: 'user',
+        content: currentInput,
         timestamp: Date.now(),
         type: 'text',
         subject,
         conversationId,
         title
       };
-      addMessage(errorMessage);
-    });
+      addMessage(userMessage);
+    }
+    // If only an image is sent, we might want a placeholder, or handle it on the backend response.
+    // For now, a text message is added if text exists. Image is handled below.
+
+    setInput(''); // Clear text input now
+    setPastedImageFile(null); // Clear pasted image from UI preview now
+
+    if (currentPastedFile) {
+      setIsSendingImage(true);
+      setIsKanaTyping(true); // Also set general typing indicator
+
+      const formData = new FormData();
+      formData.append('imageFile', currentPastedFile);
+      formData.append('message', currentInput); // Send text input along with image
+      formData.append('subject', subject);
+      formData.append('conversationId', conversationId);
+      formData.append('title', title);
+      if (activePdfContextUrl) formData.append('activePdfUrl', activePdfContextUrl);
+      if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
+
+      try {
+        const response = await fetch(API_ENDPOINTS.ANALYZE_IMAGE, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Image analysis failed with non-JSON response from server.' }));
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const kanaResponseData = await response.json();
+        
+        // Expecting backend to return a message object or content for K.A.N.A.
+        const kanaMessage: MessageWithSubject = {
+          id: uuidv4(),
+          sender: 'kana',
+          // content could be complex, e.g., text + image URL, or just text
+          content: kanaResponseData.kanaResponse || 'Image processed.', 
+          imageUrl: kanaResponseData.imageUrl, // URL of the image as processed/stored by backend
+          explanation: kanaResponseData.explanation, // Text explanation from K.A.N.A.
+          timestamp: Date.now(),
+          type: kanaResponseData.type || 'image_with_explanation', // Backend should define this, e.g., 'image_analysis'
+          subject,
+          conversationId,
+          title
+        };
+        addMessage(kanaMessage);
+        // Potentially add XP here if image analysis is a feature to reward
+        // setXp(prev => prev + 3); 
+
+      } catch (error: any) {
+        console.error('Error sending/analyzing image:', error);
+        addMessage({
+          id: uuidv4(),
+          sender: 'system',
+          content: `Error analyzing image: ${error.message}`,
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title
+        });
+      } finally {
+        setIsSendingImage(false);
+        setIsKanaTyping(false);
+      }
+    } else if (currentInput) { // Standard text message, no pasted image
+      setIsKanaTyping(true);
+      // The user message is already added above. Now fetch K.A.N.A.'s response.
+
+      // Logic for image *generation* requests (keywords like 'draw', 'generate image')
+      const imageRequestPatterns = [
+        /^draw (.*)/i,
+        /^generate image of (.*)/i,
+        /^create an image of (.*)/i,
+        /^show me an image of (.*)/i,
+        /^generate an image of (.*?) and explain it$/i,
+        /^generate image: (.*)$/i
+      ];
+      let isImageGenerationRequest = false;
+      for (const pattern of imageRequestPatterns) {
+        if (currentInput.match(pattern)) {
+          isImageGenerationRequest = true;
+          break;
+        }
+      }
+
+      if (isImageGenerationRequest) {
+        fetch(API_ENDPOINTS.GENERATE_AND_EXPLAIN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
+        })
+        .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
+        .then(data => {
+          addMessage({
+            id: uuidv4(),
+            sender: 'kana',
+            content: data.explanation || 'Here is the image you requested.',
+            timestamp: Date.now(),
+            type: 'image_with_explanation',
+            imageUrl: data.generatedImageUrl,
+            explanation: data.explanation,
+            subject,
+            conversationId,
+            title
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching K.A.N.A. image generation response:', error);
+          addMessage({
+            id: uuidv4(), sender: 'kana', content: `Sorry, error generating image: ${error.message || 'Unknown error'}`,
+            timestamp: Date.now(), type: 'text', subject, conversationId, title
+          });
+        })
+        .finally(() => setIsKanaTyping(false));
+      } else {
+        // Standard chat API call (non-image-generation)
+        fetch(API_ENDPOINTS.CHAT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: currentInput,
+            subject,
+            conversationId,
+            title,
+            ...(useDocumentContext && activePdfContextUrl ? { activePdfUrl: activePdfContextUrl } : {}),
+            ...(uploadedNoteName ? { uploadedNoteName: uploadedNoteName } : {})
+          }),
+        })
+        .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
+        .then(data => {
+          if (data.type === "mathematical_graph" && data.generatedImageUrl && data.kanaResponse) {
+            addMessage({
+              id: uuidv4(), sender: 'kana', content: data.kanaResponse,
+              timestamp: Date.now(), type: 'mathematical_graph', imageUrl: data.generatedImageUrl,
+              subject, conversationId, title
+            });
+            setXp(prev => prev + 2);
+          } else if (data.kanaResponse) {
+            const newKanaMessageId = uuidv4();
+            addMessage({
+              id: newKanaMessageId, sender: 'kana', content: '', // Placeholder for typing effect
+              timestamp: Date.now(), type: 'text', subject, conversationId, title
+            });
+            setTypingKanaMessage({ id: newKanaMessageId, fullText: data.kanaResponse, currentIndex: 0 });
+            setXp(prev => prev + 5);
+          } else {
+            throw new Error('Invalid response structure from backend chat');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching K.A.N.A. chat response:', error);
+          addMessage({
+            id: uuidv4(), sender: 'kana', content: `Sorry, error fetching response: ${error.message || 'Unknown error'}`,
+            timestamp: Date.now(), type: 'text', subject, conversationId, title
+          });
+        })
+        .finally(() => setIsKanaTyping(false));
+      }
+    } else if (!currentPastedFile && !currentInput) {
+      // This case should ideally be prevented by the initial check,
+      // but as a fallback, ensure we don't proceed with no content.
+      setIsKanaTyping(false); // Ensure typing indicator is off
+      setIsSendingImage(false); // Ensure image sending indicator is off
+    }
+
+  }; // End of handleSendMessage
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+      setUploadError(null); // Clear previous errors
+    } else {
+      setSelectedFile(null);
+    }
   };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      setUploadError('Please select a file first.');
+      return;
+    }
+    setIsUploading(true);
+    setUploadError(null);
+    const formData = new FormData();
+    formData.append('noteFile', selectedFile);
+
+    const subject = activeChat?.subject || 'General';
+    const conversationId = activeChat?.id?.toString() || uuidv4();
+    const title = activeChat?.title || 'System Message';
+
+    try {
+      const response = await fetch(API_ENDPOINTS.UPLOAD_NOTE, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const noteName = data.filename || selectedFile.name;
+        setUploadedNoteName(noteName);
+        setSelectedFile(null); 
+        addMessage({
+          id: uuidv4(),
+          sender: 'system',
+          content: `Note "${noteName}" uploaded successfully. K.A.N.A. will now use this for context.`, 
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title
+        });
+      } else {
+        setUploadError(data.error || 'Failed to upload note.');
+        setUploadedNoteName(null);
+        addMessage({
+          id: uuidv4(),
+          sender: 'system',
+          content: `Failed to upload note: ${data.error || 'Unknown error'}`,
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title
+        });
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      setUploadError('An error occurred during upload.');
+      setUploadedNoteName(null);
+      addMessage({
+        id: uuidv4(),
+        sender: 'system',
+        content: `Upload error: ${error.message || 'Network error'}`,
+        timestamp: Date.now(),
+        type: 'text',
+        subject,
+        conversationId,
+        title
+      });
+    }
+    setIsUploading(false);
+  };
+
+  const handleStartNewChat = () => {
+    const newChatId = Date.now(); // Or use uuidv4 for more uniqueness if preferred
+    const newChat: Chat = {
+      id: newChatId,
+      subject: 'General',
+      title: `Chat ${new Date(newChatId).toLocaleTimeString()}` // Or simply 'New Chat'
+    };
+    onChatSelect(newChat);
+    handleClearNoteContext(); // Clear note context for the new chat
+    // Optionally, clear local message input or other states if needed
+    // setInput(''); 
+    // setMessages([]); // messagesToDisplay should update based on activeChat.id
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = event.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            setPastedImageFile(blob);
+            event.preventDefault(); // Prevent pasting image data as text
+            // Optionally, clear the text input if an image is pasted
+            // setInput(''); 
+            return;
+          }
+        }
+      }
+    }
+  };
+
+  const handleClearNoteContext = async () => {
+    const subject = activeChat?.subject || 'General';
+    const conversationId = activeChat?.id?.toString() || uuidv4();
+    const title = activeChat?.title || 'System Message';
+    try {
+      const response = await fetch(API_ENDPOINTS.CLEAR_NOTE_CONTEXT, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        setUploadedNoteName(null);
+        setUploadError(null);
+        addMessage({
+          id: uuidv4(),
+          sender: 'system',
+          content: 'Uploaded note context has been cleared.',
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title
+        });
+      } else {
+        const data = await response.json();
+        setUploadError(data.error || 'Failed to clear note context.');
+        addMessage({
+          id: uuidv4(),
+          sender: 'system',
+          content: `Failed to clear note context: ${data.error || 'Unknown error'}`,
+          timestamp: Date.now(),
+          type: 'text',
+          subject,
+          conversationId,
+          title
+        });
+      }
+    } catch (error: any) {
+      console.error('Clear context error:', error);
+      setUploadError('An error occurred while clearing context.');
+       addMessage({
+        id: uuidv4(),
+        sender: 'system',
+        content: `Error clearing note context: ${error.message || 'Network error'}`,
+        timestamp: Date.now(),
+        type: 'text',
+        subject,
+        conversationId,
+        title
+      });
+    }
+  };
+
   const startQuiz = (quizId: string) => {
+    setIsQuizMode(true);
     setActivePdfContextUrl(null); // Clear PDF context when starting a quiz
     const selectedQuiz = quizzes.find(q => q.id === quizId);
     if (!selectedQuiz) return;
@@ -225,7 +554,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               {selectedQuiz.questions.length} questions •{' '}
               {Math.floor(selectedQuiz.timeLimit / 60)} minutes
             </p>
-            <QuizSession question={selectedQuiz.questions[0]} questionNumber={1} totalQuestions={selectedQuiz.questions.length} timeRemaining={selectedQuiz.timeLimit} onAnswer={answer => {
+            <QuizSession question={selectedQuiz.questions[0]} questionNumber={1} totalQuestions={selectedQuiz.questions.length} timeRemaining={selectedQuiz.timeLimit} onAnswer={(answer: string) => {
             quiz.submitAnswer(answer);
           }} />
           </div>
@@ -236,6 +565,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     };
     addMessage(startMessage);
   };
+
   const startPastPaper = (paperId: string) => {
     setCurrentQuiz(null); // Clear any active quiz
     setQuizCompleted(false);
@@ -250,7 +580,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const paperMessage: MessageWithSubject = {
       id: uuidv4(),
       sender: 'kana',
-      content: <div className="space-y-4">
+      content: (
+        <div className="space-y-4">
           <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
             <h3 className="text-lg font-medium mb-2">{paper.title}</h3>
             <div className="flex items-center text-sm text-gray-400 mb-3">
@@ -261,13 +592,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
             <p className="text-sm mb-4">{paper.description}</p>
             <div className="flex space-x-3">
-              <button onClick={() => openPDFReader(paper.pdfUrl)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors">
+              <button 
+                onClick={() => openPDFReader(paper.pdfUrl)} 
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors"
+              >
                 View Full Paper
               </button>
             </div>
           </div>
           <PDFPreview title={paper.title} pdfUrl={paper.pdfUrl} onOpenFull={() => openPDFReader(paper.pdfUrl)} />
-        </div>,
+        </div>
+      ),
       timestamp: Date.now(),
       type: 'past-paper',
       subject: subject,
@@ -292,8 +627,37 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     };
     addMessage(followUpMessage);
   };
+
+  const answerQuestion = (questionId: string, answer: string | number) => {
+    if (!currentQuiz || !quizSession) return;
+    // Save answer
+    setUserAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+    // Move to next question or finish quiz
+    if (currentQuizQuestion < currentQuiz.questions.length - 1) {
+      // Progress to next question
+      const nextQuestionIndex = currentQuizQuestion + 1;
+      setCurrentQuizQuestion(nextQuestionIndex);
+      // Add next question message
+      const nextQuestion = currentQuiz.questions[nextQuestionIndex];
+      const questionMessage: MessageWithSubject = {
+        id: uuidv4(),
+        sender: 'kana',
+        content: renderQuizQuestion(nextQuestion, nextQuestionIndex),
+        timestamp: Date.now(),
+        type: 'quiz-question'
+      };
+      setMessages(prevMessages => [...prevMessages, questionMessage]);
+      setInput('');
+    } else {
+      handleQuizCompletion();
+    }
+  };
+
   // Function to render a quiz question
-  const renderQuizQuestion = (question: QuizQuestion, index: number) => {
+  const renderQuizQuestion = React.useCallback((question: QuizQuestion, index: number) => {
     if (!currentQuiz || !question) {
       return <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
           <p>Loading question...</p>
@@ -315,14 +679,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 </button>)}
             </div>}
           {question.type === 'theoretical' && <div className="mt-2">
-              <textarea className="w-full bg-[#1a223a] border border-[#2a324a] rounded-md p-3 min-h-[100px] text-white" placeholder="Type your answer here..." onChange={e => setInput(e.target.value)}></textarea>
+              <textarea className="w-full bg-[#1a223a] border border-[#2a324a] rounded-md p-3 min-h-[100px] text-white" placeholder="Type your answer here..." onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}></textarea>
               <button onClick={() => answerQuestion(question.id, input)} className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors">
                 Submit Answer
               </button>
             </div>}
         </div>
       </div>;
-  };
+  }, [currentQuiz, formattedTime, answerQuestion, setInput, input]);
+
 
   const handleQuizCompletion = () => {
     if (!currentQuiz || !quizSession) return; // Ensure currentQuiz and quizSession are available
@@ -446,75 +811,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     // setCurrentQuiz(null);
     // setUserAnswers({});
     // setCurrentQuizQuestion(0);
+    setIsQuizMode(false);
   };
 
-  const answerQuestion = (questionId: string, answer: any) => {
-    if (!currentQuiz || !quizSession) return;
-    // Save answer
-    setUserAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
-    // Move to next question or finish quiz
-    if (currentQuizQuestion < currentQuiz.questions.length - 1) {
-      // Progress to next question
-      const nextQuestionIndex = currentQuizQuestion + 1;
-      setCurrentQuizQuestion(nextQuestionIndex);
-      // Add next question message
-      const nextQuestion = currentQuiz.questions[nextQuestionIndex];
-      const questionMessage: MessageWithSubject = {
-        id: uuidv4(),
-        sender: 'kana',
-        content: renderQuizQuestion(nextQuestion, nextQuestionIndex),
-        timestamp: Date.now(),
-        type: 'quiz-question'
-      };
-      setMessages(prevMessages => [...prevMessages, questionMessage]);
-      setInput('');
-    } else {
-      handleQuizCompletion();
-    }
-  };
 
-  // Function to finish the quiz (handles premature ending, e.g., timer out)
-  const finishQuiz = () => {
-    if (!currentQuiz || !quizSession) return;
-    // Save incomplete attempt if not already completed by answering last question
-    if (!quizCompleted) { // Check if quiz wasn't completed via normal flow
-      const attemptId = uuidv4();
-      const newAttempt: QuizAttempt = {
-        id: attemptId,
-        quizId: currentQuiz.id,
-        startTime: quizSession.startTime,
-        endTime: Date.now(),
-        answers: userAnswers,
-        // Score might be 0 or partially calculated if desired for incomplete attempts
-        score: 0, 
-        completed: false, // Explicitly false for premature finish
-      };
-      setAttempts(prev => [...prev, newAttempt]);
-      
-      // Add a message indicating the quiz ended, if desired
-      const prematureFinishMessage: MessageWithSubject = {
-        id: uuidv4(),
-        sender: 'kana',
-        subject: activeChat?.subject || 'Quiz',
-        conversationId: activeChat?.id?.toString() || uuidv4(),
-        content: 'The quiz time ran out or was ended prematurely.',
-        timestamp: Date.now(),
-        type: 'text' // Or a specific type like 'quiz-ended-prematurely'
-      };
-      addMessage(prematureFinishMessage);
-    }
-
-    // Reset quiz session states
-    setQuizSession(null);
-    setCurrentQuiz(null);
-    setUserAnswers({});
-    setCurrentQuizQuestion(0);
-    setQuizCompleted(false); // Reset for next quiz
-    resetTimer(); // Reset the timer as well
-  };
   const handlePastPapersClick = () => {
     setQuizSelectionType('pastpaper');
     setIsQuizSelectionOpen(true);
@@ -536,6 +836,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           title: item.title
         };
         onChatSelect(newChat);
+        handleClearNoteContext(); // Clear note context if a new chat is created for quiz/past paper
       }
     }
     if (type === 'quiz') {
@@ -544,13 +845,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       startPastPaper(id);
     }
   };
-  useEffect(() => {
+
+  React.useEffect(() => {
     if (currentQuiz && quizSession) {
       resetTimer();
       setTimeLeft(currentQuiz.timeLimit);
     }
   }, [currentQuiz, quizSession, resetTimer, setTimeLeft]);
-  useEffect(() => {
+
+  React.useEffect(() => {
+    // Clear note context on initial mount if no specific chat is active
+    // This handles page reloads to ensure a fresh context
+    if (!activeChat) {
+      handleClearNoteContext();
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  React.useEffect(() => {
     if (quiz.status === 'completed' && quiz.quiz) {
       const results = quiz.calculateResults();
       if (results) {
@@ -567,161 +878,231 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         // Reset quiz session
         setQuizSession(null);
         setCurrentQuiz(null);
+        setIsQuizMode(false);
       }
     }
-  }, [quiz.status, quiz.quiz, setAttempts, addMessage]);
-  const welcomeMessage = <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-      <BookOpen className="h-12 w-12 text-blue-400 mb-4" />
-      <h2 className="text-xl font-medium mb-2">Welcome to K.A.N.A.</h2>
-      <p className="text-gray-400 mb-6 max-w-md">
-        Your Knowledge Assistant for Natural Academics. Ask me anything about
-        your studies, try a practice quiz, or explore past papers across any
-        subject.
-      </p>
-      <div className="flex space-x-4">
-        <button onClick={handlePracticeQuizClick} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md flex items-center">
-          <BarChart2 className="h-4 w-4 mr-2" />
-          Try a Quiz
-        </button>
-        <button onClick={handlePastPapersClick} className="px-4 py-2 bg-[#1a223a] hover:bg-[#232d4a] rounded-md flex items-center">
-          <File className="h-4 w-4 mr-2" />
-          Browse Past Papers
-        </button>
-      </div>
-    </div>;
+  }, [quiz.status, quiz.quiz, userAnswers, handleQuizCompletion, setAttempts, addMessage, setQuizSession, setCurrentQuiz, activeChat, quizSession]);
 
-  return (<>
-      <div className="flex-1 h-full flex flex-col relative">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-[#1a223a]">
-          <h2 className="text-lg font-medium">
-            {activeChat ? <span>{activeChat.title}</span> : 'Chat with K.A.N.A.'}
-          </h2>
-          <div className="flex space-x-2">
-            <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 rounded-full hover:bg-[#141b2d]">
-              <Search className="h-5 w-5" />
-            </button>
-            <button onClick={toggleHistoryPanel} className="p-2 rounded-full hover:bg-[#141b2d]">
-              <BarChart2 className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-        {/* Search bar */}
-        {isSearchOpen && <div className="p-3 border-b border-[#1a223a]">
-            <div className="relative">
-              <input type="text" placeholder="Search in conversation..." className="w-full bg-[#141b2d] border border-[#1a223a] rounded-md py-2 pl-8 pr-8 text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} autoFocus />
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-gray-400 hover:text-white">
-                  <X className="h-4 w-4" />
-                </button>}
-            </div>
-            {searchTerm && <div className="text-xs text-gray-400 mt-1">
-                {filteredMessages.length} results
-              </div>}
-          </div>}
-        {/* Messages */}
-        {!messagesToDisplay || messagesToDisplay.length === 0 ? welcomeMessage : <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-{messagesToDisplay.map(message => {
-                const isUser = message.sender === 'user';
-                // Basic timestamp - you might want to format this more nicely later
-                const timestamp = new Date(message.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                return (
-                  <MessageAnimation key={message.id} isVisible={true}>
-                    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
-                      <div className={`flex items-end gap-2 max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                        {/* Avatar Placeholder */}
-                        <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white text-sm ${isUser ? 'ml-2' : 'mr-2'}`}>
-                          {isUser ? 'U' : 'K'}
-                        </div>
-                        {/* Message Bubble */}
-                        <div
-                          className={`
-                            ${isUser ? 'bg-blue-600 text-white' : 'bg-[#2a3b5f] text-gray-200'} 
-                            rounded-xl p-3 shadow-md
-                          `}
-                        >
-                          {/* Message Content */}
-                          {isValidElement(message.content) ? message.content : <p className="text-sm">{String(message.content)}</p>}
-                          
-                          {/* Subject (if any) - styling can be improved */}
-                          {message.subject && (
-                            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-xs text-gray-400">
-                              Subject: {message.subject}
-                            </div>
-                          )}
-                          {/* Timestamp */}
-                          <div className={`text-xs mt-1.5 ${isUser ? 'text-blue-200 text-right' : 'text-gray-400 text-left'}`}>
-                            {timestamp}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </MessageAnimation>
-                );
-              })}
-
-              {/* K.A.N.A. Typing Indicator - updated to match K.A.N.A. bubble style */}
-              {isKanaTyping && (
-                <div className="flex justify-start w-full">
-                  <div className="flex items-end gap-2 max-w-[80%] flex-row">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white text-sm mr-2">
-                      K
-                    </div>
-                    <div className="bg-[#2a3b5f] text-gray-200 rounded-xl p-3 shadow-md animate-pulse">
-                      <p className="text-sm text-gray-400 italic">K.A.N.A. is typing...</p>
-                    </div>
-                  </div>
+  // Parent container for all views and the modal
+  return (
+    <div className="flex-1 flex flex-col h-full relative bg-[#0d1117]">
+      {(() => {
+        // Main Chat View
+        if (activeChat || (messages && messages.length > 0)) {
+          return (
+            <div className="flex-1 flex flex-col bg-[#0d1117] overflow-hidden h-full">
+              {/* Chat Header */}
+              {activeChat && (
+                <div className="p-3 border-b border-[#1a223a] flex items-center justify-between bg-[#141b2d]">
+                  <h2 className="text-lg font-medium text-white">{activeChat.title}</h2>
+                  {/* Add any header actions here if needed */}
                 </div>
               )}
-              <div ref={messagesEndRef} />
+
+              {/* Message List */}
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-[#2a324a] scrollbar-track-[#141b2d]">
+                {messagesToDisplay.map((msg) => (
+                  <MessageItem key={msg.id} message={msg} />
+                ))}
+                {isKanaTyping && activeChat && (
+                  <MessageItem message={{ id: 'typingIndicator', sender: 'kana', content: 'K.A.N.A. is typing...', timestamp: Date.now(), type: 'typing', subject: activeChat.subject, conversationId: activeChat.id.toString(), title: activeChat.title }} />
+                )}
+              </div> {/* This closes the message list div */}
+
+              {/* Input Area */}
+              <div className="p-4 border-t border-[#1a223a] bg-[#141b2d]">
+                {/* Buttons to open Quiz/Past Paper Selection Modals */}
+                <div className="flex justify-center space-x-3 mb-3">
+                  <Button onClick={handlePracticeQuizClick} small>
+                    <BookOpen className="h-4 w-4 mr-1.5" />
+                    Select Quiz
+                  </Button>
+                  <Button onClick={handlePastPapersClick} small>
+                    <FileText className="h-4 w-4 mr-1.5" />
+                    Select Past Paper
+                  </Button>
+                </div>
+                {activePdfContextUrl && (
+                  <div className="mb-2 p-2 text-xs bg-[#1a223a] rounded-md text-blue-300 flex justify-between items-center">
+                    <span>Context: {activePdfContextUrl.substring(activePdfContextUrl.lastIndexOf('/') + 1)}</span>
+                    <button onClick={() => setActivePdfContextUrl(null)} className="text-red-400 hover:text-red-300">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </div> /* This closes the activePdfContextUrl div */
+                )}
+
+                {/* Note Upload Section */}
+                <div className="mb-3 space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="file"
+                      id="note-upload-input"
+                      onChange={handleFileChange}
+                      accept=".txt,.pdf"
+                      className="hidden" // Hidden: styled via label
+                    />
+                    <label
+                      htmlFor="note-upload-input"
+                      className="cursor-pointer inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 transition-colors"
+                    >
+                      <UploadCloud className="h-4 w-4 mr-1.5" />
+                      Choose Note (.txt, .pdf)
+                    </label>
+                    {selectedFile && (
+                      <Button onClick={handleFileUpload} disabled={isUploading} small>
+                        {isUploading ? 'Uploading...' : 'Upload Selected Note'}
+                      </Button>
+                    )}
+                  </div>
+                  {selectedFile && !isUploading && (
+                    <p className="text-xs text-gray-400">Selected file: {selectedFile.name}</p>
+                  )}
+                  {uploadedNoteName && (
+                    <div className="p-2 text-xs bg-green-500 bg-opacity-20 rounded-md text-green-300 flex justify-between items-center">
+                      <span>Active Note: {uploadedNoteName}</span>
+                      <button onClick={handleClearNoteContext} className="text-red-400 hover:text-red-300 ml-2 p-1 rounded-full hover:bg-red-500 hover:bg-opacity-20">
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  {uploadError && (
+                    <p className="text-xs text-red-400 mt-1">Error: {uploadError}</p>
+                  )}
+                </div>
+
+                {/* Pasted Image Preview Section */}
+                {pastedImageFile && (
+                  <div className="mb-2 flex items-center p-2 bg-[#1a223a] rounded-md">
+                    <img 
+                      src={URL.createObjectURL(pastedImageFile)}
+                      alt="Pasted preview"
+                      className="max-w-[80px] max-h-[80px] rounded-md mr-3 border border-gray-600"
+                      onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} // Clean up object URL after load
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-400 mb-1 truncate max-w-[200px]">{pastedImageFile.name}</span>
+                      <Button 
+                        onClick={() => {
+                          if (pastedImageFile) {
+                            // It's good practice to revoke the object URL when it's no longer needed
+                            // However, the img's onLoad will handle it. If image fails to load, this won't be called.
+                            // Consider revoking here if there are issues with onLoad not firing for all cases.
+                          }
+                          setPastedImageFile(null);
+                        }}
+                        small 
+                        // variant="danger_ghost" // PixelButton does not have this variant
+                        className="text-xs text-red-400 hover:text-red-300 bg-transparent hover:bg-red-500 hover:bg-opacity-10 px-2 py-1 rounded-md flex items-center"
+                      >
+                        <X className="h-3 w-3 mr-1" /> Clear Image
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onPaste={handlePaste}
+                    placeholder={isKanaTyping ? "K.A.N.A. is thinking..." : "Ask K.A.N.A. anything..."}
+                    className="w-full p-3 rounded-l-md bg-[#1a223a] text-white focus:ring-1 focus:ring-blue-500 focus:outline-none border border-transparent focus:border-blue-500 placeholder-gray-500"
+                    disabled={isKanaTyping || isSendingImage}
+                  />
+                  <button 
+                    type="submit" 
+                    className="px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-r-md text-white font-medium disabled:opacity-50 flex items-center justify-center h-[50px] w-[50px]"
+                    disabled={(!input.trim() && !pastedImageFile) || isKanaTyping || isSendingImage}
+                  >
+                    <Send className="h-5 w-5" />
+                  </button>
+                </form>
+              </div>
             </div>
-          </>}
-        {/* Input */}
-        <div className="p-3 border-t border-[#1a223a]">
-          <div className="relative">
-            <input type="text" placeholder="Ask K.A.N.A. anything..." className="w-full bg-[#141b2d] border border-[#1a223a] rounded-md py-3 pl-4 pr-20 text-sm" value={input} onChange={e => setInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()} />
-            <div className="absolute right-2 top-2 flex items-center">
-              <button onClick={() => setIsRecording(!isRecording)} className={`p-1.5 rounded-full mr-1 ${isRecording ? 'bg-red-500' : 'hover:bg-[#1a223a]'}`}>
-                <Mic className="h-4 w-4" />
+          );
+        }
+
+        // Quiz View
+        if (isQuizMode && currentQuiz && !quizCompleted) {
+          const currentQuestionInstance = currentQuiz.questions[currentQuizQuestion];
+          return (
+            <div className="flex-1 flex flex-col bg-[#0d1117] overflow-y-auto p-4 md:p-6 items-center justify-center">
+              <div className="w-full max-w-2xl bg-[#141b2d] p-6 rounded-lg shadow-xl border border-[#1a223a]">
+                {currentQuestionInstance ? 
+                  renderQuizQuestion(currentQuestionInstance, currentQuizQuestion) :
+                  <p className="text-white text-center">Loading quiz question...</p>
+                }
+              </div>
+            </div>
+          );
+        }
+
+        // Fallback to Welcome Screen
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <h1 className="text-4xl font-bold mb-4 text-white">Welcome to K.A.N.A.</h1>
+            <p className="text-xl text-gray-400 mb-8">Your Knowledge and Assistance Neural Agent.</p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <button
+                onClick={handleStartNewChat}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Start New Chat
               </button>
-              <button onClick={handleSendMessage} disabled={!input.trim()} className={`p-1.5 rounded-full ${input.trim() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#1a223a] opacity-50'}`}>
-                <Send className="h-4 w-4" />
+              <button
+                onClick={() => handlePracticeQuizClick()} 
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Take a Quiz
+              </button>
+              <button
+                onClick={() => handlePastPapersClick()} 
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                View Past Papers
               </button>
             </div>
           </div>
-          {/* Action buttons */}
-          <div className="flex space-x-2 mt-2">
-            <button onClick={handlePastPapersClick} className="px-3 py-1.5 bg-[#1a223a] hover:bg-[#232d4a] rounded-full text-sm transition-colors flex items-center">
-              <File className="h-3.5 w-3.5 mr-1.5" />
-              Past Papers
-            </button>
-            <button onClick={handlePracticeQuizClick} className="px-3 py-1.5 bg-[#1a223a] hover:bg-[#232d4a] rounded-full text-sm transition-colors flex items-center">
-              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
-              Practice Quiz
-            </button>
-          </div>
-          {/* Toggle for using document context */}
-          {activePdfContextUrl && (
-            <div className="flex items-center mt-3">
-              <input
-                type="checkbox"
-                id="useDocContextToggle"
-                checked={useDocumentContext}
-                onChange={(e) => setUseDocumentContext(e.target.checked)}
-                className="mr-2 h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer"
-              />
-              <label htmlFor="useDocContextToggle" className="text-sm text-gray-400 cursor-pointer select-none">
-                Use Document Context ({activePdfContextUrl ? 'PDF Loaded' : 'No PDF Loaded'})
-              </label>
+        );
+      })()}
+
+      {/* Quiz Selection Modal */}
+      {isQuizSelectionOpen && (
+        <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+          <div className="bg-[#141b2d] p-6 rounded-lg shadow-xl w-full max-w-md md:max-w-lg border border-[#1a223a]">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-white">
+                {quizSelectionType === 'quiz' ? 'Select a Quiz' : 'Select a Past Paper'}
+              </h2>
+              <button
+                onClick={() => setIsQuizSelectionOpen(false)}
+                className="text-gray-400 hover:text-white"
+                aria-label="Close quiz selection"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
             </div>
-          )}
-      
+            <div className="max-h-[60vh] overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-[#2a324a] scrollbar-track-[#141b2d] pr-2">
+              {(quizSelectionType === 'quiz' ? quizzes : pastPapers).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleQuizSelection(quizSelectionType, item.id)}
+                  className="w-full text-left p-3 bg-[#1a223a] hover:bg-[#2a324a] rounded-md text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <h3 className="font-medium">{item.title}</h3>
+                  {quizSelectionType === 'pastpaper' && (item as PastPaper).description && <p className="text-sm text-gray-400 mt-1">{(item as PastPaper).description}</p>}
+                  {(item as PastPaper).subject && quizSelectionType === 'pastpaper' && (
+                    <p className="text-xs text-blue-400 mt-1">Subject: {(item as any).subject}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-    <QuizSelectionModal isOpen={isQuizSelectionOpen} onClose={() => setIsQuizSelectionOpen(false)} onSelectQuiz={handleQuizSelection} type={quizSelectionType} />
-  </>);
-};
+  );
+}
 
 export default ChatArea;

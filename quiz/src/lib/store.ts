@@ -23,8 +23,10 @@ export interface MessageWithSubject extends Message {
   subject?: string;
   conversationId?: string;
   content: string | React.ReactNode | any;
-  type: 'text' | 'quiz-start' | 'quiz-question' | 'quiz-result' | 'past-paper' | 'pdf';
+  type: 'text' | 'quiz-start' | 'quiz-question' | 'quiz-result' | 'past-paper' | 'pdf' | 'image_with_explanation' | 'typing' | 'mathematical_graph'; // Added image_with_explanation, typing, and mathematical_graph
   title?: string;
+  imageUrl?: string;      // Added for generated images
+  explanation?: string;   // Added for image explanations
 }
 export const useMessages = () => {
   const [messages, setMessages] = useState<MessageWithSubject[]>(() => getFromStorage(MESSAGES_STORAGE_KEY, []));
