@@ -56,7 +56,8 @@ let cacheKeys = []; // To track insertion order for LRU-like eviction
 const allowedOrigins = [
   'https://brain-ink.vercel.app',
   'http://localhost:3000', // For local frontend dev (if you use port 3000)
-  'http://localhost:5173'  // For local Vite frontend dev (default Vite port)
+  'http://localhost:5173', // For local Vite frontend dev (default Vite port)
+  'https://mozilla.github.io' // Allow Mozilla PDF.js viewer origin
 ];
 
 app.use(cors({
