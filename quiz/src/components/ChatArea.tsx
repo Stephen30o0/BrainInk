@@ -220,7 +220,7 @@ const ChatArea = ({
       if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
 
       try {
-        const response = await fetch('http://localhost:3001/api/kana/analyze-image', {
+        const response = await fetch('/api/analyze-image', {
           method: 'POST',
           body: formData,
         });
@@ -288,7 +288,7 @@ const ChatArea = ({
       }
 
       if (isImageGenerationRequest) {
-        fetch('http://localhost:3001/api/kana/generate-and-explain', {
+        fetch('/api/generate-and-explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
@@ -318,7 +318,7 @@ const ChatArea = ({
         .finally(() => setIsKanaTyping(false));
       } else {
         // Standard chat API call (non-image-generation)
-        fetch('http://localhost:3001/api/kana/chat', {
+        fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

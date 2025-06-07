@@ -65,8 +65,18 @@ if (GOOGLE_API_KEY) {
   geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"}); // Trying gemini-1.5-flash-latest
   console.log('DEBUG: Google AI SDK initialized.');
   try {
-    visionClient = new ImageAnnotatorClient(); // Assumes GOOGLE_APPLICATION_CREDENTIALS is set
-    console.log('DEBUG: Google Cloud Vision client initialized.');
+    if (process.env.VERCEL_ENV && process.env.GOOGLE_CREDENTIALS_CONTENT) {
+      // For Vercel deployment, parse credentials from environment variable content
+      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+      visionClient = new ImageAnnotatorClient({ credentials });
+      console.log('DEBUG: Google Cloud Vision client initialized from VERCEL_ENV/GOOGLE_CREDENTIALS_CONTENT.');
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // For local development, use the file path from GOOGLE_APPLICATION_CREDENTIALS
+      visionClient = new ImageAnnotatorClient(); 
+      console.log('DEBUG: Google Cloud Vision client initialized from GOOGLE_APPLICATION_CREDENTIALS file path.');
+    } else {
+      console.error('DEBUG: Google Cloud Vision credentials not found (GOOGLE_CREDENTIALS_CONTENT or GOOGLE_APPLICATION_CREDENTIALS).');
+    }
   } catch (error) {
     console.error('DEBUG: Failed to initialize Google Cloud Vision client:', error.message);
     // Depending on requirements, you might want to prevent app start or run in a degraded mode.
@@ -686,6 +696,12 @@ app.use((err, req, res, next) => {
   res.status(500).send('Something broke!');
 });
 
+// Start the server (commented out for Vercel deployment)
+/*
 app.listen(port, () => {
   console.log(`K.A.N.A. backend server listening at http://localhost:${port}`);
 });
+*/
+
+// Export the app for Vercel serverless function
+module.exports = app;

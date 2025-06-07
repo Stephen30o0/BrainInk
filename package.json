@@ -19,7 +19,18 @@
     "react-feather": "^2.0.10",
     "react-hot-toast": "^2.5.2",
     "react-router-dom": "^7.6.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "@google-cloud/vision": "^5.2.0",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.9.0",
+    "chart.js": "^4.4.9",
+    "chartjs-node-canvas": "^5.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "mathjs": "^14.5.2",
+    "multer": "^2.0.1",
+    "pdfjs-dist": "^5.1.91"
   },
   "devDependencies": {
     "@types/node": "^20.11.18",
