@@ -41,7 +41,7 @@ import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
 
-const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:3001/api/kana';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 console.log('KANA_API_BASE_URL (Vite):', KANA_API_BASE_URL);
 // import MessageItem from './MessageItem'; // Temporarily commented out
 

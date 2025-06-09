@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { ArrowLeft, Bookmark, ThumbsUp, Share2 } from 'lucide-react';
 
 // Define CoreApiAuthor if not imported (ensure consistency with LibraryHub.tsx)
@@ -36,7 +37,7 @@ export const TextbookViewer: React.FC<TextbookViewerProps> = ({ item, onBack }) 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fileUrl = `http://localhost:3001/study_material_files/${item.storedFilename}`;
+  const fileUrl = `${KANA_API_BASE_URL}/study_material_files/${item.storedFilename}`;
 
   useEffect(() => {
     if (item.mimetype === 'text/plain') {

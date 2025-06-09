@@ -1,6 +1,6 @@
 import React from 'react';
 
-const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:3001/api/kana';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { Maximize2 } from 'lucide-react';
 interface PDFPreviewProps {
   pdfUrl: string;

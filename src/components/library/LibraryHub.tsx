@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { motion } from 'framer-motion';
 import { Book, FileText, Film, Gamepad, Archive, ArrowLeft, Search, Clock, UploadCloud, Link } from 'lucide-react';
 import { TextbookViewer } from './TextbookViewer';
@@ -216,7 +217,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://localhost:3001/api/study-materials');
+      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -258,7 +259,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     formData.append('topic', topic || 'General');
 
     try {
-      const res = await fetch('http://localhost:3001/api/upload-study-material', {
+      const res = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
         method: 'POST',
         body: formData,
       });
@@ -292,7 +293,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     setCoreSearchError(null);
     setCoreSearchResults([]);
     try {
-      const response = await fetch(`http://localhost:3001/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`);
+      const response = await fetch(`${KANA_API_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`);
       const data = await response.json();
       if (response.ok && data.type === 'success') {
         const resultsWithSource = data.results.map((item: CoreSearchResultItem) => ({ ...item, source: 'CORE' }));
@@ -345,7 +346,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     };
 
     try {
-      const response = await fetch('http://localhost:3001/api/save-external-item', {
+      const response = await fetch(`${KANA_API_BASE_URL}/api/save-external-item`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -663,28 +664,28 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
               )}
               
               {!selectedItem.isExternal && selectedItem.mimetype.startsWith('image/') && (
-                <img src={`http://localhost:3001/study_material_files/${selectedItem.storedFilename}`} alt={selectedItem.title} className="max-w-full h-auto rounded-md shadow-lg mb-4" />
+                <img src={`${KANA_API_BASE_URL}/study_material_files/${selectedItem.storedFilename}`} alt={selectedItem.title} className="max-w-full h-auto rounded-md shadow-lg mb-4" />
               )}
               {selectedItem.mimetype.startsWith('video/') && (
-                <video controls src={`http://localhost:3001/study_material_files/${selectedItem.storedFilename}`} className="max-w-full rounded-md shadow-lg mb-4">
+                <video controls src={`${KANA_API_BASE_URL}/study_material_files/${selectedItem.storedFilename}`} className="max-w-full rounded-md shadow-lg mb-4">
                   Your browser does not support the video tag.
                 </video>
               )}
               {selectedItem.mimetype.startsWith('audio/') && (
-                <audio controls src={`http://localhost:3001/study_material_files/${selectedItem.storedFilename}`} className="w-full mb-4">
+                <audio controls src={`${KANA_API_BASE_URL}/study_material_files/${selectedItem.storedFilename}`} className="w-full mb-4">
                   Your browser does not support the audio element.
                 </audio>
               )}
               {(selectedItem.mimetype === 'application/pdf' || selectedItem.mimetype === 'text/plain') && (
                  <iframe 
-                    src={`http://localhost:3001/study_material_files/${selectedItem.storedFilename}`}
+                    src={`${KANA_API_BASE_URL}/study_material_files/${selectedItem.storedFilename}`}
                     className="w-full h-[600px] border border-primary/30 rounded-md mb-4"
                     title={selectedItem.title}
                   ></iframe>
               )}
 
               <a 
-                href={`http://localhost:3001/study_material_files/${selectedItem.storedFilename}`}
+                href={`${KANA_API_BASE_URL}/study_material_files/${selectedItem.storedFilename}`}
                 download={selectedItem.originalFilename}
                 target="_blank"
                 rel="noopener noreferrer"

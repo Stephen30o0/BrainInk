@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
+import { useState, useRef } from 'react';
 import { ArrowLeft, Play, Pause, Volume1, Volume2, VolumeX, Maximize, List, ThumbsUp, MessageSquare } from 'lucide-react';
 
 // Define CoreApiAuthor if not imported (ensure consistency with LibraryHub.tsx)
@@ -61,7 +63,7 @@ export const VideoLectures: React.FC<VideoLecturesProps> = ({ item, onBack }) =>
   const [showComments, setShowComments] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  const fileUrl = `http://localhost:3001/study_material_files/${item.storedFilename}`;
+  const fileUrl = `${KANA_API_BASE_URL}/study_material_files/${item.storedFilename}`;
 
   // Toggle play/pause
   const togglePlay = () => {

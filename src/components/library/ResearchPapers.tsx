@@ -1,4 +1,5 @@
 import React from 'react';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { ArrowLeft, Download, ExternalLink, Clock, Calendar, FileText } from 'lucide-react';
 
 // Define CoreApiAuthor if not imported (ensure consistency with LibraryHub.tsx)
@@ -70,7 +71,7 @@ export const ResearchPapers: React.FC<ResearchPapersProps> = ({ item, onBack }) 
             </a>
           ) : item.storedFilename && (item.mimetype === 'application/pdf' || !item.mimetype || item.mimetype.startsWith('application/')) ? (
             <a 
-              href={`http://localhost:3001/study_material_files/${item.storedFilename}`}
+              href={`${KANA_API_BASE_URL}/study_material_files/${item.storedFilename}`}
               download={item.originalFilename || item.storedFilename}
               target="_blank"
               rel="noopener noreferrer"
