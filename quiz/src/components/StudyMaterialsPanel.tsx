@@ -103,13 +103,19 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
 
   if (!isOpen) return null;
 
-  const filteredMaterials = libraryItems.filter(material =>
-    (selectedFolder === 'All' || material.category === selectedFolder) &&
-    (material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (material.authors && material.authors.some(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()))) ||
-     (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-  );
+  const filteredMaterials = libraryItems.filter(material => {
+    if (!material) return false; // Skip if material itself is undefined
+
+    const matchesCategory = selectedFolder === 'All' || (material.category && material.category === selectedFolder);
+    
+    const titleMatch = material.title && typeof material.title === 'string' && material.title.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const authorMatch = material.authors && Array.isArray(material.authors) && material.authors.some(a => a && a.name && typeof a.name === 'string' && a.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const descriptionMatch = material.description && typeof material.description === 'string' && material.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    return matchesCategory && (titleMatch || authorMatch || descriptionMatch);
+  });
 
   const handleUploadButtonClick = () => {
     fileInputRef.current?.click();

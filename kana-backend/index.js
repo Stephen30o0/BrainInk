@@ -196,6 +196,14 @@ app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), 
   }
 });
 
+// API endpoint to clear uploaded note context
+app.post('/api/clear-note-context', (req, res) => {
+  uploadedNoteContent = null;
+  uploadedNoteName = null;
+  console.log('DEBUG: Uploaded note context cleared.');
+  res.json({ type: 'success', message: 'Uploaded note context cleared successfully.' });
+});
+
 // API endpoint for CORE search
 app.get('/api/core-search', async (req, res) => {
   const searchTerm = req.query.q;

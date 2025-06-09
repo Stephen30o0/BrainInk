@@ -541,7 +541,7 @@ const ChatArea = ({
     const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/clear-note-context`, {
+      const response = await fetch(`${KANA_API_BASE_URL}/api/clear-note-context`, {
         method: 'POST',
       });
       if (response.ok) {
