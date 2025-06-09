@@ -1,13 +1,40 @@
+/// <reference types="vite/client" />
 import * as React from 'react';
 import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react'; // Cleaned up unused icons
 import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
-import { Chat, PastPaper } from '../lib/types'; // Moved PastPaper here too for consistency, Chat added
+import { Chat, PastPaper, LibraryItem } from '../lib/types'; // Moved PastPaper here too for consistency, Chat added, LibraryItem added
+import StudyMaterialsPanel from './StudyMaterialsPanel';
 import { v4 as uuidv4 } from 'uuid';
 import { useTimer } from '../lib/hooks/useTimer';
 import { PixelButton as Button } from '../../../src/components/shared/PixelButton'; // Used relative import path 
 import quizzes from './data/QuizData';
 import pastPapers from './data/PastPaperData';
 import MessageItem from './MessageItem'; // Removed duplicate import
+
+// TODO: Centralize these interfaces in lib/types.ts
+interface CoreApiAuthor {
+  name: string;
+}
+
+interface LibraryItem {
+  id: string;
+  title: string;
+  authors?: CoreApiAuthor[];
+  category: string;
+  coverImage?: string;
+  description?: string;
+  publishDate?: string;
+  rating?: number;
+  views?: number;
+  readTime?: string;
+  storedFilename: string | null;
+  mimetype: string;
+  originalFilename?: string;
+  isExternal?: boolean;
+  externalUrl?: string;
+  abstract?: string;
+  size?: string;
+}
 import { Quiz, QuizQuestion, QuizAttempt } from '../lib/types';
 import { useQuiz } from '../lib/hooks/useQuiz';
 import QuizSession from './quiz/QuizSession';
@@ -69,11 +96,28 @@ const ChatArea = ({
   const [useDocumentContext] = React.useState(true); // Default to using document context, setUseDocumentContext removed as it's unused
   const chatContainerRef = React.useRef<HTMLDivElement>(null);
   const [isQuizMode, setIsQuizMode] = React.useState(false); // Default to false
+  const [isStudyMaterialsPanelOpen, setIsStudyMaterialsPanelOpen] = React.useState<boolean>(false);
+  const [selectedStudyMaterialContext, setSelectedStudyMaterialContext] = React.useState<LibraryItem | null>(null);
+
   const [quizSession, setQuizSession] = React.useState<{
     id: string;
     type: 'quiz' | 'pastpaper';
     startTime: number;
   } | null>(null);
+
+  const handleOpenStudyMaterialsPanel = () => setIsStudyMaterialsPanelOpen(true);
+  const handleCloseStudyMaterialsPanel = () => setIsStudyMaterialsPanelOpen(false);
+  const handleSelectStudyMaterial = (material: LibraryItem) => {
+    setSelectedStudyMaterialContext(material);
+    setIsStudyMaterialsPanelOpen(false);
+    // Optional: Add a system message indicating context is set
+    // addMessage({ id: uuidv4(), sender: 'system', content: `Context set to: ${material.title}`, timestamp: Date.now(), type: 'info', subject: activeChat?.subject || 'general', conversationId: activeChat?.id.toString() || 'general', title: activeChat?.title || 'General Chat' });
+  };
+  const handleClearStudyMaterialContext = () => {
+    setSelectedStudyMaterialContext(null);
+    // Optional: Add a system message indicating context is cleared
+    // addMessage({ id: uuidv4(), sender: 'system', content: 'Study material context cleared.', timestamp: Date.now(), type: 'info', subject: activeChat?.subject || 'general', conversationId: activeChat?.id.toString() || 'general', title: activeChat?.title || 'General Chat' });
+  };
 
   React.useEffect(() => {
     if (typingKanaMessage && typingKanaMessage.fullText) {
@@ -221,6 +265,10 @@ const ChatArea = ({
       formData.append('title', title);
       if (activePdfContextUrl) formData.append('activePdfUrl', activePdfContextUrl);
       if (uploadedNoteName) formData.append('uploadedNoteName', uploadedNoteName);
+      if (selectedStudyMaterialContext) {
+        formData.append('studyMaterialId', selectedStudyMaterialContext.id);
+        formData.append('studyMaterialTitle', selectedStudyMaterialContext.title);
+      }
 
       try {
         const response = await fetch(`${KANA_API_BASE_URL}/analyze-image`, {
@@ -321,17 +369,26 @@ const ChatArea = ({
         .finally(() => setIsKanaTyping(false));
       } else {
         // Standard chat API call (non-image-generation)
-        fetch(`${KANA_API_BASE_URL}/chat`, {
+        const payload: any = {
+          message: currentInput,
+          subject,
+          conversationId,
+          title,
+          activePdfUrl: useDocumentContext ? activePdfContextUrl : undefined,
+          uploadedNoteName: uploadedNoteName ? uploadedNoteName : undefined,
+        };
+
+        if (selectedStudyMaterialContext) {
+          payload.studyMaterialContext = {
+            id: selectedStudyMaterialContext.id,
+            title: selectedStudyMaterialContext.title,
+          };
+        }
+
+        fetch(`${KANA_API_BASE_URL}/chat`, { // Ensure this is your correct chat endpoint
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: currentInput,
-            subject,
-            conversationId,
-            title,
-            ...(useDocumentContext && activePdfContextUrl ? { activePdfUrl: activePdfContextUrl } : {}),
-            ...(uploadedNoteName ? { uploadedNoteName: uploadedNoteName } : {})
-          }),
+          body: JSON.stringify(payload),
         })
         .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
         .then(data => {
@@ -950,14 +1007,26 @@ const ChatArea = ({
                       <UploadCloud className="h-4 w-4 mr-1.5" />
                       Choose Note (.txt, .pdf)
                     </label>
+                    <Button onClick={handleOpenStudyMaterialsPanel} small className="ml-2">
+                      <BookOpen className="h-4 w-4 mr-1.5" />
+                      Study Materials
+                    </Button>
                     {selectedFile && (
-                      <Button onClick={handleFileUpload} disabled={isUploading} small>
+                      <Button onClick={handleFileUpload} disabled={isUploading} small className="ml-2">
                         {isUploading ? 'Uploading...' : 'Upload Selected Note'}
                       </Button>
                     )}
                   </div>
                   {selectedFile && !isUploading && (
                     <p className="text-xs text-gray-400">Selected file: {selectedFile.name}</p>
+                  )}
+                  {selectedStudyMaterialContext && (
+                    <div className="mt-2 p-2 text-xs bg-indigo-500 bg-opacity-20 rounded-md text-indigo-300 flex justify-between items-center">
+                      <span>Study Context: {selectedStudyMaterialContext.title}</span>
+                      <button onClick={handleClearStudyMaterialContext} className="text-red-400 hover:text-red-300 ml-2 p-1 rounded-full hover:bg-red-500 hover:bg-opacity-20">
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
                   )}
                   {uploadedNoteName && (
                     <div className="p-2 text-xs bg-green-500 bg-opacity-20 rounded-md text-green-300 flex justify-between items-center">
@@ -1101,6 +1170,17 @@ const ChatArea = ({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Study Materials Panel Modal */}
+      {isStudyMaterialsPanelOpen && (
+        <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+          <StudyMaterialsPanel
+            isOpen={isStudyMaterialsPanelOpen} // Pass the isOpen prop
+            onClose={handleCloseStudyMaterialsPanel}
+            onSelectMaterial={handleSelectStudyMaterial}
+          />
         </div>
       )}
     </div>
