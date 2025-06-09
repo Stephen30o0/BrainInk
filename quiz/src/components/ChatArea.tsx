@@ -271,7 +271,7 @@ const ChatArea = ({
       }
 
       try {
-        const response = await fetch(`${KANA_API_BASE_URL}/analyze-image`, {
+        const response = await fetch(`${KANA_API_BASE_URL}/api/analyze-image`, {
           method: 'POST',
           body: formData,
         });
@@ -453,7 +453,7 @@ const ChatArea = ({
     const title = activeChat?.title || 'System Message';
 
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/upload-note`, {
+      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-note`, {
         method: 'POST',
         body: formData,
       });
