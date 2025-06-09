@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
+import { ProfileCustomizationModal } from './components/modals/ProfileCustomizationModal';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { HudNavigation } from './components/HudNavigation';
 import { HeroSection } from './components/HeroSection';
@@ -24,7 +26,8 @@ import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
 import { QuizInterface } from './components/quiz/QuizInterface';
 import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedLayout';
-import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
+// CustomizeProfilePage will now be primarily rendered via the modal
+// import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +39,8 @@ export function App() {
   }, []);
 
   return (
-    <SoundProvider>
+    <ProfileCustomizationModalProvider>
+      <SoundProvider>
       <AudioProvider>
         <WalletProvider>
           <Router>
@@ -83,8 +87,8 @@ export function App() {
                     }
                   />
                   <Route path="/signup" element={<SignUp />} />
-                  <Route path="/customize-profile" element={<CustomizeProfilePage />} />
-                  {/* Routes below require authentication and profile customization */}
+                  {/* <Route path="/customize-profile" element={<CustomizeProfilePage />} /> */}
+                  {/* Routes below require authentication and profile customization */}                 
                   <Route element={<EnsureProfileCustomizedLayout />}>
                     <Route path="/townsquare" element={<TownSquare />} />
                     <Route path="/messages" element={<MessagingPage />} />
@@ -100,5 +104,7 @@ export function App() {
         </WalletProvider>
       </AudioProvider>
     </SoundProvider>
+    <ProfileCustomizationModal />
+  </ProfileCustomizationModalProvider>
   );
 }

@@ -1,6 +1,6 @@
-import React from 'react';
-import { PixelButton } from './shared/PixelButton';
-import { LinkedinIcon, GithubIcon, TwitterIcon } from 'lucide-react';
+import { LinkedinIcon, TwitterIcon, GithubIcon } from 'lucide-react';
+import AvatarDisplay from './shared/AvatarDisplay';
+
 export const TeamSection = () => {
   const team = [{
     name: 'Eseosa Kay-Uwagboe',
@@ -55,9 +55,8 @@ export const TeamSection = () => {
           {team.map((member, index) => <div key={index} className="bg-dark/50 border-2 border-primary/30 rounded-lg p-6 hover-scale">
               <div className="text-center mb-6">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-tertiary p-1 mx-auto">
-                  <div className="w-full h-full rounded-full bg-dark flex items-center justify-center overflow-hidden">
-                    <span className="text-4xl">{member.avatar}</span>
-                  </div>
+                  <AvatarDisplay avatar={member.avatar} size="w-full h-full" altText={`${member.name}'s avatar`} className="text-4xl" />
+
                 </div>
                 <h3 className="font-pixel text-primary text-lg mt-4">
                   {member.name}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+// import { useNavigate } from 'react-router-dom'; // No longer needed here
 import { Trophy, Star, Medal, Clock, Calendar, Settings, X, User, Mail } from 'lucide-react';
+import { useProfileCustomizationModal } from '../../../contexts/ProfileCustomizationModalContext'; // Adjusted path
 
 interface ProfileData {
   username: string;
@@ -65,6 +67,8 @@ interface UserStatsResponse {
 }
 
 export const ProfilePanel = () => {
+  // const navigate = useNavigate(); // No longer needed here
+  const { openProfileModal, profileUpdateKey } = useProfileCustomizationModal();
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -89,7 +93,8 @@ export const ProfilePanel = () => {
     if (storedDisplayName) {
       setCurrentUserDisplayName(storedDisplayName);
     }
-  }, []);
+    console.log('[ProfilePanel] useEffect for avatar/displayName ran. Update Key:', profileUpdateKey);
+  }, [profileUpdateKey]); // Add profileUpdateKey to dependency array
 
   // Enhanced token validation and refresh
   const getValidToken = async (): Promise<string | null> => {
@@ -443,22 +448,27 @@ export const ProfilePanel = () => {
 
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <div className="w-20 h-20 flex items-center justify-center"> {/* Container for size and centering */}
+        <button
+          onClick={openProfileModal}
+          className="w-20 h-20 flex items-center justify-center relative group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-dark rounded-lg cursor-pointer"
+          aria-label="Edit profile avatar"
+        >
           {(() => {
             const avatarValue = currentUserAvatar || profileData.avatar;
             const altText = currentUserDisplayName || profileData.username || 'User Avatar';
             if (avatarValue && (avatarValue.startsWith('http') || avatarValue.includes('/'))) {
-              // Image: display with its natural shape, contained within the box
-              return <img src={avatarValue} alt={altText} className="max-w-full max-h-full object-contain" />;
+              return <img src={avatarValue} alt={altText} className="max-w-full max-h-full object-contain pointer-events-none" />;
             } else if (avatarValue) {
-              // Text emoji: larger font size
-              return <span className="text-5xl">{avatarValue}</span>;
+              return <span className="text-5xl pointer-events-none">{avatarValue}</span>;
             } else {
-              // Fallback
-              return <span className="text-5xl">👤</span>;
+              return <span className="text-5xl pointer-events-none">👤</span>;
             }
           })()}
-        </div>
+          {/* Simple Edit Icon Overlay on hover - uncomment and style further if desired */}
+          {/* <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none">
+            <Settings size={32} className="text-white" />
+          </div> */}
+        </button>
         <div>
           <h2 className="font-pixel text-xl text-primary">{currentUserDisplayName || profileData.username}</h2>
           <div className="flex items-center gap-2 mt-1">
@@ -599,13 +609,26 @@ export const ProfilePanel = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Avatar Display */}
+              {/* Avatar Display - Clickable to open modal */}
               <div className="flex flex-col items-center gap-4 mb-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-                  <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
-                    {currentUserAvatar || profileData.avatar}
-                  </div>
-                </div>
+                <button
+                  type="button" // Important: type="button" to prevent form submission
+                  onClick={openProfileModal} 
+                  className="w-24 h-24 flex items-center justify-center rounded-lg overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-dark"
+                  aria-label="Edit avatar via modal"
+                >
+                  {(currentUserAvatar && (currentUserAvatar.startsWith('http') || currentUserAvatar.includes('/'))) ? (
+                    <img src={currentUserAvatar} alt="User Avatar" className="w-full h-full object-cover" />
+                  ) : currentUserAvatar && currentUserAvatar.length <= 2 ? (
+                    <span className="text-5xl">{currentUserAvatar}</span> /* Increased size slightly */
+                  ) : profileData.avatar && (profileData.avatar.startsWith('http') || profileData.avatar.includes('/')) ? (
+                    <img src={profileData.avatar} alt="User Avatar" className="w-full h-full object-cover" />
+                  ) : profileData.avatar && profileData.avatar.length <= 2 ? (
+                    <span className="text-5xl">{profileData.avatar}</span> /* Increased size slightly */
+                  ) : (
+                    <span className="text-5xl">👤</span>
+                  )}
+                </button>
               </div>
 
               {/* First Name */}

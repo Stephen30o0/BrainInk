@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useProfileCustomizationModal } from '../contexts/ProfileCustomizationModalContext';
 
 const EnsureProfileCustomizedLayout: React.FC = () => {
+  const { openProfileModal } = useProfileCustomizationModal();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -13,10 +15,12 @@ const EnsureProfileCustomizedLayout: React.FC = () => {
     if (isAuthenticated) {
       const profileIsCustomized = localStorage.getItem('profileCustomized') === 'true';
 
-      // If profile is not customized and current path is not the customization page itself
-      if (!profileIsCustomized && location.pathname !== '/customize-profile') {
-        console.log('User profile not customized, redirecting to /customize-profile');
-        navigate('/customize-profile', { replace: true });
+      // If profile is not customized
+      if (!profileIsCustomized) {
+        console.log('User profile not customized, opening modal.');
+        openProfileModal();
+        // No longer redirecting, the modal will handle customization.
+        // The underlying page (e.g., /townsquare) will render, but the modal will be on top.
       }
     } else {
       // If not authenticated, and trying to access a page protected by this layout

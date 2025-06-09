@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, MessageSquare, Crown, Star, Shield, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, UserPlus, MessageSquare, Crown, Shield, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AvatarDisplay from '../../shared/AvatarDisplay';
 
 // API Configuration
 const API_BASE_URL = 'https://brainink-backend-freinds-micro.onrender.com/friends';
@@ -12,18 +13,6 @@ interface User {
   fname: string;
   lname: string;
   avatar: string;
-}
-
-interface FriendRequest {
-  id: number;
-  requester_id: number;
-  addressee_id: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  accepted_at?: string;
-  message?: string;
-  friend_info?: User;
 }
 
 interface Friend extends User {
@@ -699,16 +688,21 @@ export const FriendsPanel = () => {
         ) : (
           friends[activeTab]
             .filter((friend: Friend) => friend.username.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((friend: Friend) => (
+            .map((friend: Friend) => {
+              const calculatedFallback = friend.username?.substring(0, 2).toUpperCase() || '👤';
+              return (
+                // Ensure the opening parenthesis for the JSX block is on the same line as return or correctly placed
+                // The actual JSX starts on the next line in the original code, which is fine.
+              
               <div
                 key={friend.id}
                 className="bg-dark/30 border border-primary/20 rounded-lg p-4 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center text-2xl">
-                      {friend.avatar || friend.username?.substring(0, 2).toUpperCase() || '👤'}
-                    </div>
+                    <AvatarDisplay avatar={friend.avatar} size="w-12 h-12" altText={`${friend.username}'s avatar`} fallbackText={calculatedFallback} />
+
+
                     {activeTab === 'online' && (
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-dark"></div>
                     )}
@@ -765,7 +759,8 @@ export const FriendsPanel = () => {
                   </div>
                 </div>
               </div>
-            ))
+            ); // Add closing parenthesis for the return and semicolon for the map item
+          })
         )}
       </div>
 
@@ -811,9 +806,8 @@ export const FriendsPanel = () => {
                     className="flex items-center justify-between p-3 bg-dark/30 border border-primary/20 rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-xl">
-                        {user.avatar || user.username?.substring(0, 2).toUpperCase() || '👤'}
-                      </div>
+                      <AvatarDisplay avatar={user.avatar} size="w-10 h-10" altText={`${user.username}'s avatar`} />
+
                       <div>
                         <h4 className="text-sm text-primary">{user.username}</h4>
                         <p className="text-xs text-gray-400">{user.fname} {user.lname}</p>

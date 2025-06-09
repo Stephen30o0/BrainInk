@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Search, Phone, Video, Image as ImageIcon, Smile, Send, Mic, Paperclip, MoreVertical, X, ChevronLeft, Settings } from 'lucide-react';
+import { Search, Phone, Video, Image as ImageIcon, Smile, Send, Mic, Paperclip, MoreVertical, ChevronLeft, Settings } from 'lucide-react';
+import AvatarDisplay from '../components/shared/AvatarDisplay';
 
 // API Configuration
 const API_BASE_URL = 'https://brainink-backend-freinds-micro.onrender.com/friends';
@@ -409,9 +410,8 @@ export const MessagingPage = () => {
                   ${selectedChat?.id === chat.id ? 'bg-primary/10' : 'hover:bg-primary/5'}`}
               >
                 <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg">
-                    {chat.user.avatar || chat.user.username?.substring(0, 2).toUpperCase() || '👤'}
-                  </div>
+                  <AvatarDisplay avatar={chat.user.avatar} size="w-12 h-12" altText={`${chat.user.username}'s avatar`} fallbackText={chat.user.username?.substring(0, 2).toUpperCase() || '👤'} />
+
                   <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-dark
                     ${chat.status === 'online' ? 'bg-green-500' : chat.status === 'away' ? 'bg-yellow-500' : 'bg-gray-500'}`} />
                 </div>
@@ -458,9 +458,8 @@ export const MessagingPage = () => {
                   className="text-primary cursor-pointer lg:hidden"
                   onClick={() => setSelectedChat(null)}
                 />
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                  {selectedChat.user.avatar || selectedChat.user.username?.substring(0, 2).toUpperCase() || '👤'}
-                </div>
+                <AvatarDisplay avatar={selectedChat.user.avatar} size="w-10 h-10" altText={`${selectedChat.user.username}'s avatar`} />
+
                 <div>
                   <h2 className="font-medium text-white">
                     {selectedChat.user.fname && selectedChat.user.lname
