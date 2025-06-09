@@ -386,7 +386,8 @@ app.post('/api/chat', async (req, res) => {
 
         try {
             const userMessageParts = [];
-            if (message) { userMessageParts.push({ text: message }); }
+            if (uploadedNoteContent) { userMessageParts.push({ text: `Context from uploaded note:\n\n${uploadedNoteContent}` }); }
+            // The pastedImageBase64 logic is mostly superseded by /api/analyze-image, but kept for potential direct chat image inputs.
             if (pastedImageBase64) {
                 const imageMimeType = pastedImageBase64.startsWith('data:image/jpeg') ? 'image/jpeg' :
                                       pastedImageBase64.startsWith('data:image/png') ? 'image/png' :
@@ -398,7 +399,7 @@ app.post('/api/chat', async (req, res) => {
                     }
                 });
             }
-            if (uploadedNoteContent) { userMessageParts.push({ text: `Context from uploaded note: ${uploadedNoteContent}` }); }
+            if (message) { userMessageParts.push({ text: message }); }
 
             // This check is important if 'message' was present but empty, and no other content was provided.
             if (userMessageParts.length === 0) {
