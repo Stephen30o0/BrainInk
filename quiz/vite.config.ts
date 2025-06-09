@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'https://kana-backend-app.onrender.com',
         changeOrigin: true,
         // secure: false, // Uncomment if your backend is http
       }
