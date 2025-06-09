@@ -385,7 +385,7 @@ const ChatArea = ({
           };
         }
 
-        fetch(`${KANA_API_BASE_URL}/chat`, { // Ensure this is your correct chat endpoint
+        fetch(`${KANA_API_BASE_URL}/api/chat`, { // Ensure this is your correct chat endpoint
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),

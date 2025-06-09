@@ -204,6 +204,70 @@ app.post('/api/clear-note-context', (req, res) => {
   res.json({ type: 'success', message: 'Uploaded note context cleared successfully.' });
 });
 
+// API endpoint for K.A.N.A. Chat
+app.post('/api/chat', async (req, res) => {
+  if (!geminiModel) {
+    return res.status(503).json({ type: 'error', message: 'AI model not initialized. Check API key.' });
+  }
+
+  const { message, subject, conversationId, title, uploadedNoteContent, pastedImageBase64 } = req.body;
+
+  console.log('DEBUG: /api/chat received payload:', { message, subject, conversationId, title, uploadedNoteContent: uploadedNoteContent ? 'Exists' : 'Empty', pastedImageBase64: pastedImageBase64 ? 'Exists' : 'Empty' });
+
+  try {
+    let promptParts = [];
+    let fullPrompt = '';
+
+    if (uploadedNoteContent) {
+      fullPrompt += `Context from uploaded note:\n${uploadedNoteContent}\n\n`;
+    }
+
+    // Add a system prompt or role instruction if desired
+    // fullPrompt += "You are K.A.N.A., a helpful AI assistant.\n";
+
+    fullPrompt += `User message: ${message}`;
+    promptParts.push({ text: fullPrompt });
+
+    if (pastedImageBase64) {
+      // Extract raw base64 data and mime type if the string includes a data URI prefix
+      let rawBase64Data = pastedImageBase64;
+      let mimeType = 'image/jpeg'; // Default, can be refined
+      const match = pastedImageBase64.match(/^data:(image\/[a-zA-Z]+);base64,(.*)$/);
+      if (match) {
+        mimeType = match[1];
+        rawBase64Data = match[2];
+      }
+      promptParts.push({
+        inlineData: {
+          data: rawBase64Data,
+          mimeType: mimeType,
+        },
+      });
+      console.log(`DEBUG: Added image to prompt with MIME type: ${mimeType}`);
+    }
+
+    const result = await geminiModel.generateContent({ contents: [{ role: "user", parts: promptParts }] });
+    const response = result.response;
+    const aiResponseText = response.text();
+    
+    console.log('DEBUG: Gemini AI Response:', aiResponseText);
+    res.json({ type: 'success', message: aiResponseText, subject, conversationId, title });
+
+  } catch (error) {
+    console.error('Error calling Gemini API:', error);
+    let errorMessage = 'Failed to get response from AI.';
+    if (error.message) {
+        errorMessage += ` Details: ${error.message}`;
+    }
+    // Check for specific Google AI error structures if available
+    if (error.response && error.response.data && error.response.data.error) {
+        errorMessage = error.response.data.error.message;
+    }
+    res.status(500).json({ type: 'error', message: errorMessage });
+  }
+});
+
+
 // API endpoint for CORE search
 app.get('/api/core-search', async (req, res) => {
   const searchTerm = req.query.q;
