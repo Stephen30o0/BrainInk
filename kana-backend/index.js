@@ -170,66 +170,93 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
         return res.status(500).json({ type: 'error', message: 'Extracted text is empty. Cannot generate quiz.' });
     }
 
-    // --- Placeholder for Gemini call ---
-    const placeholderQuizResponse = {
-      message: "Quiz generation initiated. Text extracted. Gemini integration pending.",
-      source: materialInfo.originalFilename,
-      difficulty: difficulty || 'medium',
-      numQuestions: numQuestions || 5,
-      extractedTextSample: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : '')
-    };
-    res.json(placeholderQuizResponse);
-    // --- End Placeholder ---
-
-    /* 
-    // TODO: Implement actual Gemini call
+    // --- Actual Gemini Call for Quiz Generation ---
     if (!geminiModel) {
       return res.status(500).json({ type: 'error', message: 'Quiz generation service is not available (Gemini model not initialized).' });
     }
 
-    const prompt = `
-      Based on the following text from "${materialInfo.originalFilename}", generate a quiz with ${numQuestions || 5} questions.
-      The difficulty should be ${difficulty || 'medium'}.
-      For each question, provide:
-      1. A unique ID (e.g., "q1", "q2").
-      2. The question text.
-      3. The type of question (e.g., "multiple-choice" or "theory").
-      4. For multiple-choice: an array of 4 options.
-      5. The correct answer (for multiple-choice, the index of the correct option; for theory, the expected answer string).
-      6. A brief explanation for the answer.
+    const requestedNumQuestions = parseInt(numQuestions, 10) || 5;
+    const requestedDifficulty = difficulty || 'medium';
 
-      Format the entire response as a single JSON object with a "title", "category", "difficulty", and a "questions" array, like this:
+    // Truncate text to avoid exceeding API limits (e.g., ~30k characters for gemini-1.5-flash context window, be conservative)
+    // A character is roughly 4 tokens. 30k chars ~ 7.5k tokens. Max tokens for gemini-1.5-flash is 32k for prompt.
+    // Let's use a safe limit for the text, e.g., 20000 characters for the context part of the prompt.
+    const maxTextLength = 20000;
+    const contextText = extractedText.length > maxTextLength ? extractedText.substring(0, maxTextLength) + "... (text truncated)" : extractedText;
+
+    const prompt = `
+      You are an expert quiz generator. Based on the following text from the document titled "${materialInfo.originalFilename}", please generate a quiz.
+
+      Quiz Requirements:
+      - Number of questions: ${requestedNumQuestions}
+      - Difficulty level: ${requestedDifficulty}
+      - Topic: ${materialInfo.topic || 'General knowledge from the text'}
+
+      For each question, provide the following fields:
+      1.  "id": A unique string identifier for the question (e.g., "q1", "q2", ...).
+      2.  "questionText": The text of the question itself.
+      3.  "type": The type of question. This should be either "multiple-choice" or "theory".
+      4.  "options" (only for "multiple-choice" type): An array of exactly 4 strings, representing the answer choices. One of these must be the correct answer.
+      5.  "correctAnswer": 
+          - For "multiple-choice" questions: The 0-indexed integer of the correct option in the "options" array.
+          - For "theory" questions: A string representing the ideal or expected answer.
+      6.  "explanation": A brief explanation of why the correct answer is correct, or more details for a theory question.
+
+      The entire response MUST be a single, valid JSON object. This JSON object should have the following structure:
       {
         "title": "Quiz on ${materialInfo.topic || materialInfo.originalFilename}",
-        "category": "${materialInfo.topic || 'generated'}",
-        "difficulty": "${difficulty || 'medium'}",
-        "questions": [
-          { "id": "q1", "questionText": "...", "type": "multiple-choice", "options": ["...", "...", "...", "..."], "correctAnswer": 0, "explanation": "..." }
-        ]
+        "category": "${materialInfo.topic || 'Generated Quiz'}",
+        "difficulty": "${requestedDifficulty}",
+        "questions": [ /* array of question objects as described above */ ]
       }
 
-      Extracted Text:
-      ---
-      ${extractedText.substring(0, 15000)} 
-      ---
-      Ensure the output is valid JSON.
+      Extracted Text for Quiz Generation:
+      --- BEGIN TEXT ---
+      ${contextText}
+      --- END TEXT ---
+
+      Please ensure the JSON is well-formed and complete. Do not include any text outside of the main JSON object.
     `;
     
-    // console.log("Sending prompt to Gemini:", prompt.substring(0, 300) + "...");
+    console.log(`Sending prompt to Gemini for ${materialInfo.originalFilename}. Prompt length: ${prompt.length} chars. Context text length: ${contextText.length} chars.`);
+    // console.log("Gemini Prompt Snippet:", prompt.substring(0, 500) + "..."); // For debugging if needed
 
-    // const result = await geminiModel.generateContent(prompt);
-    // const response = await result.response;
-    // const geminiText = response.text();
-    // console.log("Gemini Raw Response:", geminiText);
+    try {
+      const result = await geminiModel.generateContent(prompt);
+      const response = await result.response;
+      // Gemini might wrap JSON in backticks if it thinks it's code, so try to strip them.
+      let geminiText = response.text().trim();
+      if (geminiText.startsWith('```json')) {
+        geminiText = geminiText.substring(7);
+      }
+      if (geminiText.startsWith('```')) {
+        geminiText = geminiText.substring(3);
+      }
+      if (geminiText.endsWith('```')) {
+        geminiText = geminiText.substring(0, geminiText.length - 3);
+      }
+      geminiText = geminiText.trim(); // Trim again after stripping backticks
 
-    // try {
-    //   const quizJson = JSON.parse(geminiText);
-    //   res.json(quizJson);
-    // } catch (parseError) {
-    //   console.error("Failed to parse Gemini response as JSON:", parseError);
-    //   res.status(500).json({ type: 'error', message: "Failed to parse quiz data from AI.", rawResponse: geminiText });
-    // }
-    */
+      console.log("Gemini Raw Response (cleaned):", geminiText.substring(0, 500) + (geminiText.length > 500 ? '...' : ''));
+
+      const quizJson = JSON.parse(geminiText);
+      // Basic validation of the parsed JSON structure
+      if (!quizJson.title || !quizJson.category || !quizJson.difficulty || !Array.isArray(quizJson.questions)) {
+        console.error("Gemini response missing required quiz structure.", quizJson);
+        throw new Error("AI response did not conform to the expected quiz structure.");
+      }
+      res.json(quizJson);
+    } catch (e) {
+      console.error("Error during Gemini API call or parsing response:", e);
+      // Check if e.response exists (from Gemini API error) or e.message for other errors
+      const errorMessage = e.response && e.response.data && e.response.data.error ? e.response.data.error.message : e.message;
+      res.status(500).json({ 
+        type: 'error', 
+        message: 'Failed to generate quiz using AI: ' + errorMessage,
+        details: e.toString()
+      });
+    }
+    // --- End Actual Gemini Call ---
 
   } catch (error) {
     console.error('Error in /generate-quiz endpoint:', error);

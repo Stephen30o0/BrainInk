@@ -54,45 +54,60 @@ export const QuizGame: React.FC<QuizGameProps> = ({
   const { xp, setXp } = useXP();
 
   useEffect(() => {
-    // Use import.meta.glob to import all JSON files from the data directory.
-// The `eager: false` option means the modules are loaded lazily (on demand).
-// For JSON, we might need to handle how it's imported, often they are default exports.
-const quizModules = import.meta.glob('../../../quiz/data/*.json');
-    console.log('Available quiz module paths:', Object.keys(quizModules));
+    const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'https://kana-backend-app.onrender.com/api/kana';
 
     const loadQuiz = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const quizCategory = category || 'neuroscience';
-        const quizDifficulty = difficulty || 'easy';
-        console.log(`Loading quiz: ../../../quiz/data/${quizCategory}_${quizDifficulty}.json`);
-        const targetPath = `../../../quiz/data/${quizCategory}_${quizDifficulty}.json`;
-        if (!quizModules[targetPath]) {
-          throw new Error(`Quiz file not found: ${targetPath.substring(targetPath.lastIndexOf('/') + 1)}`);
+        // For now, we'll use the passed 'category' and 'difficulty' props directly.
+        // 'sourceMaterialId' will be hardcoded for this test.
+        // 'numQuestions' can be a default or parsed if included in category/difficulty string later.
+        const requestedDifficulty = difficulty || 'medium';
+        const numQuestions = 5; // Default number of questions
+        // TODO: Make sourceMaterialId dynamic based on category or user selection
+        const sourceMaterialId = "83701c55-dc53-4220-a9fa-c1a3e52f0b96"; // Hardcoded Starlink PDF ID
+
+        console.log(`Requesting dynamic quiz. Topic/Category: ${category}, Difficulty: ${requestedDifficulty}, SourceID: ${sourceMaterialId}`);
+
+        const response = await fetch(`${KANA_API_BASE_URL}/generate-quiz`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sourceMaterialId: sourceMaterialId,
+            difficulty: requestedDifficulty,
+            numQuestions: numQuestions,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response from server.' }));
+          throw new Error(`Network response was not ok: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
         }
-        const quizModuleLoader = quizModules[targetPath];
-        const quizModule = await quizModuleLoader();
-        const quizData: QuizType = (quizModule as any).default;
+
+        const quizData: QuizType = await response.json();
 
         if (!quizData || !quizData.questions || quizData.questions.length === 0) {
-          throw new Error('Quiz data is invalid or has no questions.');
+          console.error('Received invalid quiz data from backend:', quizData);
+          throw new Error('Quiz data from backend is invalid or has no questions.');
         }
         
-        setCurrentQuiz(quizData);
+        setCurrentQuiz(quizData); // Contains title, category, difficulty, questions
         setQuestions(quizData.questions);
-        setTimeLeft(DEFAULT_TIME_PER_QUESTION);
+        setTimeLeft(DEFAULT_TIME_PER_QUESTION); // Reset timer for the new quiz
         setStartTime(Date.now());
         setIsLoading(false);
-      } catch (err) {
-        console.error('Failed to load quiz:', err);
-        setError(`Failed to load quiz for ${category} - ${difficulty}. Please try again.`);
+      } catch (err: any) {
+        console.error('Failed to load dynamic quiz:', err);
+        setError(`Failed to load quiz: ${err.message || 'Unknown error'}. Please try again.`);
         setIsLoading(false);
       }
     };
 
     loadQuiz();
-  }, [category, difficulty]);
+  }, [category, difficulty]); // Keep dependencies, so it reloads if category/difficulty props change
 
   const handleQuizCompletion = useCallback(() => {
     setIsGameOver(true);
