@@ -1,12 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+declare global {
+  interface Window {
+    scrollTimer?: NodeJS.Timeout;
+  }
+}
 import { BrainIcon, BookOpenIcon, TrophyIcon, WalletIcon, UsersIcon, MapIcon, MessageSquareIcon } from 'lucide-react';
 export const HudNavigation = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [xp, setXp] = useState(247);
-  const [coins, setCoins] = useState(125);
+  const [xp] = useState(247);
+  const [coins] = useState(125);
   const [activeSection, setActiveSection] = useState('hero');
   const [isScrolling, setIsScrolling] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
   useEffect(() => {
     const handleScroll = () => {
       // Calculate scroll progress
@@ -39,6 +47,17 @@ export const HudNavigation = () => {
       window.removeEventListener('scroll', handleScroll);
       clearTimeout(window.scrollTimer);
     };
+  }, []);
+
+  useEffect(() => {
+    const storedAvatar = localStorage.getItem('userAvatar');
+    const storedDisplayName = localStorage.getItem('userDisplayName');
+    if (storedAvatar) {
+      setUserAvatar(storedAvatar);
+    }
+    if (storedDisplayName) {
+      setUserDisplayName(storedDisplayName);
+    }
   }, []);
 
   // Main navigation items
@@ -84,13 +103,13 @@ export const HudNavigation = () => {
   }];
 
   // Handle nav item click
-  const handleNavClick = section => {
+  const handleNavClick = (section: string) => {
     setActiveSection(section.toLowerCase());
     if (mobileMenuOpen) setMobileMenuOpen(false);
   };
 
   // Handle logo click to navigate to hero section
-  const handleLogoClick = e => {
+  const handleLogoClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     setActiveSection('hero');
     window.location.href = '#hero';
@@ -151,9 +170,16 @@ export const HudNavigation = () => {
           <div className="hidden md:flex items-center space-x-6 ml-4">
             {/* Level Progress */}
             <div className="flex items-center">
-              <span className="text-xs font-pixel text-primary mr-2">
-                LVL 5
-              </span>
+              {(userAvatar || userDisplayName) ? (
+                <div className="flex items-center space-x-2 mr-2">
+                  {userAvatar && <span className="text-2xl leading-none">{userAvatar}</span>} {/* Display avatar as emoji */}
+                  {userDisplayName && <span className="text-sm font-pixel text-primary">{userDisplayName}</span>}
+                </div>
+              ) : (
+                <span className="text-xs font-pixel text-primary mr-2">
+                  LVL 5
+                </span>
+              )}
               <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden relative">
                 <div className={`absolute inset-0 bg-primary/20 rounded-full ${isScrolling ? 'animate-pulse' : ''}`}></div>
                 <div className="h-full bg-gradient-to-r from-primary via-tertiary to-secondary rounded-full relative" style={{
@@ -288,55 +314,5 @@ export const HudNavigation = () => {
 
       {/* Background pattern */}
       <div className="magic-pattern"></div>
-
-      {/* Styles */}
-      <style jsx global>{`
-        @keyframes shimmer {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
-        }
-        .shimmer-effect {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 50%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.3) 50%,
-            rgba(255, 255, 255, 0) 100%
-          );
-          animation: shimmer 1.5s infinite;
-        }
-        .magic-pattern {
-          position: absolute;
-          width: 100%;
-          height: 100vh;
-          background-image: radial-gradient(
-              circle at 25% 25%,
-              rgba(var(--primary-rgb), 0.05) 2%,
-              transparent 8%
-            ),
-            radial-gradient(
-              circle at 75% 75%,
-              rgba(var(--tertiary-rgb), 0.05) 2%,
-              transparent 8%
-            );
-          background-size: 60px 60px;
-          background-position:
-            0 0,
-            30px 30px;
-          pointer-events: none;
-          z-index: -1;
-        }
-        .shadow-glow {
-          box-shadow: 0 0 15px rgba(255, 224, 130, 0.2);
-        }
-      `}</style>
     </>;
 };

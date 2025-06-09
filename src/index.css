@@ -201,3 +201,62 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #00ffaa;
 }
+
+/* Define theme color RGB values if not already defined elsewhere */
+/* These are placeholders; adjust to your actual theme colors */
+:root {
+  --primary-rgb: 0, 168, 255; /* Example: corresponds to #00a8ff */
+  --tertiary-rgb: 0, 255, 170; /* Example: corresponds to #00ffaa */
+}
+
+/* Shimmer effect for loading states */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer-effect {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, transparent 0%, rgba(var(--primary-rgb), 0.1) 50%, transparent 100%);
+  background-size: 2000px 100%;
+  border-radius: 0.25rem; /* Adjust as needed */
+}
+
+/* Magic Patterns for backgrounds */
+.magic-pattern {
+  opacity: 0.05; /* Soften the effect */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Ensure it doesn't interfere with interactions */
+  z-index: -1; /* Place it behind content */
+}
+
+.magic-pattern.pattern-1 {
+  background-image: radial-gradient(rgba(var(--primary-rgb), 0.2) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.magic-pattern.pattern-2 {
+  background-image: linear-gradient(45deg, rgba(var(--primary-rgb), 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(var(--primary-rgb), 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%);
+  background-size: 32px 32px;
+  background-position: 0 0, 0 16px, 16px -16px, -16px 0px;
+}
+
+.magic-pattern.pattern-3 {
+  background-image: repeating-linear-gradient(45deg, rgba(var(--primary-rgb), 0.05), rgba(var(--primary-rgb), 0.05) 1px, transparent 1px, transparent 10px);
+}
+
+/* Shadow Glow Effect */
+.shadow-glow {
+  box-shadow: 0 0 15px 5px rgba(var(--primary-rgb), 0.2), 0 0 5px 1px rgba(var(--tertiary-rgb), 0.1);
+}

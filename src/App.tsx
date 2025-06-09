@@ -23,6 +23,8 @@ import { ChatbotInterface } from './pages/ChatbotInterface';
 import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
 import { QuizInterface } from './components/quiz/QuizInterface';
+import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedLayout';
+import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -81,12 +83,16 @@ export function App() {
                     }
                   />
                   <Route path="/signup" element={<SignUp />} />
-                  <Route path="/townsquare" element={<TownSquare />} />
-                  <Route path="/messages" element={<MessagingPage />} />
-                  <Route path="/chatbot" element={<ChatbotInterface />} />
-                  <Route path="/achievements" element={<Achievements />} />
-                  <Route path="/notifications" element={<Notifications />} />
-            <Route path="/quiz/math" element={<QuizInterface />} />
+                  <Route path="/customize-profile" element={<CustomizeProfilePage />} />
+                  {/* Routes below require authentication and profile customization */}
+                  <Route element={<EnsureProfileCustomizedLayout />}>
+                    <Route path="/townsquare" element={<TownSquare />} />
+                    <Route path="/messages" element={<MessagingPage />} />
+                    <Route path="/chatbot" element={<ChatbotInterface />} />
+                    <Route path="/achievements" element={<Achievements />} />
+                    <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/quiz/math" element={<QuizInterface />} />
+                  </Route>
                 </Routes>
               )}
             </div>

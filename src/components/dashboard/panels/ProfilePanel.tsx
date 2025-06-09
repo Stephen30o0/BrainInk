@@ -65,18 +65,31 @@ interface UserStatsResponse {
 }
 
 export const ProfilePanel = () => {
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
     email: '',
-    avatar: 'JP',
+    avatar: '', // Will be populated by useEffect or API
     bio: '',
     fname: '',
     lname: ''
   });
   const [recentAchievements, setRecentAchievements] = useState<Achievement[]>([]);
+
+  useEffect(() => {
+    const storedAvatar = localStorage.getItem('userAvatar');
+    const storedDisplayName = localStorage.getItem('userDisplayName');
+    if (storedAvatar) {
+      setCurrentUserAvatar(storedAvatar);
+    }
+    if (storedDisplayName) {
+      setCurrentUserDisplayName(storedDisplayName);
+    }
+  }, []);
 
   // Enhanced token validation and refresh
   const getValidToken = async (): Promise<string | null> => {
@@ -193,9 +206,9 @@ export const ProfilePanel = () => {
 
         setProfileData(prev => ({
           ...prev,
-          username: data.username || prev.username || 'User',
+          username: currentUserDisplayName || data.username || prev.username || 'User',
           memberSince: 'Member',
-          avatar: data.username?.substring(0, 2).toUpperCase() || prev.avatar
+          avatar: currentUserAvatar || data.username?.substring(0, 2).toUpperCase() || prev.avatar
         }));
       } else {
         const errorText = await response.text();
@@ -430,13 +443,24 @@ export const ProfilePanel = () => {
 
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-          <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
-            {profileData.avatar}
-          </div>
+        <div className="w-20 h-20 flex items-center justify-center"> {/* Container for size and centering */}
+          {(() => {
+            const avatarValue = currentUserAvatar || profileData.avatar;
+            const altText = currentUserDisplayName || profileData.username || 'User Avatar';
+            if (avatarValue && (avatarValue.startsWith('http') || avatarValue.includes('/'))) {
+              // Image: display with its natural shape, contained within the box
+              return <img src={avatarValue} alt={altText} className="max-w-full max-h-full object-contain" />;
+            } else if (avatarValue) {
+              // Text emoji: larger font size
+              return <span className="text-5xl">{avatarValue}</span>;
+            } else {
+              // Fallback
+              return <span className="text-5xl">👤</span>;
+            }
+          })()}
         </div>
         <div>
-          <h2 className="font-pixel text-xl text-primary">{profileData.username}</h2>
+          <h2 className="font-pixel text-xl text-primary">{currentUserDisplayName || profileData.username}</h2>
           <div className="flex items-center gap-2 mt-1">
             <Medal size={14} className="text-yellow-400" />
             <span className="text-gray-400 text-sm">{profileData.rank}</span>
@@ -579,7 +603,7 @@ export const ProfilePanel = () => {
               <div className="flex flex-col items-center gap-4 mb-6">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
                   <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
-                    {profileData.avatar}
+                    {currentUserAvatar || profileData.avatar}
                   </div>
                 </div>
               </div>
