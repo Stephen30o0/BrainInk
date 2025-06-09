@@ -206,66 +206,367 @@ app.post('/api/clear-note-context', (req, res) => {
 
 // API endpoint for K.A.N.A. Chat
 app.post('/api/chat', async (req, res) => {
-  if (!geminiModel) {
-    return res.status(503).json({ type: 'error', message: 'AI model not initialized. Check API key.' });
-  }
+    const { message, subject, conversationId, title, uploadedNoteContent, pastedImageBase64, activePdfUrl } = req.body;
 
-  const { message, subject, conversationId, title, uploadedNoteContent, pastedImageBase64 } = req.body;
-
-  console.log('DEBUG: /api/chat received payload:', { message, subject, conversationId, title, uploadedNoteContent: uploadedNoteContent ? 'Exists' : 'Empty', pastedImageBase64: pastedImageBase64 ? 'Exists' : 'Empty' });
-
-  try {
-    let userMessageParts = [];
-    let userPrompt = '';
-
-    if (uploadedNoteContent) {
-      userPrompt += `Context from uploaded note:\n${uploadedNoteContent}\n\nUser question about the note: ${message}`;
-    } else {
-      userPrompt += message;
-    }
-    userMessageParts.push({ text: userPrompt });
-
-    if (pastedImageBase64) {
-      // Extract raw base64 data and mime type if the string includes a data URI prefix
-      let rawBase64Data = pastedImageBase64;
-      let mimeType = 'image/jpeg'; // Default, can be refined
-      const match = pastedImageBase64.match(/^data:(image\/[a-zA-Z]+);base64,(.*)$/);
-      if (match) {
-        mimeType = match[1];
-        rawBase64Data = match[2];
+    // --- BEGIN GRAPHING & COMMAND LOGIC --- 
+    if (message) { // Graphing and command logic only applies if there's a text message
+      // Parameter assignment detection
+      const assignmentMatch = message.match(/^(?:let|define|set)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|as|to)\s*(-?\d+(?:\.\d+)?)$/i);
+      if (assignmentMatch) {
+        const varName = assignmentMatch[1];
+        if (varName.toLowerCase() === 'x') {
+          return res.json({
+            type: "error",
+            kanaResponse: "Sorry, 'x' is a reserved variable for graphing and cannot be set as a parameter.", subject, conversationId, title
+          });
+        }
+        const varValue = parseFloat(assignmentMatch[2]);
+        if (isNaN(varValue)) {
+          return res.status(400).json({
+            type: "error",
+            kanaResponse: `Sorry, '${assignmentMatch[2]}' is not a valid number for ${varName}.`, subject, conversationId, title
+          });
+        }
+        parameterScope[varName] = varValue;
+        console.log(`DEBUG: Parameter set: ${varName} = ${varValue}. Current scope:`, parameterScope);
+        return res.json({
+          type: "info",
+          kanaResponse: `Okay, I've set ${varName} = ${varValue}.`,
+          subject, conversationId, title
+        });
       }
-      promptParts.push({
-        inlineData: {
-          data: rawBase64Data,
-          mimeType: mimeType,
-        },
-      });
-      console.log(`DEBUG: Added image to prompt with MIME type: ${mimeType}`);
-      // If an image is present, add it to userMessageParts, not promptParts which was renamed
-      userMessageParts.push({
-        inlineData: {
-          data: rawBase64Data,
-          mimeType: mimeType,
-        },
-      });
+
+      // Conditional graphing intent detection
+      const conditionalPlotMatch = message.match(/^if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([><=!]=?)\s*(-?\d+(?:\.\d+)?)\s*,\s*(?:then\s*)?(?:plot|graph)\s*(.+)$/i);
+      if (conditionalPlotMatch) {
+        const varName = conditionalPlotMatch[1];
+        const operator = conditionalPlotMatch[2];
+        const comparisonValueStr = conditionalPlotMatch[3];
+        const expressionString = conditionalPlotMatch[4].trim();
+        console.log(`DEBUG: Conditional plot: if ${varName} ${operator} ${comparisonValueStr}, plot ${expressionString}`);
+        if (!parameterScope.hasOwnProperty(varName)) {
+          return res.json({
+            type: "error",
+            kanaResponse: `Sorry, the variable '${varName}' in the condition is not defined. Please define it first (e.g., 'let ${varName} = 5').`,
+            subject, conversationId, title
+          });
+        }
+        const actualValue = parameterScope[varName];
+        const comparisonValue = parseFloat(comparisonValueStr);
+        if (isNaN(comparisonValue)) {
+           return res.status(400).json({
+            type: "error",
+            kanaResponse: `Sorry, '${comparisonValueStr}' is not a valid number for comparison in the condition.`,
+            subject, conversationId, title
+          });
+        }
+        let conditionMet = false;
+        switch (operator) {
+          case '>': conditionMet = actualValue > comparisonValue; break;
+          case '<': conditionMet = actualValue < comparisonValue; break;
+          case '>=': conditionMet = actualValue >= comparisonValue; break;
+          case '<=': conditionMet = actualValue <= comparisonValue; break;
+          case '==': conditionMet = actualValue == comparisonValue; break;
+          case '!=': conditionMet = actualValue != comparisonValue; break;
+          default:
+            return res.json({ type: "error", kanaResponse: `Unknown operator '${operator}' in condition.`, subject, conversationId, title });
+        }
+        if (conditionMet) {
+          console.log(`DEBUG: Condition MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}. Plotting ${expressionString}`);
+          const width = 600; const height = 400;
+          const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+          let compiledExpr;
+          try { compiledExpr = math.compile(expressionString); }
+          catch (error) { return res.status(400).json({ type: "error", kanaResponse: `Error compiling expression '${expressionString}': ${error.message}`, subject, conversationId, title }); }
+          const labels = []; const dataPoints = [];
+          const xMinPlot = -5; const xMaxPlot = 5; const stepsPlot = 100;
+          let minActualY = Infinity, maxActualY = -Infinity;
+          for (let i = 0; i <= stepsPlot; i++) {
+            const x = xMinPlot + (xMaxPlot - xMinPlot) * i / stepsPlot;
+            labels.push(x.toFixed(2));
+            let yValue;
+            try { yValue = compiledExpr.evaluate({ ...parameterScope, x: x }); if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null; }
+            catch (evalError) { yValue = null; }
+            dataPoints.push(yValue);
+            if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
+          }
+          let yAxisMin = minActualY, yAxisMax = maxActualY;
+          if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; } else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
+          const configuration = { type: 'line', data: { labels: labels, datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }] }, options: { scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } }, plugins: { title: { display: true, text: `Graph of y = ${expressionString} (Condition: ${varName} ${operator} ${comparisonValueStr} was true)` } } } };
+          const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
+          return res.json({ type: "mathematical_graph", kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was met. Here's the graph of y = ${expressionString}:`, generatedImageUrl: dataUrl, subject, conversationId, title });
+        } else {
+          console.log(`DEBUG: Condition NOT MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}.`);
+          return res.json({ type: "info", kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was not met. No graph plotted.`, subject, conversationId, title });
+        }
+      }
+
+      // Graphing intent detection (direct plot)
+      const graphRequestMatch = message.match(/^(?:plot|graph)(?:\s+a\s+graph\s+of)?(?:\s*y\s*=\s*|\s*f\x28x\x29\s*=\s*)?\s*(.+)$/i);
+      if (graphRequestMatch) {
+        const expressionString = graphRequestMatch[1].trim();
+        console.log('DEBUG: Graphing intent detected for expression:', expressionString);
+        const width = 600; const height = 400;
+        const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+        let compiledExpr;
+        try { compiledExpr = math.compile(expressionString); }
+        catch (error) { console.error('Error compiling expression:', error); return res.status(400).json({ type: "error", kanaResponse: `Sorry, I couldn't understand the mathematical expression: ${expressionString}. Error: ${error.message}`, subject, conversationId, title }); }
+        const labels = []; const dataPoints = [];
+        const xMinPlot = -5; const xMaxPlot = 5; const steps = 100;
+        let minActualY = Infinity; let maxActualY = -Infinity;
+        for (let i = 0; i <= steps; i++) {
+          const x = xMinPlot + (xMaxPlot - xMinPlot) * i / steps;
+          labels.push(x.toFixed(2));
+          let yValue;
+          try { yValue = compiledExpr.evaluate({ ...parameterScope, x: x }); if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null; }
+          catch (evalError) { console.error(`Error evaluating expression at x=${x}:`, evalError); yValue = null; }
+          dataPoints.push(yValue);
+          if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
+        }
+        let yAxisMin = minActualY, yAxisMax = maxActualY;
+        if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; } else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
+        const configuration = { type: 'line', data: { labels: labels, datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }] }, options: { scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } }, plugins: { title: { display: true, text: `Graph of y = ${expressionString}` } } } };
+        const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
+        return res.json({ type: "mathematical_graph", kanaResponse: `Here's the graph of y = ${expressionString}:`, generatedImageUrl: dataUrl, subject, conversationId, title });
+      }
+    } // End of if(message) block for graphing & command logic
+    // --- END GRAPHING & COMMAND LOGIC ---
+
+    // If no command/graphing logic handled the request, proceed with general AI chat
+
+
+    if (!message && !pastedImageBase64) { // if only image, it's handled by /api/analyze-image. If no message for chat, it's an error.
+      return res.status(400).json({ type: 'error', message: 'Message is required for chat.' });
     }
 
-    const systemInstruction = {
-      role: "system", // Though for Gemini, system instructions are often outside 'contents'
-      parts: [{ text: "You are K.A.N.A., an AI-powered academic partner. Your goal is to assist users with their studies, provide explanations, help with research, and facilitate learning. Be encouraging, clear, and helpful. If asked about your identity, identify yourself as K.A.N.A." }]
-    };
+    // Parameter assignment detection (only if message exists)
+    if (message) {
+      const assignmentMatch = message.match(/^(?:let|define|set)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|as|to)\s*(-?\d+(?:\.\d+)?)$/i);
+      if (assignmentMatch) {
+        const varName = assignmentMatch[1];
+        if (varName.toLowerCase() === 'x') {
+          return res.json({
+            type: "error",
+            kanaResponse: "Sorry, 'x' is a reserved variable for graphing and cannot be set as a parameter."
+          });
+        } else {
+          const varValue = parseFloat(assignmentMatch[2]);
+          if (isNaN(varValue)) {
+            return res.status(400).json({
+              type: "error",
+              kanaResponse: `Sorry, '${assignmentMatch[2]}' is not a valid number for ${varName}.`
+            });
+          }
+          parameterScope[varName] = varValue;
+          console.log(`DEBUG: Parameter set: ${varName} = ${varValue}. Current scope:`, parameterScope);
+          return res.json({
+            type: "info",
+            kanaResponse: `Okay, I've set ${varName} = ${varValue}.`,
+            subject, conversationId, title
+          });
+        }
+      }
 
-    const result = await geminiModel.generateContent({
-      contents: [{ role: "user", parts: userMessageParts }],
-      systemInstruction: systemInstruction.parts[0] // Pass the parts directly as per some SDK versions for systemInstruction
-    });
-    const response = result.response;
-    const aiResponseText = response.text();
-    
-    console.log('DEBUG: Gemini AI Response:', aiResponseText);
-    res.json({ type: 'success', kanaResponse: aiResponseText, subject, conversationId, title });
+      // Conditional graphing intent detection
+      const conditionalPlotMatch = message.match(/^if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([><=!]=?)\s*(-?\d+(?:\.\d+)?)\s*,\s*(?:then\s*)?(?:plot|graph)\s*(.+)$/i);
+      if (conditionalPlotMatch) {
+        const varName = conditionalPlotMatch[1];
+        const operator = conditionalPlotMatch[2];
+        const comparisonValueStr = conditionalPlotMatch[3];
+        const expressionString = conditionalPlotMatch[4].trim();
+        console.log(`DEBUG: Conditional plot: if ${varName} ${operator} ${comparisonValueStr}, plot ${expressionString}`);
+        if (!parameterScope.hasOwnProperty(varName)) {
+          return res.json({
+            type: "error",
+            kanaResponse: `Sorry, the variable '${varName}' in the condition is not defined. Please define it first (e.g., 'let ${varName} = 5').`,
+            subject, conversationId, title
+          });
+        }
+        const actualValue = parameterScope[varName];
+        const comparisonValue = parseFloat(comparisonValueStr);
+        if (isNaN(comparisonValue)) {
+           return res.status(400).json({
+            type: "error",
+            kanaResponse: `Sorry, '${comparisonValueStr}' is not a valid number for comparison in the condition.`,
+            subject, conversationId, title
+          });
+        }
+        let conditionMet = false;
+        switch (operator) {
+          case '>': conditionMet = actualValue > comparisonValue; break;
+          case '<': conditionMet = actualValue < comparisonValue; break;
+          case '>=': conditionMet = actualValue >= comparisonValue; break;
+          case '<=': conditionMet = actualValue <= comparisonValue; break;
+          case '==': conditionMet = actualValue == comparisonValue; break;
+          case '!=': conditionMet = actualValue != comparisonValue; break;
+          default:
+            return res.json({ type: "error", kanaResponse: `Unknown operator '${operator}' in condition.`, subject, conversationId, title });
+        }
+        if (conditionMet) {
+          console.log(`DEBUG: Condition MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}. Plotting ${expressionString}`);
+          const width = 600; const height = 400;
+          const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+          let compiledExpr;
+          try {
+            compiledExpr = math.compile(expressionString);
+          } catch (error) {
+            return res.status(400).json({ type: "error", kanaResponse: `Error compiling expression '${expressionString}': ${error.message}`, subject, conversationId, title });
+          }
+          const labels = []; const dataPoints = [];
+          const xMinPlot = -5; const xMaxPlot = 5; const stepsPlot = 100;
+          let minActualY = Infinity, maxActualY = -Infinity;
+          for (let i = 0; i <= stepsPlot; i++) {
+            const x = xMinPlot + (xMaxPlot - xMinPlot) * i / stepsPlot;
+            labels.push(x.toFixed(2));
+            let yValue;
+            try {
+              yValue = compiledExpr.evaluate({ ...parameterScope, x: x });
+              if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null;
+            } catch (evalError) { yValue = null; }
+            dataPoints.push(yValue);
+            if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
+          }
+          let yAxisMin = minActualY, yAxisMax = maxActualY;
+          if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; }
+          else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
+          const configuration = {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }]
+            },
+            options: {
+              scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } },
+              plugins: { title: { display: true, text: `Graph of y = ${expressionString} (Condition: ${varName} ${operator} ${comparisonValueStr} was true)` } }
+            }
+          };
+          const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
+          return res.json({
+            type: "mathematical_graph",
+            kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was met. Here's the graph of y = ${expressionString}:`,
+            generatedImageUrl: dataUrl,
+            subject, conversationId, title
+          });
+        } else {
+          console.log(`DEBUG: Condition NOT MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}.`);
+          return res.json({
+            type: "info",
+            kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was not met. No graph plotted.`,
+            subject, conversationId, title
+          });
+        }
+      }
 
-  } catch (error) {
+      // Graphing intent detection (direct plot)
+      const graphRequestMatch = message.match(/^(?:plot|graph)(?:\s+a\s+graph\s+of)?(?:\s*y\s*=\s*|\s*f\x28x\x29\s*=\s*)?\s*(.+)$/i);
+      if (graphRequestMatch) {
+        const expressionString = graphRequestMatch[1].trim();
+        console.log('DEBUG: Graphing intent detected for expression:', expressionString);
+        const width = 600; const height = 400;
+        const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
+        let compiledExpr;
+        try {
+          compiledExpr = math.compile(expressionString);
+        } catch (error) {
+          console.error('Error compiling expression:', error);
+          return res.status(400).json({ 
+            type: "error", 
+            kanaResponse: `Sorry, I couldn't understand the mathematical expression: ${expressionString}. Error: ${error.message}`,
+            subject, conversationId, title
+          });
+        }
+        const labels = []; const dataPoints = [];
+        const xMinPlot = -5; const xMaxPlot = 5; const steps = 100;
+        let minActualY = Infinity; let maxActualY = -Infinity;
+        for (let i = 0; i <= steps; i++) {
+          const x = xMinPlot + (xMaxPlot - xMinPlot) * i / steps;
+          labels.push(x.toFixed(2));
+          let yValue;
+          try {
+            yValue = compiledExpr.evaluate({ ...parameterScope, x: x });
+            if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null;
+          } catch (evalError) {
+            console.error(`Error evaluating expression at x=${x}:`, evalError);
+            yValue = null;
+          }
+          dataPoints.push(yValue);
+          if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
+        }
+        let yAxisMin = minActualY, yAxisMax = maxActualY;
+        if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; }
+        else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
+        const configuration = {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }]
+          },
+          options: {
+            scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } },
+            plugins: { title: { display: true, text: `Graph of y = ${expressionString}` } }
+          }
+        };
+        const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
+        return res.json({
+          type: "mathematical_graph",
+          kanaResponse: `Here's the graph of y = ${expressionString}:`,
+          generatedImageUrl: dataUrl,
+          subject, conversationId, title
+        }); // End of return res.json for direct graphing
+      } // End of direct graphRequestMatch
+    } // End of if(message) block for graphing & command logic
+    // --- END GRAPHING & COMMAND LOGIC ---
+
+    // If no command/graphing logic handled the request, proceed with general AI chat
+    if (!geminiModel) {
+      return res.status(503).json({ type: 'error', message: 'AI model not initialized. Check API key.' });
+    }
+
+    // Ensure there's something to send to the AI if it's not a graphing command that already returned
+    if (!message && !pastedImageBase64 && !uploadedNoteContent) {
+      return res.status(400).json({ type: 'error', message: 'Message, image, or note content is required for chat when not a graphing command.' });
+    }
+
+    try {
+      // Construct user message parts, including image if present
+      const userMessageParts = [];
+      if (message) { // Use the 'message' from the top-level destructuring
+        userMessageParts.push({ text: message });
+      }
+      if (pastedImageBase64) { // Use 'pastedImageBase64' from top-level
+        const imageMimeType = pastedImageBase64.startsWith('data:image/jpeg') ? 'image/jpeg' :
+                              pastedImageBase64.startsWith('data:image/png') ? 'image/png' :
+                              'application/octet-stream'; // Fallback MIME type
+        userMessageParts.push({
+          inlineData: {
+            mimeType: imageMimeType,
+            data: pastedImageBase64.split(',')[1] // Remove the base64 prefix
+          }
+        });
+      }
+      if (uploadedNoteContent) { // Use 'uploadedNoteContent' from top-level
+          userMessageParts.push({ text: `Context from uploaded note: ${uploadedNoteContent}` });
+      }
+
+      if (userMessageParts.length === 0) {
+          // This case should ideally be caught by the check above, but as a safeguard:
+          return res.status(400).json({ type: 'error', message: 'Cannot send an empty message to the AI.' });
+      }
+
+      console.log('DEBUG: Sending to Gemini AI with parts:', JSON.stringify(userMessageParts, null, 2));
+      console.log('DEBUG: System Instruction:', JSON.stringify(systemInstruction, null, 2));
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: "user", parts: userMessageParts }],
+        systemInstruction: systemInstruction.parts[0]
+      });
+      const response = result.response;
+      const aiResponseText = response.text();
+      
+      console.log('DEBUG: Gemini AI Response:', aiResponseText);
+      res.json({ type: 'success', kanaResponse: aiResponseText, subject, conversationId, title });
+
+    } catch (error) {
     console.error('Error calling Gemini API:', error);
     let errorMessage = 'Failed to get response from AI.';
     if (error.message) {
@@ -841,7 +1142,8 @@ app.post('/api/kana/clear-note-context', (req, res) => {
   res.json({ type: 'success', message: 'Uploaded note context has been cleared.' });
 });
 
-app.post('/api/kana/chat', async (req, res) => {
+// Commenting out the old /api/kana/chat endpoint as its logic is merged into /api/chat
+// app.post('/api/kana/chat', async (req, res) => {
   const { message, activePdfUrl } = req.body; // Get message and optional activePdfUrl
 
   if (!message) {
@@ -1145,7 +1447,7 @@ app.post('/api/kana/chat', async (req, res) => {
     console.error('Error in /api/kana/chat:', error);
     res.status(500).json({ kanaResponse: 'An error occurred on the server.', error: error.message });
   }
-});
+// }); // End of commented out /api/kana/chat endpoint
 
 // K.A.N.A. Image Generation and Explanation API endpoint
 app.post('/api/kana/generate-and-explain', async (req, res) => {
