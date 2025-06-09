@@ -381,7 +381,7 @@ export const QuizGame: React.FC<QuizGameProps> = ({
           </div>
         )}
 
-        {currentQuestion?.type === 'theoretical' && (
+        {currentQuestion?.type?.trim().toLowerCase() === 'theory' && ( /* Changed 'theoretical' to 'theory' */
           <div className="flex flex-col">
             <textarea
               ref={textareaRef}

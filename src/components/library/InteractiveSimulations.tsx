@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Play, Rotate3D, Info, Maximize, ExternalLink, Share2 } from 'lucide-react';
 
+// Define CoreApiAuthor if not imported (ensure consistency with LibraryHub.tsx)
+interface CoreApiAuthor {
+  name: string;
+}
+
 interface LibraryItem {
   id: string;
   title: string;
-  author: string;
+  authors: CoreApiAuthor[]; // Changed from author: string
   category: string;
   coverImage: string;
   description: string;
@@ -12,6 +17,8 @@ interface LibraryItem {
   rating: number;
   views: number;
   readTime: string;
+  storedFilename: string | null; // Added for consistency
+  mimetype: string | null; // Added for consistency
 }
 
 interface InteractiveSimulationsProps {
@@ -215,7 +222,7 @@ export const InteractiveSimulations: React.FC<InteractiveSimulationsProps> = ({ 
           </button>
           <div>
             <h2 className="font-pixel text-xl text-primary">{item.title}</h2>
-            <p className="text-gray-400 text-sm">{item.author}</p>
+            <p className="text-gray-400 text-sm" title={item.authors ? item.authors.map(a => a.name).join(', ') : 'N/A'}>{item.authors ? item.authors.map(a => a.name).join(', ') : 'N/A'}</p>
           </div>
         </div>
         

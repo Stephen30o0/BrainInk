@@ -8,5 +8,141 @@
     "topic": "General",
     "uploadTimestamp": "2025-06-07T15:51:41.397Z",
     "size": 215842
+  },
+  {
+    "id": "a2b4562c-a457-41fc-8fe7-5bd92bfa2d37",
+    "originalFilename": "Title_ Crossroads.pdf",
+    "storedFilename": "studyMaterialFile-1749485721417-896503878.pdf",
+    "filePath": "C:\\Users\\musev\\Downloads\\Brain\\kana-backend\\uploads\\study_materials\\studyMaterialFile-1749485721417-896503878.pdf",
+    "mimetype": "application/pdf",
+    "topic": "Crossroads",
+    "uploadTimestamp": "2025-06-09T16:15:21.426Z",
+    "size": 187519
+  },
+  {
+    "id": "4e893ce4-3210-41f0-bb2a-cabfebe6f0e9",
+    "title": "Immersive interconnected virtual and augmented reality : a 5G and IoT perspective",
+    "originalFilename": "Immersive_interconnected_virtual_and_augmented_reality___a_5G_and_IoT_perspective.corelink",
+    "storedFilename": null,
+    "filePath": null,
+    "mimetype": "application/external-link",
+    "topic": "Textbooks",
+    "uploadTimestamp": "2025-06-09T18:14:56.246Z",
+    "size": 0,
+    "isExternal": true,
+    "sourceApi": "CORE",
+    "authors": [
+      {
+        "name": "Abadal, Sergi"
+      },
+      {
+        "name": "Cabellos-Aparicio, Albert"
+      },
+      {
+        "name": "De Turck, Filip"
+      },
+      {
+        "name": "Ergut, Salih"
+      },
+      {
+        "name": "Famaey, Jeroen"
+      },
+      {
+        "name": "Grimm, Christoph"
+      },
+      {
+        "name": "Jain, Akshay"
+      },
+      {
+        "name": "Kalem, Gokhan"
+      },
+      {
+        "name": "Liaskos, Christos"
+      },
+      {
+        "name": "Mach, Marian"
+      },
+      {
+        "name": "Mouhouche, Belkacem"
+      },
+      {
+        "name": "Papapetrou, Evangelos"
+      },
+      {
+        "name": "Sabol, Tomas"
+      },
+      {
+        "name": "Torres Vega, Maria"
+      }
+    ],
+    "abstract": "Despite remarkable advances, current augmented and virtual reality (AR/VR) applications are a largely individual and local experience. Interconnected AR/VR, where participants can virtually interact across vast distances, remains a distant dream. The great barrier that stands between current technology and such applications is the stringent end-to-end latency requirement, which should not exceed 20 ms in order to avoid motion sickness and other discomforts. Bringing AR/VR to the next level to enable immersive interconnected AR/VR will require significant advances towards 5G ultra-reliable low-latency communication (URLLC) and a Tactile Internet of Things (IoT). In this article, we articulate the technical challenges to enable a future AR/VR end-to-end architecture, that combines 5G URLLC and Tactile IoT technology to support this next generation of interconnected AR/VR applications. Through the use of IoT sensors and actuators, AR/VR applications will be aware of the environmental and user context, supporting human-centric adaptations of the application logic, and lifelike interactions with the virtual environment. We present potential use cases and the required technological building blocks. For each of them, we delve into the current state of the art and challenges that need to be addressed before the dream of remote AR/VR interaction can become reality",
+    "yearPublished": 2020,
+    "publisher": "'Springer Science and Business Media LLC'",
+    "externalUrl": "https://core.ac.uk/download/333622883.pdf",
+    "doi": "10.1007/s10922-020-09545-w"
+  },
+  {
+    "id": "60dd35ca-d517-428e-96c5-a2c9cc6304b0",
+    "title": "Mid-Air Haptics for Control Interfaces",
+    "originalFilename": "Mid_Air_Haptics_for_Control_Interfaces.corelink",
+    "storedFilename": null,
+    "filePath": null,
+    "mimetype": "application/external-link",
+    "topic": "Research Papers",
+    "uploadTimestamp": "2025-06-09T18:15:19.827Z",
+    "size": 0,
+    "isExternal": true,
+    "sourceApi": "CORE",
+    "authors": [
+      {
+        "name": "Brewster, Stephen A."
+      },
+      {
+        "name": "Corenthy, Loic"
+      },
+      {
+        "name": "Dzidek, Brygida"
+      },
+      {
+        "name": "Georgiou, Orestis"
+      },
+      {
+        "name": "Giordano, Marcello"
+      },
+      {
+        "name": "Kim, Jin Ryong"
+      },
+      {
+        "name": "Subramanian, Sriram"
+      }
+    ],
+    "abstract": "Control interfaces and interactions based on touch-less gesture tracking devices have become a prevalent research topic in both industry and academia. Touch-less devices offer a unique interaction immediateness that makes them ideal for applications where direct contact with a physical controller is not desirable. On the other hand, these controllers inherently lack active or passive haptic feedback to inform users about the results of their interaction. Mid-air haptic interfaces, such as those using focused ultrasound waves, can close the feedback loop and provide new tools for the design of touch-less, un-instrumented control interactions. The goal of this workshop is to bring together the growing mid-air haptic research community to identify and discuss future challenges in control interfaces and their application in AR/VR, automotive, music, robotics and teleoperation",
+    "yearPublished": 2018,
+    "publisher": "'Association for Computing Machinery (ACM)'",
+    "externalUrl": "https://core.ac.uk/download/157812791.pdf",
+    "doi": "10.1145/3170427.3170625"
+  },
+  {
+    "id": "c6c33d2e-d32a-4038-b057-d2cdf65a9f20",
+    "title": "Virtual and Hands-on Laboratory Environments in the Science Classroom: The Effect of Prior Science Achievement",
+    "originalFilename": "Virtual_and_Hands_on_Laboratory_Environments_in_the_Science_Classroom__The_Effect_of_Prior_Science_Achievement.corelink",
+    "storedFilename": null,
+    "filePath": null,
+    "mimetype": "application/external-link",
+    "topic": "Research Papers",
+    "uploadTimestamp": "2025-06-09T18:24:50.026Z",
+    "size": 0,
+    "isExternal": true,
+    "sourceApi": "CORE",
+    "authors": [
+      {
+        "name": "Marino, Michael A., Ed.D."
+      }
+    ],
+    "abstract": "A study was conducted to investigate the extent to which previous science achievement affected student performance in traditional hands-on and virtual laboratory environments. A sample of 70 first-year college students was employed in a counterbalanced A-B-A-B experimental design. The study spanned four instructional weeks of laboratory experimentation alternating traditional and virtual learning environments. For each of the four labs, students were given a pre-test designed to measure content knowledge, administered the intervention of virtual labs, and this was followed by an identical post-test. Prior science achievement was assessed using a general chemistry assessment exam. T-tests revealed that student performance did not differ between the hands-on and virtual environments. Results of a MANOVA showed that virtual labs were more effective than hands-on labs for high-achieving students, whereas there was no difference for low-achieving students. Results of a second MANOVA revealed that high-achieving students outperformed low-achieving students on hands-on lab 3, virtual lab 3, and hands-on lab 4. Findings suggest that the use of virtual labs does not harm science achievement and may conserve resources, but may expand the gap between high- and low-achieving students in the science laboratory.   A study was conducted to investigate the extent to which previous science achievement affected student performance in traditional hands-on and virtual laboratory environments. A sample of 70 first-year college students was employed in a counterbalanced A-B-A-B experimental design. The study spanned four instructional weeks of laboratory experimentation alternating traditional and virtual learning environments. For each of the four labs, students were given a pre-test designed to measure content knowledge, administered the intervention of virtual labs, and this was followed by an identical post-test. Prior science achievement was assessed using a general chemistry assessment exam. T-tests revealed that student performance did not differ between the hands-on and virtual environments. Results of a MANOVA showed that virtual labs were more effective than hands-on labs for high-achieving students, whereas there was no difference for low-achieving students. Results of a second MANOVA revealed that high-achieving students outperformed low-achieving students on hands-on lab 3, virtual lab 3, and hands-on lab 4. Findings suggest that the use of virtual labs does not harm science achievement and may conserve resources, but may expand the gap between high- and low-achieving students in the science laboratory",
+    "yearPublished": 2018,
+    "publisher": "DigitalCommons@Molloy",
+    "externalUrl": "https://core.ac.uk/download/617868133.pdf",
+    "doi": null
   }
 ]

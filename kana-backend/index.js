@@ -13,12 +13,14 @@ const fsPromises = fs.promises; // For async file operations like readFile, acce
 console.log('DEBUG: ChartJSNodeCanvas type:', typeof ChartJSNodeCanvas, ChartJSNodeCanvas);
 const { create, all } = require('mathjs');
 const { ImageAnnotatorClient } = require('@google-cloud/vision'); // For OCR and image analysis
+const crypto = require('crypto'); // For generating unique IDs
 const math = create(all); // For graph generation
 let parameterScope = {}; // To store user-defined parameters
 
 // Log loaded env variables for debugging
 console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
 console.log('DEBUG: Loaded HUGGING_FACE_API_TOKEN for image gen:', process.env.HUGGING_FACE_API_TOKEN ? 'Token Loaded' : 'Token NOT Loaded');
+console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -43,6 +45,44 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 const uploadImage = multer({ storage: storage, fileFilter: imageFileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // Limit image size to 10MB
+
+// Multer setup for study material uploads (disk storage)
+const studyMaterialStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Ensure STUDY_MATERIALS_DIR exists
+    if (!fs.existsSync(STUDY_MATERIALS_DIR)){
+        fs.mkdirSync(STUDY_MATERIALS_DIR, { recursive: true });
+    }
+    cb(null, STUDY_MATERIALS_DIR);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'studyMaterialFile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const studyMaterialFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'application/pdf',
+    'text/plain',
+    'video/mp4',
+    'video/webm',
+    'video/ogg',
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+    'image/jpeg',
+    'image/png',
+    'image/gif'
+  ];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Please upload a supported study material file.'), false);
+  }
+};
+
+const uploadStudyFile = multer({ storage: studyMaterialStorage, fileFilter: studyMaterialFileFilter, limits: { fileSize: 500 * 1024 * 1024 } }); // Limit file size to 500MB for study materials
 
 let uploadedNoteContent = null; // To store text from uploaded note
 let uploadedNoteName = null;
@@ -76,6 +116,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
 }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // General uploads serving if needed elsewhere
 
 // Google Gemini API details
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -100,6 +141,198 @@ if (GOOGLE_API_KEY) {
 const HUGGING_FACE_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN;
 const HF_IMAGE_MODEL_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0'; // A popular choice
 
+// API endpoint to get study materials metadata
+app.get('/api/study-materials', (req, res) => {
+  res.json(studyMaterialsDb);
+});
+
+// API endpoint to upload a new study material
+app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ type: 'error', message: 'File upload failed. No file provided or file type not allowed.' });
+  }
+
+  const { topic } = req.body;
+  const newMaterial = {
+    id: crypto.randomUUID(),
+    originalFilename: req.file.originalname,
+    storedFilename: req.file.filename,
+    filePath: req.file.path,
+    mimetype: req.file.mimetype,
+    topic: topic || 'General',
+    uploadTimestamp: new Date().toISOString(),
+    size: req.file.size,
+  };
+
+  try {
+    // Read current study materials, add new, then write back
+    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
+    let currentMaterials = [];
+    try {
+      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
+      currentMaterials = JSON.parse(data);
+    } catch (readErr) {
+      // If file doesn't exist or is invalid JSON, start with an empty array (or handle error differently)
+      console.warn('DEBUG: study_materials.json not found or unreadable on upload, starting new list.', readErr.message);
+    }
+
+    currentMaterials.push(newMaterial);
+    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
+    
+    // Update in-memory DB as well
+    studyMaterialsDb = currentMaterials;
+
+    res.status(201).json({ type: 'success', message: 'Study material uploaded successfully!', material: newMaterial });
+  } catch (error) {
+    console.error('Error saving study material metadata:', error);
+    // Potentially delete the uploaded file if DB update fails to prevent orphans
+    try {
+      await fsPromises.unlink(req.file.path);
+      console.log(`DEBUG: Cleaned up orphaned file ${req.file.path} after DB error.`);
+    } catch (unlinkErr) {
+      console.error(`DEBUG: Failed to clean up orphaned file ${req.file.path}:`, unlinkErr);
+    }
+    res.status(500).json({ type: 'error', message: 'Failed to save study material metadata.' });
+  }
+});
+
+// API endpoint for CORE search
+app.get('/api/core-search', async (req, res) => {
+  const searchTerm = req.query.q;
+  if (!searchTerm) {
+    return res.status(400).json({ type: 'error', message: 'Search term (q) is required.' });
+  }
+
+  if (!process.env.CORE_API_KEY) {
+    console.error('CORE_API_KEY not configured.');
+    return res.status(500).json({ type: 'error', message: 'CORE API key not configured on server. Please set CORE_API_KEY environment variable.' });
+  }
+
+  try {
+    const coreApiUrl = 'https://api.core.ac.uk/v3/search/works';
+    console.log(`DEBUG: Searching CORE API for: "${searchTerm}"`);
+    const response = await axios.get(coreApiUrl, {
+      params: {
+        q: searchTerm,
+        limit: 20, // Return up to 20 results, can be made configurable
+        // Available fields include: title, authors, abstract, yearPublished, doi, downloadUrl, etc.
+        // We can specify fields to return if needed, e.g., fields: ['title', 'authors', 'doi', 'downloadUrl', 'abstract']
+      },
+      headers: {
+        'Authorization': `Bearer ${process.env.CORE_API_KEY}`
+      }
+    });
+
+    if (response.data && response.data.results) {
+      res.json({ type: 'success', results: response.data.results, totalHits: response.data.totalHits });
+    } else {
+      // Handle cases where CORE API might return 200 OK but not the expected structure
+      console.warn('CORE API response did not contain expected results structure:', response.data);
+      res.json({ type: 'success', results: [], totalHits: 0, message: 'Received response from CORE, but no results found or unexpected format.' });
+    }
+
+  } catch (error) {
+    let errorMessage = 'Failed to search CORE API.';
+    let statusCode = 500;
+    let errorDetails = error.message;
+
+    if (error.response) {
+      // CORE API returned an error status
+      console.error('Error response from CORE API:', error.response.status, error.response.data);
+      errorMessage = error.response.data.message || `CORE API Error: ${error.response.statusText}` || errorMessage;
+      statusCode = error.response.status || statusCode;
+      errorDetails = error.response.data;
+      if (error.response.status === 401) {
+          errorMessage = 'CORE API request unauthorized. Please check your API Key and ensure it is correctly set in the .env file.';
+      } else if (error.response.status === 403) {
+          errorMessage = 'CORE API request forbidden. Your API key might not have the necessary permissions or there might be an issue with your account.';
+      } else if (error.response.status === 429) {
+          errorMessage = 'CORE API rate limit exceeded. Please try again later.';
+      }
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received from CORE API:', error.request);
+      errorMessage = 'No response received from CORE API. Check network connectivity or CORE API status.';
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error setting up request to CORE API:', error.message);
+    }
+    res.status(statusCode).json({ type: 'error', message: errorMessage, details: errorDetails });
+  }
+});
+
+// API endpoint to save an external (e.g., CORE) item as a study material
+app.post('/api/save-external-item', async (req, res) => {
+  const { 
+    title, 
+    authors, // Expected to be an array of objects like [{name: 'Author Name'}]
+    abstract,
+    doi,
+    downloadUrl,
+    yearPublished,
+    publisher,
+    targetCategory // The K.A.N.A. category like 'Research Papers'
+  } = req.body;
+
+  if (!title || !targetCategory) {
+    return res.status(400).json({ type: 'error', message: 'Title and target category are required to save an external item.' });
+  }
+
+  const newExternalMaterial = {
+    id: crypto.randomUUID(),
+    title: title,
+    originalFilename: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.corelink`, // Create a pseudo-filename
+    storedFilename: null, // No local file stored
+    filePath: null, // No local file path
+    mimetype: 'application/external-link', // Custom mimetype for external links
+    topic: targetCategory, // User-selected K.A.N.A. category
+    uploadTimestamp: new Date().toISOString(),
+    size: 0, // No actual file size
+    isExternal: true,
+    sourceApi: 'CORE',
+    authors: authors || [],
+    abstract: abstract || '',
+    yearPublished: yearPublished || null,
+    publisher: publisher || '',
+    externalUrl: downloadUrl || (doi ? `https://doi.org/${doi}` : null), // Prefer downloadUrl, fallback to DOI
+    doi: doi || null
+  };
+
+  if (!newExternalMaterial.externalUrl) {
+    console.warn('DEBUG: Attempted to save external item without a downloadUrl or DOI:', newExternalMaterial.title);
+    // Decide if this should be an error or if items without direct links are permissible
+  }
+
+  try {
+    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
+    let currentMaterials = [];
+    try {
+      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
+      currentMaterials = JSON.parse(data);
+    } catch (readErr) {
+      console.warn('DEBUG: study_materials.json not found or unreadable on save-external, starting new list.', readErr.message);
+    }
+
+    currentMaterials.push(newExternalMaterial);
+    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
+    
+    // Update in-memory DB as well
+    studyMaterialsDb = currentMaterials;
+
+    res.status(201).json({ type: 'success', message: 'External item saved successfully!', material: newExternalMaterial });
+  } catch (error) {
+    console.error('Error saving external study material metadata:', error);
+    res.status(500).json({ type: 'error', message: 'Failed to save external study material metadata.' });
+  }
+});
+
+// Define the directory for study materials
+const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
+
+// Serve static files from the study_materials directory
+app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
+console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files`);
+
 // Placeholder for study materials metadata (replace with actual loading from study_materials.json if needed)
 // For now, assume study_materials.json is an array of objects like:
 // { originalFilename: "MyDoc.pdf", storedFilename: "unique-doc-name.pdf", topic: "Science" }
@@ -113,8 +346,6 @@ try {
 } catch (err) {
   console.error('DEBUG: Could not load study_materials.json. Proceeding with empty study materials DB.', err.message);
 }
-
-const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
 
 // Helper function to extract text from a PDF file
 async function extractTextFromPdf(filePath) {
@@ -333,7 +564,73 @@ app.post('/api/kana/upload-note', upload.single('noteFile'), async (req, res) =>
     console.error('Error processing uploaded file:', error);
     uploadedNoteContent = null; // Clear context on error
     uploadedNoteName = null;
-    res.status(500).json({ type: 'error', message: 'Error processing file: ' + error.message });
+    res.status(500).json({ type: 'error', message: 'An error occurred while searching CORE.' });
+  }
+});
+
+// API endpoint to save an external (e.g., CORE) item as a study material
+app.post('/api/save-external-item', async (req, res) => {
+  const { 
+    title, 
+    authors, // Expected to be an array of objects like [{name: 'Author Name'}]
+    abstract,
+    doi,
+    downloadUrl,
+    yearPublished,
+    publisher,
+    targetCategory // The K.A.N.A. category like 'Research Papers'
+  } = req.body;
+
+  if (!title || !targetCategory) {
+    return res.status(400).json({ type: 'error', message: 'Title and target category are required to save an external item.' });
+  }
+
+  const newExternalMaterial = {
+    id: crypto.randomUUID(),
+    title: title,
+    originalFilename: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.corelink`, // Create a pseudo-filename
+    storedFilename: null, // No local file stored
+    filePath: null, // No local file path
+    mimetype: 'application/external-link', // Custom mimetype for external links
+    topic: targetCategory, // User-selected K.A.N.A. category
+    uploadTimestamp: new Date().toISOString(),
+    size: 0, // No actual file size
+    isExternal: true,
+    sourceApi: 'CORE',
+    authors: authors || [],
+    abstract: abstract || '',
+    yearPublished: yearPublished || null,
+    publisher: publisher || '',
+    externalUrl: downloadUrl || (doi ? `https://doi.org/${doi}` : null), // Prefer downloadUrl, fallback to DOI
+    doi: doi || null
+  };
+
+  if (!newExternalMaterial.externalUrl) {
+    console.warn('DEBUG: Attempted to save external item without a downloadUrl or DOI:', newExternalMaterial.title);
+    // Decide if this should be an error or if items without direct links are permissible
+    // For now, we'll allow it, but it might be less useful to the user.
+  }
+
+  try {
+    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
+    let currentMaterials = [];
+    try {
+      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
+      currentMaterials = JSON.parse(data);
+    } catch (readErr) {
+      console.warn('DEBUG: study_materials.json not found or unreadable on save-external, starting new list.', readErr.message);
+    }
+
+    currentMaterials.push(newExternalMaterial);
+    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
+    
+    // Update in-memory DB as well
+    studyMaterialsDb = currentMaterials;
+
+    res.status(201).json({ type: 'success', message: 'External item saved successfully!', material: newExternalMaterial });
+  } catch (error) {
+    console.error('Error saving external study material metadata:', error);
+    res.status(500).json({ type: 'error', message: 'Failed to save external study material metadata.' });
   }
 });
 
