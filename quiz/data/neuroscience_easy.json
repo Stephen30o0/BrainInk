@@ -1,0 +1,55 @@
+{
+  "id": "neuro_easy_001",
+  "title": "Neuroscience Basics - Easy",
+  "subject": "Neuroscience",
+  "difficulty": "easy",
+  "timeLimit": 300,
+  "questions": [
+    {
+      "id": "ne_q1",
+      "question": "What is the main function of a neuron?",
+      "options": [
+        "To transport oxygen",
+        "To transmit information",
+        "To produce hormones",
+        "To digest food"
+      ],
+      "correctAnswer": 1,
+      "explanation": "Neurons are specialized cells that transmit nerve impulses; they are the basic working unit of the brain.",
+      "type": "multiple-choice"
+    },
+    {
+      "id": "ne_q2",
+      "question": "Which part of the brain is primarily responsible for balance and coordination?",
+      "options": [
+        "Cerebrum",
+        "Cerebellum",
+        "Brainstem",
+        "Hypothalamus"
+      ],
+      "correctAnswer": 1,
+      "explanation": "The cerebellum, located at the back of the brain, is crucial for coordinating voluntary movements, posture, balance, and equilibrium.",
+      "type": "multiple-choice"
+    },
+    {
+      "id": "ne_q3",
+      "question": "What is a synapse?",
+      "options": [
+        "A type of brain cell",
+        "A chemical messenger",
+        "The junction between two neurons",
+        "A protective membrane around the brain"
+      ],
+      "correctAnswer": 2,
+      "explanation": "A synapse is a structure that permits a neuron (or nerve cell) to pass an electrical or chemical signal to another neuron or to the target effector cell.",
+      "type": "multiple-choice"
+    },
+    {
+      "id": "ne_q4",
+      "question": "Briefly, what does the occipital lobe primarily process?",
+      "correctAnswer": "Visual information",
+      "explanation": "The occipital lobe is the visual processing center of the mammalian brain, containing most of the anatomical region of the visual cortex.",
+      "type": "theoretical"
+    }
+  ]
+}

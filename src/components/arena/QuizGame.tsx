@@ -1,24 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Timer, CheckCircle, XCircle, ChevronRight, AlertCircle, Send, Image as ImageIcon, ArrowLeft } from 'lucide-react';
-
-interface QuizQuestion {
-  id: string;
-  question: string;
-  questionType: 'multiple-choice' | 'theory' | 'image-based';
-  imageUrl?: string; // For image-based questions
-  options: string[]; // For multiple choice
-  correctAnswer: number; // For multiple choice: index of correct option
-  correctTheoryAnswer?: string; // For theory questions
-  explanation?: string;
-  category?: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  points: number;
-  timeLimit?: number; // in seconds
-}
+import { Timer, ChevronRight, AlertCircle, Send, ArrowLeft } from 'lucide-react';
+import { QuizQuestion, Quiz as QuizType, QuizAttempt } from '../../../quiz/src/lib/types';
+import { useQuizAttempts } from '../../../quiz/src/lib/store';
+import { useXP } from '../../../quiz/src/lib/store';
 
 interface QuizGameProps {
-  mode: 'quick' | 'ranked' | 'practice' | 'tournament';
   difficulty?: 'easy' | 'medium' | 'hard' | 'mixed';
   category?: string;
   opponentName?: string;
@@ -36,166 +23,172 @@ interface QuizResult {
   inkEarned: number;
 }
 
+const DEFAULT_TIME_PER_QUESTION = 30; // seconds
+
 export const QuizGame: React.FC<QuizGameProps> = ({
-  mode,
-  difficulty = 'mixed',
-  category,
+  difficulty = 'easy',
+  category = 'neuroscience',
   opponentName,
   opponentAvatar,
   onComplete,
   onExit
 }) => {
+  const [currentQuiz, setCurrentQuiz] = useState<QuizType | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<string, number | string>>({});
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_TIME_PER_QUESTION);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [theoryAnswer, setTheoryAnswer] = useState<string>('');
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isGameOver, setIsGameOver] = useState(false);
+  const [theoryAnswer, setTheoryAnswer] = useState('');
   const [showExplanation, setShowExplanation] = useState(false);
-  const [opponentScore, setOpponentScore] = useState(0);
-  const [gameStartTime, setGameStartTime] = useState(Date.now());
-  
-  // Reference for theory answer textarea autoresize
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [startTime, setStartTime] = useState<number>(Date.now());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Mock questions - in a real app, these would come from an API
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { attempts: quizAttempts, setAttempts: setQuizAttempts } = useQuizAttempts();
+  const { xp, setXp } = useXP();
+
   useEffect(() => {
-    const mockQuestions: QuizQuestion[] = [
-      // Multiple choice questions
-      {
-        id: '1',
-        question: 'What is the capital of France?',
-        questionType: 'multiple-choice',
-        options: ['London', 'Berlin', 'Paris', 'Madrid'],
-        correctAnswer: 2,
-        explanation: 'Paris is the capital and most populous city of France.',
-        category: 'Geography',
-        difficulty: 'easy',
-        points: 100,
-        timeLimit: 15
-      },
-      {
-        id: '2',
-        question: 'Which planet is known as the Red Planet?',
-        questionType: 'multiple-choice',
-        options: ['Earth', 'Mars', 'Jupiter', 'Venus'],
-        correctAnswer: 1,
-        explanation: 'Mars is called the Red Planet because of the reddish iron oxide on its surface.',
-        category: 'Astronomy',
-        difficulty: 'easy',
-        points: 100,
-        timeLimit: 15
-      },
-      // Theory question
-      {
-        id: '3',
-        question: 'Explain how the brain processes visual information. Include key brain regions involved.',
-        questionType: 'theory',
-        options: [],
-        correctAnswer: 0,
-        correctTheoryAnswer: 'Visual information is processed starting with the retina, then passes through the optic nerve to the lateral geniculate nucleus (LGN) in the thalamus. From there, signals travel to the primary visual cortex (V1) in the occipital lobe, where basic visual features are processed. Further processing occurs in higher visual areas (V2-V5), which analyze motion, color, and complex shapes.',
-        explanation: 'The visual processing pathway includes multiple specialized regions working in parallel to analyze different aspects of the visual scene.',
-        category: 'Neuroscience',
-        difficulty: 'medium',
-        points: 250,
-        timeLimit: 60
-      },
-      // Image-based question
-      {
-        id: '4',
-        question: 'What brain structure is highlighted in this image?',
-        questionType: 'image-based',
-        imageUrl: 'https://placeholder.com/800x500?text=Brain+MRI+Image',
-        options: ['Hippocampus', 'Amygdala', 'Thalamus', 'Cerebellum'],
-        correctAnswer: 0,
-        explanation: 'The hippocampus is highlighted, which is crucial for memory formation and spatial navigation.',
-        category: 'Neuroscience',
-        difficulty: 'medium',
-        points: 200,
-        timeLimit: 20
-      },
-      {
-        id: '5',
-        question: 'What is the time complexity of binary search?',
-        questionType: 'multiple-choice',
-        options: ['O(n)', 'O(n²)', 'O(log n)', 'O(n log n)'],
-        correctAnswer: 2,
-        explanation: 'Binary search has a time complexity of O(log n) because it divides the search interval in half with each step.',
-        category: 'Computer Science',
-        difficulty: 'hard',
-        points: 300,
-        timeLimit: 30
+    // Use import.meta.glob to import all JSON files from the data directory.
+// The `eager: false` option means the modules are loaded lazily (on demand).
+// For JSON, we might need to handle how it's imported, often they are default exports.
+const quizModules = import.meta.glob('../../../quiz/data/*.json');
+    console.log('Available quiz module paths:', Object.keys(quizModules));
+
+    const loadQuiz = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const quizCategory = category || 'neuroscience';
+        const quizDifficulty = difficulty || 'easy';
+        console.log(`Loading quiz: ../../../quiz/data/${quizCategory}_${quizDifficulty}.json`);
+        const targetPath = `../../../quiz/data/${quizCategory}_${quizDifficulty}.json`;
+        if (!quizModules[targetPath]) {
+          throw new Error(`Quiz file not found: ${targetPath.substring(targetPath.lastIndexOf('/') + 1)}`);
+        }
+        const quizModuleLoader = quizModules[targetPath];
+        const quizModule = await quizModuleLoader();
+        const quizData: QuizType = (quizModule as any).default;
+
+        if (!quizData || !quizData.questions || quizData.questions.length === 0) {
+          throw new Error('Quiz data is invalid or has no questions.');
+        }
+        
+        setCurrentQuiz(quizData);
+        setQuestions(quizData.questions);
+        setTimeLeft(DEFAULT_TIME_PER_QUESTION);
+        setStartTime(Date.now());
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Failed to load quiz:', err);
+        setError(`Failed to load quiz for ${category} - ${difficulty}. Please try again.`);
+        setIsLoading(false);
       }
-    ];
-    
-    // Filter questions based on difficulty and category if provided
-    let filteredQuestions = [...mockQuestions];
-    
-    if (difficulty !== 'mixed') {
-      filteredQuestions = filteredQuestions.filter(q => q.difficulty === difficulty);
-    }
-    
-    if (category) {
-      filteredQuestions = filteredQuestions.filter(q => q.category === category);
-    }
-    
-    // If no questions match the filters, use all questions
-    if (filteredQuestions.length === 0) {
-      filteredQuestions = mockQuestions;
-    }
-    
-    // Shuffle questions
-    const shuffledQuestions = filteredQuestions.sort(() => Math.random() - 0.5);
-    
-    setQuestions(shuffledQuestions);
-    if (shuffledQuestions.length > 0) {
-      setTimeLeft(shuffledQuestions[0].timeLimit || 30);
-    }
-    
-    setGameStartTime(Date.now());
-  }, [difficulty, category]);
-  
-  // Timer logic
-  useEffect(() => {
-    if (questions.length === 0 || isGameOver) return;
-    
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          // Time's up, move to next question
-          if (selectedOption === null) {
-            handleNextQuestion();
+    };
+
+    loadQuiz();
+  }, [category, difficulty]);
+
+  const handleQuizCompletion = useCallback(() => {
+    setIsGameOver(true);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const endTime = Date.now();
+    const timeTaken = Math.round((endTime - startTime) / 1000);
+
+    let finalCorrectAnswers = 0;
+    const processedAnswers: Record<string, string | number> = {};
+
+    questions.forEach((q, idx) => {
+      const answerKey = q.id || idx.toString();
+      const userAnswer = userAnswers[answerKey];
+      processedAnswers[answerKey] = userAnswer === undefined ? "skipped" : userAnswer;
+      let isCorrect = false;
+      if (userAnswer !== undefined) {
+        if (q.type === 'multiple-choice' && userAnswer === q.correctAnswer) {
+          isCorrect = true;
+        }
+        if (q.type === 'theoretical' && typeof q.correctAnswer === 'string' && typeof userAnswer === 'string') {
+          if (userAnswer.toLowerCase().includes(q.correctAnswer.toLowerCase()) && q.correctAnswer.toLowerCase().includes(userAnswer.toLowerCase())){
+            isCorrect = true;
           }
+        }
+      }
+      if (isCorrect) {
+        finalCorrectAnswers++;
+      }
+    });
+    
+    const finalScore = questions.length > 0 ? Math.round((finalCorrectAnswers / questions.length) * 100) : 0;
+    setScore(finalScore);
+
+    const calculatedXpEarned = finalScore > 0 ? Math.max(10, Math.floor(finalScore / 5)) : 0;
+    const calculatedInkEarned = finalScore > 50 ? Math.max(5, Math.floor(finalScore / 10)) : 0;
+
+    const newAttempt: QuizAttempt = {
+      id: `attempt_${Date.now()}`,
+      quizId: currentQuiz?.id || 'unknown_quiz',
+      answers: processedAnswers,
+      score: finalScore,
+      startTime: startTime, 
+      endTime: endTime,     
+      completed: true,
+    };
+
+    setQuizAttempts([...quizAttempts, newAttempt]);
+    setXp(xp + calculatedXpEarned);
+
+    onComplete({
+      score: finalScore,
+      correctAnswers: finalCorrectAnswers,
+      totalQuestions: questions.length,
+      timeTaken,
+      xpEarned: calculatedXpEarned,
+      inkEarned: calculatedInkEarned,
+    });
+  }, [questions, userAnswers, startTime, currentQuiz, onComplete, setQuizAttempts, quizAttempts, setXp, xp]);
+
+  const handleNextQuestion = useCallback(() => {
+    setShowExplanation(false);
+    setSelectedOption(null);
+    setTheoryAnswer('');
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+      setTimeLeft(DEFAULT_TIME_PER_QUESTION);
+    } else {
+      handleQuizCompletion();
+    }
+  }, [currentQuestionIndex, questions.length, handleQuizCompletion, currentQuiz]); // Added currentQuiz as it's used in timeLimitPerQuestion logic indirectly
+
+ useEffect(() => {
+    if (isGameOver || showExplanation || isLoading || questions.length === 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prevTime => {
+        if (prevTime <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          handleNextQuestion(); 
           return 0;
         }
-        return prev - 1;
+        return prevTime - 1;
       });
     }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [currentQuestionIndex, questions, selectedOption, isGameOver]);
-  
-  // Simulated opponent logic for practice mode
-  useEffect(() => {
-    if (mode !== 'practice' || questions.length === 0 || isGameOver) return;
-    
-    // Simulate opponent answering questions
-    const opponentTimer = setInterval(() => {
-      const correctnessChance = Math.random();
-      // 70% chance opponent gets it right
-      if (correctnessChance > 0.3) {
-        const currentQuestion = questions[currentQuestionIndex];
-        setOpponentScore(prev => prev + currentQuestion.points);
-      }
-    }, 5000); // Opponent answers roughly every 5 seconds
-    
-    return () => clearInterval(opponentTimer);
-  }, [currentQuestionIndex, mode, questions, isGameOver]);
-  
-  // Auto-resize textarea as user types
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [currentQuestionIndex, isGameOver, showExplanation, isLoading, questions, theoryAnswer, selectedOption, handleNextQuestion]);
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -203,348 +196,244 @@ export const QuizGame: React.FC<QuizGameProps> = ({
     }
   }, [theoryAnswer]);
 
-  // Handle selection for multiple choice questions
+  const currentQuestion = useMemo(() => {
+    return questions.length > 0 && currentQuestionIndex < questions.length ? questions[currentQuestionIndex] : null;
+  }, [questions, currentQuestionIndex]);
+
+  const processAnswer = useCallback((answer: number | string) => {
+    if (!currentQuestion) return;
+    
+    setUserAnswers(prev => ({ ...prev, [currentQuestion.id || currentQuestionIndex.toString()]: answer }));
+    setShowExplanation(true);
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, [currentQuestion, currentQuestionIndex, setUserAnswers, setShowExplanation]);
+
   const handleOptionSelect = (optionIndex: number) => {
-    if (selectedOption !== null || isGameOver) return;
-    
-    const currentQuestion = questions[currentQuestionIndex];
-    const isAnswerCorrect = optionIndex === currentQuestion.correctAnswer;
-    
+    if (showExplanation) return;
     setSelectedOption(optionIndex);
-    setIsCorrect(isAnswerCorrect);
-    
-    if (isAnswerCorrect) {
-      // Calculate time bonus (faster answers get more points)
-      const timeBonus = Math.floor((timeLeft / (currentQuestion.timeLimit || 30)) * 50);
-      const pointsEarned = currentQuestion.points + timeBonus;
-      setScore(prev => prev + pointsEarned);
-    }
-    
-    setShowExplanation(true);
+    processAnswer(optionIndex);
   };
-  
-  // Handle submission for theory questions
+
   const handleTheorySubmit = () => {
-    if (isGameOver || theoryAnswer.trim() === '') return;
-    
-    const currentQuestion = questions[currentQuestionIndex];
-    
-    // In a real app, this would use AI to evaluate the answer
-    // For demo purposes, we'll give partial credit if answer contains key terms
-    const keyTerms = currentQuestion.correctTheoryAnswer?.split(' ').filter(word => 
-      word.length > 5).map(word => word.toLowerCase()) || [];
-    
-    let matchCount = 0;
-    const userAnswer = theoryAnswer.toLowerCase();
-    keyTerms.forEach(term => {
-      if (userAnswer.includes(term)) matchCount++;
-    });
-    
-    const accuracyPercent = keyTerms.length > 0 ? matchCount / keyTerms.length : 0;
-    const isPartiallyCorrect = accuracyPercent > 0.3; // At least 30% correct
-    // We calculate if answer is fully correct for potential future use (e.g. different scoring)
-    // const isFullyCorrect = accuracyPercent > 0.7; // Over 70% correct
-    
-    setIsCorrect(isPartiallyCorrect);
-    
-    if (isPartiallyCorrect) {
-      // Award points based on accuracy
-      const pointsEarned = Math.round(currentQuestion.points * accuracyPercent);
-      setScore(prev => prev + pointsEarned);
-    }
-    
-    setShowExplanation(true);
+    if (showExplanation || !theoryAnswer.trim()) return;
+    processAnswer(theoryAnswer.trim());
   };
-  
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setSelectedOption(null);
-      setIsCorrect(null);
-      setShowExplanation(false);
-      setTimeLeft(questions[currentQuestionIndex + 1].timeLimit || 30);
-    } else {
-      // Game over
-      const timeTaken = (Date.now() - gameStartTime) / 1000;
-      const correctAnswers = questions.filter((_, index) => {
-        const userAnswer = index === currentQuestionIndex ? selectedOption : null;
-        return userAnswer === questions[index].correctAnswer;
-      }).length;
-      
-      // Calculate rewards
-      const xpEarned = Math.floor(score * 0.1);
-      const inkEarned = Math.floor(score * 0.05);
-      
-      onComplete({
-        score,
-        correctAnswers,
-        totalQuestions: questions.length,
-        timeTaken,
-        xpEarned,
-        inkEarned
-      });
-      
-      setIsGameOver(true);
-    }
-  };
-  
-  if (questions.length === 0) {
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex flex-col items-center justify-center h-full p-4 bg-gray-800 text-white rounded-lg shadow-xl">
+        <Timer className="w-12 h-12 mb-4 animate-spin text-purple-400" />
+        <p className="text-xl">Loading Quiz...</p>
       </div>
     );
   }
-  
-  const currentQuestion = questions[currentQuestionIndex];
-  
-  // Helper function to render different question types
-  const renderQuestionContent = () => {
-    if (questions.length === 0) return null;
-    
+
+  if (error) {
     return (
-      <div>
-        {/* Question */}
-        <div className="bg-dark/70 border border-primary/20 rounded-lg p-5 mb-6">
-          <h3 className="text-white text-lg mb-2">
-            {currentQuestion.question}
-          </h3>
-          <div className="flex justify-between text-xs text-gray-400">
-            <span>{currentQuestion.category}</span>
-            <span className={`
-              ${currentQuestion.difficulty === 'easy' ? 'text-green-400' : ''}
-              ${currentQuestion.difficulty === 'medium' ? 'text-yellow-400' : ''}
-              ${currentQuestion.difficulty === 'hard' ? 'text-red-400' : ''}
-            `}>
-              {currentQuestion.difficulty.toUpperCase()}
-            </span>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center h-full p-4 bg-gray-800 text-white rounded-lg shadow-xl">
+        <AlertCircle className="w-12 h-12 mb-4 text-red-500" />
+        <p className="text-xl text-center mb-2">Error</p>
+        <p className="text-center mb-4">{error}</p>
+        <button 
+          onClick={onExit}
+          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-md text-white font-semibold transition-colors duration-150 flex items-center"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" /> Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (!currentQuestion && !isGameOver) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4 bg-gray-800 text-white rounded-lg shadow-xl">
+        <AlertCircle className="w-12 h-12 mb-4 text-yellow-400" />
+        <p className="text-xl">No questions available for this quiz.</p>
+         <button 
+          onClick={onExit}
+          className="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-md text-white font-semibold transition-colors duration-150 flex items-center"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" /> Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (isGameOver) {
+    // Calculate correct answers for display on game over screen
+    let correctAnswersCount = 0;
+    questions.forEach((q, idx) => {
+      const answerKey = q.id || idx.toString();
+      const userAnswer = userAnswers[answerKey];
+      if (userAnswer !== undefined) {
+        if (q.type === 'multiple-choice' && userAnswer === q.correctAnswer) {
+          correctAnswersCount++;
+        }
+        if (q.type === 'theoretical' && typeof q.correctAnswer === 'string' && typeof userAnswer === 'string') {
+          if (userAnswer.toLowerCase().includes(q.correctAnswer.toLowerCase()) && q.correctAnswer.toLowerCase().includes(userAnswer.toLowerCase())){
+            correctAnswersCount++;
+          }
+        }
+      }
+    });
+    const calculatedXpEarned = score > 0 ? Math.max(10, Math.floor(score / 5)) : 0;
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }} 
+        animate={{ opacity: 1, scale: 1 }} 
+        className="flex flex-col items-center justify-center h-full p-6 bg-gray-800 text-white rounded-lg shadow-xl"
+      >
+        <h2 className="text-3xl font-bold mb-4 text-purple-400">Quiz Completed!</h2>
+        <p className="text-xl mb-2">Your Score: <span className="font-bold text-green-400">{score}%</span></p>
+        <p className="text-lg mb-1">Correct Answers: {correctAnswersCount} / {questions.length}</p>
+        <p className="text-lg mb-6">XP Earned: <span className="font-bold text-yellow-400">{calculatedXpEarned}</span></p>
         
-        {/* Image for image-based questions */}
-        {currentQuestion.questionType === 'image-based' && currentQuestion.imageUrl && (
-          <div className="mb-6 bg-dark/50 p-2 rounded-lg border border-primary/20">
-            <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-              <ImageIcon size={16} />
-              <span>Reference Image</span>
-            </div>
-            <img 
-              src={currentQuestion.imageUrl} 
-              alt="Question reference" 
-              className="w-full rounded" 
-            />
+        {opponentName && (
+          <div className="my-4 p-3 bg-gray-700 rounded-md w-full max-w-sm text-center">
+            <p className="text-lg">Opponent: {opponentName}</p>
+            <p className="text-sm text-gray-400">(Opponent score display pending integration)</p>
           </div>
         )}
+
+        <button 
+          onClick={onExit} 
+          className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 rounded-md text-white font-semibold transition-colors duration-150 text-lg flex items-center"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" /> Back to Arena
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div 
+      key={currentQuestionIndex} 
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -50 }}
+      transition={{ duration: 0.3 }}
+      className="flex flex-col h-full p-4 md:p-6 bg-gray-800 text-white rounded-lg shadow-2xl overflow-y-auto"
+    >
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center">
+          <Timer className="w-6 h-6 mr-2 text-purple-400" />
+          <span className="text-2xl font-mono p-1 rounded bg-gray-700 text-purple-300">{String(Math.floor(timeLeft / 60)).padStart(2, '0')}:{String(timeLeft % 60).padStart(2, '0')}</span>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-gray-400">Question {currentQuestionIndex + 1} of {questions.length}</p>
+          <p className="text-lg font-semibold text-purple-400">{currentQuiz?.title}</p>
+        </div>
+      </div>
+
+      {opponentName && (
+        <div className="mb-4 p-3 bg-gray-700 rounded-lg flex items-center justify-between shadow">
+          <div className="flex items-center">
+            <img 
+              src={opponentAvatar || `https://ui-avatars.com/api/?name=${opponentName.replace(/\s+/g, '+')}&background=random&color=fff&bold=true`}
+              alt={`${opponentName}'s avatar`}
+              className="w-10 h-10 rounded-full mr-3 border-2 border-purple-500"
+            />
+            <div>
+              <p className="font-semibold text-purple-300">{opponentName}</p>
+              {/* <p className="text-xs text-gray-400">Playing {mode}</p> */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-gray-700 p-4 md:p-6 rounded-lg shadow-lg mb-4 flex-grow">
+        <h3 className="text-xl md:text-2xl font-semibold mb-4 leading-tight text-purple-200">{currentQuestion?.question}</h3>
         
-        {/* Multiple choice options */}
-        {(currentQuestion.questionType === 'multiple-choice' || currentQuestion.questionType === 'image-based') && (
-          <div className="space-y-3 mb-6">
+        {currentQuestion?.type === 'multiple-choice' && currentQuestion.options && (
+          <div className="space-y-3">
             {currentQuestion.options.map((option, index) => (
-              <button
+              <motion.button
                 key={index}
                 onClick={() => handleOptionSelect(index)}
-                disabled={selectedOption !== null || isGameOver}
-                className={`
-                  w-full text-left p-4 rounded-lg border transition-all flex items-center 
-                  ${selectedOption === index 
-                    ? (index === currentQuestion.correctAnswer 
-                        ? 'bg-green-500/20 border-green-500/50' 
-                        : 'bg-red-500/20 border-red-500/50') 
-                    : 'bg-dark/50 border-primary/30 hover:bg-dark/70'}
-                  ${selectedOption !== null && index === currentQuestion.correctAnswer 
-                    ? 'bg-green-500/20 border-green-500/50' : ''}
-                `}
+                disabled={showExplanation}
+                className={`w-full text-left p-3 md:p-4 rounded-md border-2 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-purple-500 
+                  ${showExplanation && index === currentQuestion.correctAnswer ? 'bg-green-600 border-green-500 text-white scale-105 shadow-lg' : 
+                    showExplanation && selectedOption === index && index !== currentQuestion.correctAnswer ? 'bg-red-600 border-red-500 text-white scale-105 shadow-lg' : 
+                    selectedOption === index ? 'bg-purple-600 border-purple-500 text-white' : 
+                    'bg-gray-600 border-gray-500 hover:bg-purple-700 hover:border-purple-600 disabled:opacity-60 disabled:cursor-not-allowed'}`}
+                whileHover={{ scale: showExplanation ? 1 : 1.02 }}
+                whileTap={{ scale: showExplanation ? 1 : 0.98 }}
               >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <div className={`
-                      w-7 h-7 rounded-full flex items-center justify-center border
-                      ${selectedOption === index 
-                        ? (index === currentQuestion.correctAnswer 
-                            ? 'border-green-500 text-green-500' 
-                            : 'border-red-500 text-red-500') 
-                        : 'border-gray-600 text-gray-400'}
-                      ${selectedOption !== null && index === currentQuestion.correctAnswer 
-                        ? 'border-green-500 text-green-500' : ''}
-                    `}>
-                      {String.fromCharCode(65 + index)}
-                    </div>
-                    <span className="text-white">{option}</span>
-                  </div>
-                  
-                  {selectedOption === index && index === currentQuestion.correctAnswer && (
-                    <CheckCircle className="text-green-500" size={20} />
-                  )}
-                  {selectedOption === index && index !== currentQuestion.correctAnswer && (
-                    <XCircle className="text-red-500" size={20} />
-                  )}
-                </div>
-              </button>
+                {option}
+              </motion.button>
             ))}
           </div>
         )}
-        
-        {/* Theory question input */}
-        {currentQuestion.questionType === 'theory' && (
-          <div className="mb-6">
-            <div className="bg-dark/50 border border-primary/20 rounded-lg p-4">
-              <textarea
-                ref={textareaRef}
-                value={theoryAnswer}
-                onChange={(e) => setTheoryAnswer(e.target.value)}
-                disabled={showExplanation || isGameOver}
-                placeholder="Type your answer here..."
-                className="w-full bg-dark/50 border border-gray-700 rounded-lg p-3 text-white min-h-[120px] resize-none focus:outline-none focus:border-primary/50"
-              />
-              
-              {!showExplanation && (
-                <button
-                  onClick={handleTheorySubmit}
-                  disabled={theoryAnswer.trim() === '' || isGameOver}
-                  className={`mt-3 px-4 py-2 rounded-lg flex items-center gap-2 justify-center w-full transition-colors ${
-                    theoryAnswer.trim() === '' 
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
-                      : 'bg-primary text-dark hover:bg-primary/90'
-                  }`}
-                >
-                  Submit Answer
-                  <Send size={16} />
-                </button>
-              )}
-            </div>
-            
-            {showExplanation && (
-              <div className="mt-4 p-4 border border-primary/20 rounded-lg bg-dark/70">
-                <h4 className="text-primary font-medium mb-2">Model Answer</h4>
-                <p className="text-gray-300 text-sm whitespace-pre-line">
-                  {currentQuestion.correctTheoryAnswer}
-                </p>
-                
-                <div className="mt-4 pt-3 border-t border-gray-700">
-                  <h4 className="text-primary font-medium mb-2">Your Answer</h4>
-                  <p className="text-gray-300 text-sm whitespace-pre-line">
-                    {theoryAnswer}
-                  </p>
-                </div>
-                
-                <div className="mt-4 flex items-center">
-                  <div className={`rounded-full px-3 py-1 text-sm ${
-                    isCorrect 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-red-500/20 text-red-400'
-                  }`}>
-                    {isCorrect ? 'Acceptable Answer' : 'Incomplete Answer'}
-                  </div>
-                </div>
-              </div>
+
+        {currentQuestion?.type === 'theoretical' && (
+          <div className="flex flex-col">
+            <textarea
+              ref={textareaRef}
+              value={theoryAnswer}
+              onChange={(e) => setTheoryAnswer(e.target.value)}
+              placeholder="Type your answer here..."
+              disabled={showExplanation}
+              className="w-full p-3 md:p-4 bg-gray-600 border-2 border-gray-500 rounded-md focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-none overflow-hidden text-white placeholder-gray-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              rows={3}
+            />
+            {!showExplanation && (
+              <button 
+                onClick={handleTheorySubmit}
+                disabled={!theoryAnswer.trim() || showExplanation}
+                className="mt-3 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-md self-end transition-colors duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center"
+              >
+                <Send className="w-4 h-4 mr-2" /> Submit Answer
+              </button>
             )}
           </div>
         )}
-        
-        {/* Explanation (when an answer is submitted/selected) */}
-        {showExplanation && currentQuestion.questionType !== 'theory' && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="bg-dark/70 border-l-4 border-primary/50 p-4 rounded-r-lg mb-6"
-          >
-            <div className="flex items-start gap-3">
-              <AlertCircle className="text-primary shrink-0 mt-0.5" size={20} />
-              <div>
-                <h4 className="text-primary font-medium mb-1">Explanation</h4>
-                <p className="text-gray-300 text-sm">
-                  {currentQuestion.explanation}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-        
-        {/* PvP opponent info (for practice mode) */}
-        {mode === 'practice' && opponentName && (
-          <div className="bg-dark/50 border border-primary/20 rounded-lg p-4 mt-8">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-2xl">
-                  {opponentAvatar}
-                </div>
-                <div>
-                  <div className="text-white font-medium">{opponentName}</div>
-                  <div className="text-gray-400 text-xs">AI Opponent</div>
-                </div>
-              </div>
-              <div className="bg-dark/50 rounded-full px-3 py-1 text-sm font-pixel">
-                <span className="text-primary">{opponentScore}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    );
-  };
-  
-  return (
-    <div className="h-full flex flex-col bg-dark/80">
-      {/* Quiz header */}
-      <div className="bg-dark/50 border-b border-primary/30 p-4 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onExit}
-            className="p-2 text-gray-400 hover:text-primary"
+
+      {showExplanation && currentQuestion && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }} 
+          animate={{ opacity: 1, height: 'auto' }} 
+          transition={{ duration: 0.3 }}
+          className={`bg-gray-750 p-4 md:p-5 rounded-lg shadow-inner mb-4 border-l-4 
+            ${(currentQuestion.type === 'multiple-choice' && selectedOption === currentQuestion.correctAnswer) || 
+             (currentQuestion.type === 'theoretical' && typeof currentQuestion.correctAnswer === 'string' && typeof userAnswers[currentQuestion.id || currentQuestionIndex.toString()] === 'string' && (userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase().includes(currentQuestion.correctAnswer.toLowerCase()) && currentQuestion.correctAnswer.toLowerCase().includes((userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase())) ? 
+             'border-green-500' : 'border-red-500'}`}
+        >
+          <h4 className={`text-lg font-semibold mb-2 
+            ${(currentQuestion.type === 'multiple-choice' && selectedOption === currentQuestion.correctAnswer) || 
+             (currentQuestion.type === 'theoretical' && typeof currentQuestion.correctAnswer === 'string' && typeof userAnswers[currentQuestion.id || currentQuestionIndex.toString()] === 'string' && (userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase().includes(currentQuestion.correctAnswer.toLowerCase()) && currentQuestion.correctAnswer.toLowerCase().includes((userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase())) ? 
+             'text-green-400' : 'text-red-400'}`}
           >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-primary font-pixel">
-              {mode.charAt(0).toUpperCase() + mode.slice(1)} Match
-            </h2>
-            <div className="text-xs text-gray-400">Question {currentQuestionIndex + 1} of {questions.length}</div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* Timer */}
-          <div className="flex items-center gap-1 text-sm">
-            <Timer size={16} className="text-yellow-400" />
-            <span className="text-yellow-400 font-mono">{timeLeft}s</span>
-          </div>
-          
-          {/* Score */}
-          <div className="bg-dark/50 rounded-full px-3 py-1 text-sm font-pixel">
-            <span className="text-primary">{score}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* Quiz content */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        {questions.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {renderQuestionContent()}
-          </motion.div>
-        )}
-      </div>
-      
-      {/* Footer */}
-      <div className="p-4 border-t border-primary/30 flex justify-between items-center">
-        <div className="text-gray-400 text-sm">
-          <span className="text-primary font-pixel">{Math.floor((Date.now() - gameStartTime) / 1000)}</span> seconds elapsed
-        </div>
-        
+            {(currentQuestion.type === 'multiple-choice' && selectedOption === currentQuestion.correctAnswer) || 
+             (currentQuestion.type === 'theoretical' && typeof currentQuestion.correctAnswer === 'string' && typeof userAnswers[currentQuestion.id || currentQuestionIndex.toString()] === 'string' && (userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase().includes(currentQuestion.correctAnswer.toLowerCase()) && currentQuestion.correctAnswer.toLowerCase().includes((userAnswers[currentQuestion.id || currentQuestionIndex.toString()] as string).toLowerCase())) ? 
+             'Correct!' : 'Incorrect.'}
+          </h4>
+          <p className="text-sm md:text-base text-gray-300">{currentQuestion.explanation}</p>
+          {currentQuestion.type === 'theoretical' && (
+            <p className="text-sm md:text-base text-gray-400 mt-1">Correct Answer: <span className="text-green-300">{currentQuestion.correctAnswer}</span></p>
+          )}
+        </motion.div>
+      )}
+
+      <div className="mt-auto pt-4 flex justify-between items-center border-t border-gray-700">
+        <button 
+          onClick={onExit} 
+          className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md transition-colors duration-150 flex items-center"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" /> Exit Quiz
+        </button>
         {showExplanation && (
-          <button
+          <button 
             onClick={handleNextQuestion}
-            className="px-4 py-2 bg-primary text-dark rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+            className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-md transition-colors duration-150 flex items-center"
           >
-            {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
-            <ChevronRight size={18} />
+            {currentQuestionIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'} 
+            <ChevronRight className="w-5 h-5 ml-2" />
           </button>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
+

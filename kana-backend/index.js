@@ -7,7 +7,8 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
 const multer = require('multer');
-const fs = require('fs');
+const fs = require('fs'); // For sync operations like readFileSync for config
+const fsPromises = fs.promises; // For async file operations like readFile, access
 // pdf-parse is already required earlier
 console.log('DEBUG: ChartJSNodeCanvas type:', typeof ChartJSNodeCanvas, ChartJSNodeCanvas);
 const { create, all } = require('mathjs');
@@ -98,6 +99,143 @@ if (GOOGLE_API_KEY) {
 // Hugging Face Image Generation API details
 const HUGGING_FACE_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN;
 const HF_IMAGE_MODEL_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0'; // A popular choice
+
+// Placeholder for study materials metadata (replace with actual loading from study_materials.json if needed)
+// For now, assume study_materials.json is an array of objects like:
+// { originalFilename: "MyDoc.pdf", storedFilename: "unique-doc-name.pdf", topic: "Science" }
+// And that these files are stored in a known directory, e.g., './uploads/study_materials/'
+let studyMaterialsDb = []; 
+try {
+  // Corrected path joining for study_materials.json, assuming it's in the same dir as index.js
+  const smData = fs.readFileSync(path.join(__dirname, 'study_materials.json'), 'utf8');
+  studyMaterialsDb = JSON.parse(smData);
+  console.log('DEBUG: study_materials.json loaded successfully.');
+} catch (err) {
+  console.error('DEBUG: Could not load study_materials.json. Proceeding with empty study materials DB.', err.message);
+}
+
+const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
+
+// Helper function to extract text from a PDF file
+async function extractTextFromPdf(filePath) {
+  try {
+    const dataBuffer = await fs.promises.readFile(filePath);
+    const data = await pdf(dataBuffer);
+    return data.text;
+  } catch (error) {
+    console.error(`Error reading or parsing PDF at ${filePath}:`, error);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+  }
+}
+
+// New Quiz Generation Endpoint
+app.post('/api/kana/generate-quiz', async (req, res) => {
+  const { sourceMaterialId, difficulty, numQuestions } = req.body;
+
+  if (!sourceMaterialId) {
+    return res.status(400).json({ type: 'error', message: 'Missing sourceMaterialId (e.g., filename or ID).' });
+  }
+
+  try {
+    // Find the material in our "DB"
+    const materialInfo = studyMaterialsDb.find(m => m.id === sourceMaterialId || m.originalFilename === sourceMaterialId || m.storedFilename === sourceMaterialId);
+
+    if (!materialInfo) {
+      return res.status(404).json({ type: 'error', message: `Source material '${sourceMaterialId}' not found.` });
+    }
+
+    // Use the absolute filePath from study_materials.json directly if it exists and is preferred
+    // Otherwise, construct it using STUDY_MATERIALS_DIR and storedFilename
+    let filePathToUse = materialInfo.filePath; // Prefer the absolute path from the JSON if available
+    if (!filePathToUse || !path.isAbsolute(filePathToUse)) { 
+        // Fallback or if filePath is relative/not provided, construct from STUDY_MATERIALS_DIR
+        filePathToUse = path.join(STUDY_MATERIALS_DIR, materialInfo.storedFilename);
+        console.log(`Constructed file path: ${filePathToUse} (original was: ${materialInfo.filePath})`);
+    }
+    
+    // Check if file exists
+    try {
+      await fs.promises.access(filePathToUse);
+      console.log(`Access confirmed for file: ${filePathToUse}`);
+    } catch (err) {
+      console.error(`File not found or inaccessible at path: ${filePathToUse} for material ID: ${sourceMaterialId}. Error: ${err.message}`);
+      return res.status(404).json({ type: 'error', message: `File for '${materialInfo.originalFilename}' not found or inaccessible on server.` });
+    }
+
+    console.log(`Generating quiz from: ${materialInfo.originalFilename} (difficulty: ${difficulty}, questions: ${numQuestions})`);
+    
+    const extractedText = await extractTextFromPdf(filePathToUse);
+
+    if (!extractedText || extractedText.trim() === "") {
+        return res.status(500).json({ type: 'error', message: 'Extracted text is empty. Cannot generate quiz.' });
+    }
+
+    // --- Placeholder for Gemini call ---
+    const placeholderQuizResponse = {
+      message: "Quiz generation initiated. Text extracted. Gemini integration pending.",
+      source: materialInfo.originalFilename,
+      difficulty: difficulty || 'medium',
+      numQuestions: numQuestions || 5,
+      extractedTextSample: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : '')
+    };
+    res.json(placeholderQuizResponse);
+    // --- End Placeholder ---
+
+    /* 
+    // TODO: Implement actual Gemini call
+    if (!geminiModel) {
+      return res.status(500).json({ type: 'error', message: 'Quiz generation service is not available (Gemini model not initialized).' });
+    }
+
+    const prompt = `
+      Based on the following text from "${materialInfo.originalFilename}", generate a quiz with ${numQuestions || 5} questions.
+      The difficulty should be ${difficulty || 'medium'}.
+      For each question, provide:
+      1. A unique ID (e.g., "q1", "q2").
+      2. The question text.
+      3. The type of question (e.g., "multiple-choice" or "theory").
+      4. For multiple-choice: an array of 4 options.
+      5. The correct answer (for multiple-choice, the index of the correct option; for theory, the expected answer string).
+      6. A brief explanation for the answer.
+
+      Format the entire response as a single JSON object with a "title", "category", "difficulty", and a "questions" array, like this:
+      {
+        "title": "Quiz on ${materialInfo.topic || materialInfo.originalFilename}",
+        "category": "${materialInfo.topic || 'generated'}",
+        "difficulty": "${difficulty || 'medium'}",
+        "questions": [
+          { "id": "q1", "questionText": "...", "type": "multiple-choice", "options": ["...", "...", "...", "..."], "correctAnswer": 0, "explanation": "..." }
+        ]
+      }
+
+      Extracted Text:
+      ---
+      ${extractedText.substring(0, 15000)} 
+      ---
+      Ensure the output is valid JSON.
+    `;
+    
+    // console.log("Sending prompt to Gemini:", prompt.substring(0, 300) + "...");
+
+    // const result = await geminiModel.generateContent(prompt);
+    // const response = await result.response;
+    // const geminiText = response.text();
+    // console.log("Gemini Raw Response:", geminiText);
+
+    // try {
+    //   const quizJson = JSON.parse(geminiText);
+    //   res.json(quizJson);
+    // } catch (parseError) {
+    //   console.error("Failed to parse Gemini response as JSON:", parseError);
+    //   res.status(500).json({ type: 'error', message: "Failed to parse quiz data from AI.", rawResponse: geminiText });
+    // }
+    */
+
+  } catch (error) {
+    console.error('Error in /generate-quiz endpoint:', error);
+    res.status(500).json({ type: 'error', message: 'Failed to generate quiz: ' + error.message });
+  }
+});
 
 // Simple test route
 app.get('/', (req, res) => {
