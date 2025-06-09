@@ -215,18 +215,15 @@ app.post('/api/chat', async (req, res) => {
   console.log('DEBUG: /api/chat received payload:', { message, subject, conversationId, title, uploadedNoteContent: uploadedNoteContent ? 'Exists' : 'Empty', pastedImageBase64: pastedImageBase64 ? 'Exists' : 'Empty' });
 
   try {
-    let promptParts = [];
-    let fullPrompt = '';
+    let userMessageParts = [];
+    let userPrompt = '';
 
     if (uploadedNoteContent) {
-      fullPrompt += `Context from uploaded note:\n${uploadedNoteContent}\n\n`;
+      userPrompt += `Context from uploaded note:\n${uploadedNoteContent}\n\nUser question about the note: ${message}`;
+    } else {
+      userPrompt += message;
     }
-
-    // Add a system prompt or role instruction if desired
-    // fullPrompt += "You are K.A.N.A., a helpful AI assistant.\n";
-
-    fullPrompt += `User message: ${message}`;
-    promptParts.push({ text: fullPrompt });
+    userMessageParts.push({ text: userPrompt });
 
     if (pastedImageBase64) {
       // Extract raw base64 data and mime type if the string includes a data URI prefix
@@ -244,9 +241,24 @@ app.post('/api/chat', async (req, res) => {
         },
       });
       console.log(`DEBUG: Added image to prompt with MIME type: ${mimeType}`);
+      // If an image is present, add it to userMessageParts, not promptParts which was renamed
+      userMessageParts.push({
+        inlineData: {
+          data: rawBase64Data,
+          mimeType: mimeType,
+        },
+      });
     }
 
-    const result = await geminiModel.generateContent({ contents: [{ role: "user", parts: promptParts }] });
+    const systemInstruction = {
+      role: "system", // Though for Gemini, system instructions are often outside 'contents'
+      parts: [{ text: "You are K.A.N.A., an AI-powered academic partner. Your goal is to assist users with their studies, provide explanations, help with research, and facilitate learning. Be encouraging, clear, and helpful. If asked about your identity, identify yourself as K.A.N.A." }]
+    };
+
+    const result = await geminiModel.generateContent({
+      contents: [{ role: "user", parts: userMessageParts }],
+      systemInstruction: systemInstruction.parts[0] // Pass the parts directly as per some SDK versions for systemInstruction
+    });
     const response = result.response;
     const aiResponseText = response.text();
     
