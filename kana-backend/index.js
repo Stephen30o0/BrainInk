@@ -251,7 +251,7 @@ app.post('/api/chat', async (req, res) => {
     const aiResponseText = response.text();
     
     console.log('DEBUG: Gemini AI Response:', aiResponseText);
-    res.json({ type: 'success', message: aiResponseText, subject, conversationId, title });
+    res.json({ type: 'success', kanaResponse: aiResponseText, subject, conversationId, title });
 
   } catch (error) {
     console.error('Error calling Gemini API:', error);
