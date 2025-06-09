@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { X, File, Upload, Folder, Search, CheckSquare, ExternalLink } from 'lucide-react'; // Added CheckSquare
 
 // It's highly recommended to centralize these interfaces if used in multiple places
@@ -73,7 +75,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
   const fetchLibraryItems = () => {
     setIsLoading(true);
     setError(null);
-    fetch('/api/study-materials') // Assuming this is your endpoint
+    fetch(`${KANA_API_BASE_URL}/api/study-materials`) // Assuming this is your endpoint
       .then(res => {
         if (!res.ok) {
           throw new Error(`Failed to fetch library items: ${res.statusText}`);
@@ -135,7 +137,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
     // formData.append('title', selectedFileForUpload.name); // Example
 
     try {
-      const response = await fetch('/api/upload-study-material', { // Assuming this is your upload endpoint
+      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, { // Assuming this is your upload endpoint
         method: 'POST',
         body: formData,
       });
@@ -168,7 +170,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
     setCoreApiResults([]);
     try {
       // IMPORTANT: Replace '/api/core/search' with your actual backend endpoint for CORE API searches
-      const response = await fetch(`/api/core-search?query=${encodeURIComponent(coreApiSearchTerm)}`);
+      const response = await fetch(`${KANA_API_BASE_URL}/api/core-search?query=${encodeURIComponent(coreApiSearchTerm)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Search failed with non-JSON response.' }));
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
