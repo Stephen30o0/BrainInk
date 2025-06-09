@@ -379,7 +379,7 @@ app.post('/api/chat', async (req, res) => {
 
             const result = await geminiModel.generateContent({
                 contents: [{ role: "user", parts: userMessageParts }],
-                systemInstruction: systemInstruction.parts[0]
+                systemInstruction: systemInstruction
             });
             const response = result.response;
             const aiResponseText = await response.text(); // Ensure text() is awaited if it's async
@@ -741,7 +741,7 @@ app.get('/api/kana/pdf-proxy', async (req, res) => {
 
 // K.A.N.A. Chat API endpoint
 // Endpoint to upload a note
-app.post('/api/kana/upload-note', upload.single('noteFile'), async (req, res) => {
+app.post('/api/upload-note', upload.single('noteFile'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ type: 'error', message: 'No file uploaded.' });
   }
@@ -839,7 +839,7 @@ app.post('/api/save-external-item', async (req, res) => {
 
 // Endpoint to clear uploaded note context
 // New Endpoint for Image Analysis (OCR + Gemini)
-app.post('/api/kana/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
+app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
   const { message, subject, conversationId, title, activePdfUrl, uploadedNoteName } = req.body;
   
   if (!req.file) {
