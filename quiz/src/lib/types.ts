@@ -17,7 +17,7 @@ export interface Quiz {
 }
 export interface QuizQuestion {
   id: string;
-  question: string;
+  questionText: string; // Changed from 'question' to 'questionText'
   options?: string[];
   correctAnswer: string | number;
   explanation: string;

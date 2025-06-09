@@ -358,7 +358,7 @@ export const QuizGame: React.FC<QuizGameProps> = ({
       )}
 
       <div className="bg-gray-700 p-4 md:p-6 rounded-lg shadow-lg mb-4 flex-grow">
-        <h3 className="text-xl md:text-2xl font-semibold mb-4 leading-tight text-purple-200">{currentQuestion?.question}</h3>
+        <h3 className="text-xl md:text-2xl font-semibold mb-4 leading-tight text-purple-200">{currentQuestion?.questionText}</h3>
         
         {currentQuestion?.type === 'multiple-choice' && currentQuestion.options && (
           <div className="space-y-3">
