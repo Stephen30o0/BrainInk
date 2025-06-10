@@ -10,6 +10,15 @@ const fs = require('fs');
 const crypto = require('crypto');
 const fsPromises = fs.promises;
 
+const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
+const { Chart } = require('chart.js');
+
+// Setup for chart generation
+const width = 800; // px
+const height = 600; // px
+const backgroundColour = 'white';
+const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour });
+
 const app = express();
 const port = process.env.PORT || 10000;
 
@@ -303,74 +312,74 @@ app.post('/api/save-external-item', async (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  try {
-    const { conversationId, message, history, subject, title } = req.body;
-    if (!message || !conversationId) {
-      return res.status(400).json({ error: 'Missing message or conversationId' });
-    }
+    try {
+        const { conversationId, message, history } = req.body;
 
-    const conversation = getOrCreateConversation(conversationId);
-    
-    // Check for plot request
-    const plotKeywords = ['plot', 'graph', 'chart', 'draw', 'diagram'];
-    const wantsPlot = plotKeywords.some(keyword => message.toLowerCase().includes(keyword));
-
-    if (wantsPlot) {
-        console.log(`DEBUG: Detected plot request for conversation ${conversationId}`);
-        const plotPrompt = `The user wants a chart based on this request: "${message}". Generate a valid JSON object compatible with Chart.js. The object must have 'type', 'data', and 'options' properties. For 'data', include 'labels' and 'datasets'. Each dataset needs a 'label' and a 'data' array. Only output the raw JSON object.`;
-        
-        try {
-            const plotModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const plotResult = await plotModel.generateContent(plotPrompt);
-            const plotResponseText = plotResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-            const chartData = JSON.parse(plotResponseText);
-
-            console.log('DEBUG: Successfully generated chart data.');
-            // Note: The frontend expects a 'type' field at the top level to identify the message.
-            return res.json({
-                type: 'mathematical_graph',
-                chartData: chartData,
-                conversationId: conversationId
-            });
-        } catch (e) {
-            console.error("Error generating or parsing chart JSON from AI:", e);
-            // Fallback to a normal text response if chart generation fails
-            res.json({ kanaResponse: "I tried to generate a chart, but I couldn't. Please try rephrasing your request." });
-            return;
+        if (!conversationId || !message) {
+            return res.status(400).json({ error: 'Missing conversationId or message.' });
         }
+
+        const conversation = getOrCreateConversation(conversationId);
+        const clientHistory = Array.isArray(history) ? history : [];
+
+        const chat = geminiModel.startChat({
+            history: [...conversation.history, ...clientHistory],
+            tools: tools,
+            generationConfig: { maxOutputTokens: 8192 }
+        });
+
+        const result = await chat.sendMessage(message);
+        const response = result.response;
+        const functionCall = response.functionCalls?.[0];
+
+        if (functionCall && functionCall.name === 'generate_graph_data') {
+            const { functionStr, xMin, xMax, step } = functionCall.args;
+            console.log(`DEBUG: AI requested graph generation for function: ${functionStr}`);
+
+            const data = [];
+            try {
+                // WARNING: Using eval() is a security risk in production. This is a simplified example.
+                const func = new Function('x', `return ${functionStr.split('=')[1].trim()};`);
+                for (let x = xMin; x <= xMax; x += step) {
+                    data.push({ x: x, y: func(x) });
+                }
+
+                const imageUrl = await generateGraphImage(data, functionStr, 'x', 'y');
+
+                if (imageUrl) {
+                    const kanaResponseText = `Here is the graph for ${functionStr}.`;
+                    conversation.history.push({ role: 'user', parts: [{ text: message }] });
+                    conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+
+                    return res.json({
+                        type: 'mathematical_graph',
+                        kanaResponse: kanaResponseText,
+                        generatedImageUrl: imageUrl
+                    });
+                } else {
+                    throw new Error("Graph image generation failed.");
+                }
+
+            } catch (evalError) {
+                console.error("Error evaluating math function:", evalError);
+                const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression.");
+                const kanaResponseText = fallbackResponse.response.text();
+                conversation.history.push({ role: 'user', parts: [{ text: message }] });
+                conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+                return res.json({ kanaResponse: kanaResponseText });
+            }
+
+        } else {
+            const kanaResponseText = response.text();
+            conversation.history.push({ role: 'user', parts: [{ text: message }] });
+            conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+            return res.json({ kanaResponse: kanaResponseText });
+        }
+
+    } catch (error) {
+        console.error('Error in /api/chat:', error);
+        res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
     }
-
-    // Default chat logic with context
-    const clientHistory = Array.isArray(history) ? history : [];
-    const chat = geminiModel.startChat({
-        history: [...conversation.history, ...clientHistory],
-        generationConfig: { maxOutputTokens: 4096 }
-    });
-
-    let messageToSend = message;
-    if (conversation.context && conversation.context.trim().length > 0) {
-        console.log(`DEBUG: Prepending document context for conversation ${conversationId}`);
-        messageToSend = `Please use the following context to answer the user's question.\n\n--- Context ---\n${conversation.context}\n\n--- User Question ---\n${message}`;
-    }
-
-    const result = await chat.sendMessage(messageToSend);
-    const kanaResponseText = result.response.text();
-
-    // Update conversation history
-    conversation.history.push({ role: 'user', parts: [{ text: message }] }); // Push original message for history
-    conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-
-    res.json({
-      kanaResponse: kanaResponseText,
-      conversationId: conversationId,
-      subject: subject || 'General',
-      title: title || 'Chat'
-    });
-
-  } catch (error) {
-    console.error('Chat endpoint error:', error);
-    res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
-  }
 });
 
 app.post('/api/clear-note-context', (req, res) => {
@@ -430,6 +439,51 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
 app.get('/', (req, res) => {
   res.send('K.A.N.A. Backend is running!');
 });
+
+// --- GRAPH GENERATION HELPER ---
+const generateGraphImage = async (data, title, xLabel, yLabel) => {
+    try {
+        console.log("DEBUG: Generating graph with data:", data);
+        const configuration = {
+            type: 'line',
+            data: {
+                labels: data.map(p => p.x),
+                datasets: [{
+                    label: title,
+                    data: data.map(p => p.y),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: xLabel || 'X Axis'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: yLabel || 'Y Axis'
+                        }
+                    }
+                }
+            }
+        };
+
+        const imageBuffer = await chartJSNodeCanvas.renderToBuffer(configuration);
+        const filename = `graph-${Date.now()}.png`;
+        const imagePath = path.join(IMAGES_DIR, filename);
+        fs.writeFileSync(imagePath, imageBuffer);
+        console.log(`DEBUG: Saved graph image to ${imagePath}`);
+        return `/images/${filename}`;
+    } catch (error) {
+        console.error("Error generating graph image:", error);
+        return null;
+    }
+};
 
 const startServer = async () => {
     await loadDb();

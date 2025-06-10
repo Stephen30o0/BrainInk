@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd quiz && npm run build",
-  "outputDirectory": "quiz/dist",
-  "installCommand": "cd quiz && npm install"
-}
