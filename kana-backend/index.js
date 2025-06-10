@@ -59,8 +59,23 @@ const studyMaterialStorage = multer.diskStorage({
 });
 const uploadStudyFile = multer({ storage: studyMaterialStorage, limits: { fileSize: 500 * 1024 * 1024 } });
 
+const IMAGES_DIR = path.join(__dirname, 'uploads', 'images');
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+}
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, IMAGES_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'image-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const uploadImage = multer({ storage: imageStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
 app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
+app.use('/images', express.static(IMAGES_DIR));
 console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files`);
+console.log(`DEBUG: Serving static files from ${IMAGES_DIR} at /images`);
 
 // --- API CLIENTS ---
 
@@ -381,6 +396,62 @@ app.get('/', (req, res) => {
 
 const startServer = async () => {
     await loadDb();
+    const fileToGenerativePart = (filePath, mimeType) => {
+      return {
+        inlineData: {
+          data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
+          mimeType
+        },
+      };
+    };
+
+    app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
+      try {
+        const { conversationId, message } = req.body;
+        const imageFile = req.file;
+
+        if (!imageFile) {
+          return res.status(400).json({ error: 'No image file uploaded.' });
+        }
+        if (!conversationId) {
+          return res.status(400).json({ error: 'Missing conversationId.' });
+        }
+
+        console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
+
+        const conversation = getOrCreateConversation(conversationId);
+        const visionModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+
+        const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
+        
+        const userMessageText = message || 'Please analyze this image.';
+        conversation.history.push({ role: 'user', parts: [{ text: userMessageText }] });
+
+        const result = await visionModel.generateContent([userMessageText, imagePart]);
+        const kanaResponseText = result.response.text();
+
+        conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+
+        const imageUrl = `/images/${imageFile.filename}`;
+
+        res.json({
+          kanaResponse: kanaResponseText,
+          imageUrl: imageUrl,
+          explanation: kanaResponseText
+        });
+
+      } catch (error) {
+        console.error('Error analyzing image:', error);
+        res.status(500).json({ error: 'Failed to analyze image.' });
+      } finally {
+        if (req.file) {
+          fs.unlink(req.file.path, (err) => {
+            if (err) console.error(`Error deleting temp image file: ${req.file.path}`, err);
+          });
+        }
+      }
+    });
+
     app.listen(port, () => {
         console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
     });
