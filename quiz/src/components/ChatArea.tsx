@@ -3,6 +3,63 @@ import * as React from 'react';
 import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react'; // Cleaned up unused icons
 import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
 import { Chat, PastPaper, LibraryItem } from '../lib/types'; // Moved PastPaper here too for consistency, Chat added, LibraryItem added
+import { Bar, Line, Pie, Doughnut, Radar, PolarArea } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title as ChartTitle,
+  Tooltip,
+  Legend,
+  PointElement,
+  LineElement,
+  ArcElement,
+  RadialLinearScale,
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ChartTitle,
+  Tooltip,
+  Legend,
+  PointElement,
+  LineElement,
+  ArcElement,
+  RadialLinearScale
+);
+
+interface DynamicChartProps {
+  type: string;
+  data: any; 
+  options: any;
+}
+
+const DynamicChart = ({ type, data, options }: DynamicChartProps) => {
+  // Ensure options are defined and have a title property
+  const chartOptions = {
+    ...options,
+    plugins: {
+      ...options?.plugins,
+      title: {
+        display: true,
+        text: options?.plugins?.title?.text || 'Chart',
+      },
+    },
+  };
+
+  switch (type.toLowerCase()) {
+    case 'bar': return <Bar data={data} options={chartOptions} />;
+    case 'line': return <Line data={data} options={chartOptions} />;
+    case 'pie': return <Pie data={data} options={chartOptions} />;
+    case 'doughnut': return <Doughnut data={data} options={chartOptions} />;
+    case 'radar': return <Radar data={data} options={chartOptions} />;
+    case 'polararea': return <PolarArea data={data} options={chartOptions} />;
+    default: return <p>Unsupported chart type: {type}</p>;
+  }
+};
 import StudyMaterialsPanel from './StudyMaterialsPanel';
 import { v4 as uuidv4 } from 'uuid';
 import { useTimer } from '../lib/hooks/useTimer';
@@ -369,13 +426,18 @@ const ChatArea = ({
         })
         .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
         .then(data => {
-          if (data.type === "mathematical_graph" && data.generatedImageUrl && data.kanaResponse) {
+          if (data.type === 'mathematical_graph' && data.chartData) {
             addMessage({
-              id: uuidv4(), sender: 'kana', content: data.kanaResponse,
-              timestamp: Date.now(), type: 'mathematical_graph', imageUrl: data.generatedImageUrl,
-              subject, conversationId, title
+              id: uuidv4(),
+              sender: 'kana',
+              content: <DynamicChart type={data.chartData.type} data={data.chartData.data} options={data.chartData.options} />,
+              timestamp: Date.now(),
+              type: 'mathematical_graph',
+              subject,
+              conversationId,
+              title
             });
-            setXp(prev => prev + 2);
+            setXp(prev => prev + 10); // Give XP for graph
           } else if (data.kanaResponse) {
             const newKanaMessageId = uuidv4();
             addMessage({
