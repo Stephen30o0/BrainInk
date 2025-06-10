@@ -182,7 +182,7 @@ export const ProfilePanel = () => {
   };
 
   const fetchUserStats = async () => {
-    const token = await getValidToken();g
+    const token = await getValidToken();
     if (!token) {
       return;
     }
