@@ -210,25 +210,23 @@ const ChatArea = ({
     // If it's an existing chat, use activeChat.title
     const title = activeChat?.title || (currentInput.length > 0 ? currentInput.slice(0, 30) + '...' : 'New Chat');
 
-    // Add user message to UI immediately if there's text
-    if (currentInput) {
-      const userMessage: MessageWithSubject = {
-        id: uuidv4(),
-        sender: 'user',
-        content: currentInput,
-        timestamp: Date.now(),
-        type: 'text',
-        subject,
-        conversationId,
-        title
-      };
-      addMessage(userMessage);
-    }
-    // If only an image is sent, we might want a placeholder, or handle it on the backend response.
-    // For now, a text message is added if text exists. Image is handled below.
+    // Create and add the user's message to the UI immediately
+    const userMessage: MessageWithSubject = {
+      id: uuidv4(),
+      sender: 'user',
+      content: currentInput,
+      timestamp: Date.now(),
+      type: 'text', // User messages are always 'text' type; the image is attached data.
+      imageUrl: currentPastedFile ? URL.createObjectURL(currentPastedFile) : undefined,
+      subject,
+      conversationId,
+      title
+    };
+    addMessage(userMessage);
 
-    setInput(''); // Clear text input now
-    setPastedImageFile(null); // Clear pasted image from UI preview now
+    // Now that the message is captured and added to the UI, clear the inputs.
+    setInput('');
+    setPastedImageFile(null);
 
     if (currentPastedFile) {
       setIsSendingImage(true);
