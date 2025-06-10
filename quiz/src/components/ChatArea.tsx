@@ -503,7 +503,6 @@ const ChatArea = ({
       title: `Chat ${new Date(newChatId).toLocaleTimeString()}` // Or simply 'New Chat'
     };
     onChatSelect(newChat);
-    handleClearNoteContext(); // Clear note context for the new chat
     // Optionally, clear local message input or other states if needed
     // setInput(''); 
     // setMessages([]); // messagesToDisplay should update based on activeChat.id
