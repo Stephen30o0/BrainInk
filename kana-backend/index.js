@@ -322,9 +322,13 @@ app.post('/api/chat', async (req, res) => {
 
 app.post('/api/clear-note-context', (req, res) => {
   try {
+    if (!req.body) {
+      console.error('Error: /api/clear-note-context called with no request body.');
+      return res.status(400).json({ error: 'Request body is missing or malformed.' });
+    }
     const { conversationId } = req.body;
     if (!conversationId) {
-      return res.status(400).json({ error: 'conversationId is required.' });
+      return res.status(400).json({ error: 'conversationId is required in request body.' });
     }
 
     if (conversationContexts[conversationId]) {
