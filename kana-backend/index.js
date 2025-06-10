@@ -385,7 +385,10 @@ app.post('/api/chat', async (req, res) => {
             const data = [];
             try {
                 // WARNING: Using eval() is a security risk in production. This is a simplified example.
-                const func = new Function('x', `return ${functionStr.split('=')[1].trim()};`);
+                let expression = functionStr.split('=')[1].trim();
+                // Sanitize the expression to be valid JavaScript, e.g., '2x' -> '2 * x'
+                expression = expression.replace(/(\d+\.?\d*)\s*([a-zA-Z])/g, '$1 * $2');
+                const func = new Function('x', `return ${expression};`);
                 for (let x = xMin; x <= xMax; x += step) {
                     data.push({ x: x, y: func(x) });
                 }
