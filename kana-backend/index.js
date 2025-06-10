@@ -1,1097 +1,356 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const path = require('path'); // Added for explicit .env path
+const path = require('path');
 const pdf = require('pdf-parse');
-require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true }); // Explicitly set path and override existing vars
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
 const multer = require('multer');
-const fs = require('fs'); // For sync operations like readFileSync for config
-const fsPromises = fs.promises; // For async file operations like readFile, access
-// pdf-parse is already required earlier
-console.log('DEBUG: ChartJSNodeCanvas type:', typeof ChartJSNodeCanvas, ChartJSNodeCanvas);
-const { create, all } = require('mathjs');
-const { ImageAnnotatorClient } = require('@google-cloud/vision'); // For OCR and image analysis
-const crypto = require('crypto'); // For generating unique IDs
-const math = create(all); // For graph generation
-let parameterScope = {}; // To store user-defined parameters
-
-// Log loaded env variables for debugging
-console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
-console.log('DEBUG: Loaded HUGGING_FACE_API_TOKEN for image gen:', process.env.HUGGING_FACE_API_TOKEN ? 'Token Loaded' : 'Token NOT Loaded');
-console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
-
-const systemInstruction = {
-  parts: [{ text: `You are K.A.N.A., an advanced academic AI assistant. Your primary goal is to help users understand complex topics, solve problems, and learn effectively.
-Key characteristics of K.A.N.A.:
-- Knowledgeable: Provide accurate, in-depth information.
-- Clear Communicator: Explain concepts in an easy-to-understand manner.
-- Patient Tutor: Guide users through problems step-by-step.
-- Encouraging: Motivate users and build their confidence.
-- Versatile: Assist with a wide range of academic subjects, including mathematics (graphing, equation solving), science, literature, and more.
-- Context-Aware: Utilize provided context from notes, PDFs, or images to tailor responses.
-- Interactive: Engage users with questions and encourage critical thinking.
-- Ethical: Provide responsible and unbiased information. Avoid generating harmful, misleading, or inappropriate content.
-- Graphing Expert: When asked to 'plot' or 'graph', or when a conditional statement for plotting is met, you MUST use the structured graphing output.
-- Parameter Aware: Remember and use parameters set by the user (e.g., 'let a = 5').
-- Tool User: You can generate text, render mathematical graphs, and analyze images/notes.
-
-Interaction Guidelines:
-- If the user asks for a graph (e.g., "plot sin(x) from -pi to pi"), use the graphing tool.
-- If the user provides a conditional statement for graphing (e.g., "if a > 5, plot x^2"), evaluate the condition using stored parameters and graph if true.
-- If the user uploads a note or image, incorporate its content into your response if relevant.
-- For general questions, provide comprehensive explanations.
-- If a request is ambiguous, ask for clarification.
-- Maintain a supportive and professional tone.
-- When providing information from a specific source (like an uploaded PDF), cite it or make it clear that the information is derived from that context.
-- For mathematical expressions in text, use LaTeX format if possible for clarity, e.g., \\(x^2 + y^2 = r^2\\).
-- When a user assigns a parameter, confirm the assignment, e.g., "Okay, I've set 'a' to 5."
-- If an error occurs during an operation (like graphing an invalid function), inform the user clearly about the error.
-`
-  }]
-  // role: "system" // Role is often implicit or handled by SDK for system instructions
-};
+const fs = require('fs');
+const crypto = require('crypto');
+const fsPromises = fs.promises;
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 10000;
 
-// Multer setup for file uploads (in-memory storage)
-const storage = multer.memoryStorage();
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype === 'text/plain' || file.mimetype === 'application/pdf') {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only .txt and .pdf files are allowed.'), false);
-  }
-};
-const upload = multer({ storage: storage, fileFilter: fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // Limit file size to 10MB for notes
+// --- CONFIGURATION & INITIALIZATION ---
 
-// Multer setup for image uploads (allow common image types)
-const imageFileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/')) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only image files are allowed.'), false);
-  }
-};
-const uploadImage = multer({ storage: storage, fileFilter: imageFileFilter, limits: { fileSize: 10 * 1024 * 1024 } }); // Limit image size to 10MB
+console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
+console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
 
-// Multer setup for study material uploads (disk storage)
-const studyMaterialStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Ensure STUDY_MATERIALS_DIR exists
-    if (!fs.existsSync(STUDY_MATERIALS_DIR)){
-        fs.mkdirSync(STUDY_MATERIALS_DIR, { recursive: true });
-    }
-    cb(null, STUDY_MATERIALS_DIR);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'studyMaterialFile-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const conversationContexts = {};
 
-const studyMaterialFileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    'application/pdf',
-    'text/plain',
-    'video/mp4',
-    'video/webm',
-    'video/ogg',
-    'audio/mpeg',
-    'audio/wav',
-    'audio/ogg',
-    'image/jpeg',
-    'image/png',
-    'image/gif'
-  ];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Please upload a supported study material file.'), false);
-  }
+const systemInstruction = {
+  parts: [{ text: `You are K.A.N.A., an advanced academic AI assistant. Your primary goal is to help users understand complex topics, solve problems, and learn effectively.\nKey characteristics:\n- Knowledgeable & Context-Aware: Provide accurate, in-depth information. Prioritize information from user-provided context (like uploaded files or web links). If no context is relevant, use your general knowledge to answer. When using context, state that you are doing so (e.g., "According to the document you provided...").\n- Versatile & Interactive: Assist with a wide range of academic subjects. Engage users with questions and encourage critical thinking.\n- Tool User: You can generate text, render mathematical graphs, and analyze images/notes.\nInteraction Guidelines:\n- For file-related questions (e.g., "summarize this PDF"), use the context provided for that conversation. If no context is available, politely state that you need the file to be uploaded first.\n- Do not invent information. If you don't know something, say so.\n- Maintain a supportive, professional, and encouraging tone.`
+  }]
 };
 
-const uploadStudyFile = multer({ storage: studyMaterialStorage, fileFilter: studyMaterialFileFilter, limits: { fileSize: 500 * 1024 * 1024 } }); // Limit file size to 500MB for study materials
+// --- MIDDLEWARE ---
 
-let uploadedNoteContent = null; // To store text from uploaded note
-let uploadedNoteName = null;
-
-// In-memory cache for PDF text
-const pdfCache = {};
-// Simple cache eviction strategy: limit cache size
-const MAX_CACHE_SIZE = 50; // Store up to 50 PDFs' text
-let cacheKeys = []; // To track insertion order for LRU-like eviction
-
-// Middleware
 const allowedOrigins = [
   'https://brain-ink.vercel.app',
-  'http://localhost:3000', // For local frontend dev (if you use port 3000)
-  'http://localhost:5173', // For local Vite frontend dev (default Vite port)
-  'https://mozilla.github.io' // Allow Mozilla PDF.js viewer origin
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://mozilla.github.io'
 ];
-
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
-  },
-  credentials: true, // If you plan to use cookies or authorization headers
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed methods
-  allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
-}));
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // General uploads serving if needed elsewhere
-
-// Google Gemini API details
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-let genAI, geminiModel;
-let visionClient; // Google Cloud Vision client
-if (GOOGLE_API_KEY) {
-  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"}); // Trying gemini-1.5-flash-latest
-  console.log('DEBUG: Google AI SDK initialized.');
-  try {
-    visionClient = new ImageAnnotatorClient(); // Assumes GOOGLE_APPLICATION_CREDENTIALS is set
-    console.log('DEBUG: Google Cloud Vision client initialized.');
-  } catch (error) {
-    console.error('DEBUG: Failed to initialize Google Cloud Vision client:', error.message);
-    // Depending on requirements, you might want to prevent app start or run in a degraded mode.
   }
+}));
+app.use(express.json({ limit: '50mb' }));
+
+// --- FILE UPLOAD (Multer) ---
+
+const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
+if (!fs.existsSync(STUDY_MATERIALS_DIR)) {
+  fs.mkdirSync(STUDY_MATERIALS_DIR, { recursive: true });
+}
+const studyMaterialStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, STUDY_MATERIALS_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'studyMaterial-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const uploadStudyFile = multer({ storage: studyMaterialStorage, limits: { fileSize: 500 * 1024 * 1024 } });
+
+app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
+console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files`);
+
+// --- API CLIENTS ---
+
+let genAI, geminiModel;
+if (process.env.GOOGLE_API_KEY) {
+  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
+  console.log('DEBUG: Google AI SDK initialized.');
 } else {
-  console.error('DEBUG: GOOGLE_API_KEY not found. Google AI SDK not initialized.');
+  console.error('FATAL: GOOGLE_API_KEY not found. AI services will not work.');
 }
 
-// Hugging Face Image Generation API details
-const HUGGING_FACE_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN;
-const HF_IMAGE_MODEL_URL = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0'; // A popular choice
+// --- DATABASE (JSON file) ---
 
-// API endpoint to get study materials metadata
+const DB_PATH = path.join(__dirname, 'study_materials.json');
+let studyMaterialsDb = [];
+const loadDb = async () => {
+    try {
+        const data = await fsPromises.readFile(DB_PATH, 'utf8');
+        studyMaterialsDb = JSON.parse(data);
+        console.log('DEBUG: study_materials.json loaded successfully.');
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            console.log('DEBUG: study_materials.json not found, will be created on first save.');
+        } else {
+            console.error('ERROR loading study_materials.json:', error);
+        }
+    }
+};
+const saveDb = () => fsPromises.writeFile(DB_PATH, JSON.stringify(studyMaterialsDb, null, 2), 'utf8');
+
+// --- HELPERS ---
+
+const getOrCreateConversation = (conversationId) => {
+  if (!conversationContexts[conversationId]) {
+    console.log(`DEBUG: Creating new context for conversationId: ${conversationId}`);
+    conversationContexts[conversationId] = {
+      history: [],
+      contextParts: [],
+    };
+  }
+  return conversationContexts[conversationId];
+};
+
+const extractTextFromFile = async (mimetype, buffer) => {
+    if (mimetype === 'application/pdf') {
+        const data = await pdf(buffer);
+        return data.text;
+    } else if (mimetype.startsWith('text/')) {
+        return buffer.toString('utf8');
+    }
+    return ''; // Return empty for unsupported types
+};
+
+// --- API ENDPOINTS ---
+
 app.get('/api/study-materials', (req, res) => {
   res.json(studyMaterialsDb);
 });
 
-// API endpoint to upload a new study material
 app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), async (req, res) => {
+  const { conversationId } = req.body;
   if (!req.file) {
-    return res.status(400).json({ type: 'error', message: 'File upload failed. No file provided or file type not allowed.' });
+    return res.status(400).json({ error: 'No file uploaded.' });
   }
-
-  const { topic } = req.body;
-  const newMaterial = {
-    id: crypto.randomUUID(),
-    originalFilename: req.file.originalname,
-    storedFilename: req.file.filename,
-    filePath: req.file.path,
-    mimetype: req.file.mimetype,
-    topic: topic || 'General',
-    uploadTimestamp: new Date().toISOString(),
-    size: req.file.size,
-  };
+  if (!conversationId) {
+    await fsPromises.unlink(req.file.path);
+    return res.status(400).json({ error: 'conversationId is required.' });
+  }
 
   try {
-    // Read current study materials, add new, then write back
-    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
-    let currentMaterials = [];
-    try {
-      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
-      currentMaterials = JSON.parse(data);
-    } catch (readErr) {
-      // If file doesn't exist or is invalid JSON, start with an empty array (or handle error differently)
-      console.warn('DEBUG: study_materials.json not found or unreadable on upload, starting new list.', readErr.message);
-    }
+    const materialId = crypto.randomUUID();
+    const newMaterial = {
+      id: materialId,
+      originalFilename: req.file.originalname,
+      storedFilename: req.file.filename,
+      filePath: req.file.path,
+      mimetype: req.file.mimetype,
+      topic: req.body.topic || 'General',
+      uploadTimestamp: new Date().toISOString(),
+      size: req.file.size,
+    };
 
-    currentMaterials.push(newMaterial);
-    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
+    studyMaterialsDb.push(newMaterial);
+    await saveDb();
+
+    const fileBuffer = await fsPromises.readFile(newMaterial.filePath);
+    const fileTextContent = await extractTextFromFile(newMaterial.mimetype, fileBuffer);
     
-    // Update in-memory DB as well
-    studyMaterialsDb = currentMaterials;
-
-    res.status(201).json({ type: 'success', message: 'Study material uploaded successfully!', material: newMaterial });
-  } catch (error) {
-    console.error('Error saving study material metadata:', error);
-    // Potentially delete the uploaded file if DB update fails to prevent orphans
-    try {
-      await fsPromises.unlink(req.file.path);
-      console.log(`DEBUG: Cleaned up orphaned file ${req.file.path} after DB error.`);
-    } catch (unlinkErr) {
-      console.error(`DEBUG: Failed to clean up orphaned file ${req.file.path}:`, unlinkErr);
+    if (fileTextContent) {
+        const conversation = getOrCreateConversation(conversationId);
+        conversation.contextParts.push({
+            text: `--- START OF FILE: ${newMaterial.originalFilename} ---\n${fileTextContent}\n--- END OF FILE: ${newMaterial.originalFilename} ---`
+        });
+        console.log(`DEBUG: Added content of ${newMaterial.originalFilename} to context for conversation ${conversationId}.`);
     }
-    res.status(500).json({ type: 'error', message: 'Failed to save study material metadata.' });
+
+    res.status(201).json({ message: 'File uploaded successfully!', file: newMaterial });
+  } catch (error) {
+    console.error(`ERROR processing uploaded file: ${error.message}`);
+    if(req.file && req.file.path) {
+        await fsPromises.unlink(req.file.path).catch(err => console.error("Error cleaning up file:", err));
+    }
+    res.status(500).json({ error: 'Failed to save or process file.' });
   }
 });
 
-// API endpoint to clear uploaded note context
-app.post('/api/clear-note-context', (req, res) => {
-  uploadedNoteContent = null;
-  uploadedNoteName = null;
-  console.log('DEBUG: Uploaded note context cleared.');
-  res.json({ type: 'success', message: 'Uploaded note context cleared successfully.' });
-});
+app.get('/pdf-proxy', async (req, res) => {
+    const { file, downloadUrl } = req.query;
+    if (!file && !downloadUrl) {
+        return res.status(400).send('Missing "file" or "downloadUrl" parameter.');
+    }
 
-// API endpoint for K.A.N.A. Chat
-app.post('/api/chat', async (req, res) => {
-    const { message, subject, conversationId, title, uploadedNoteContent, pastedImageBase64, activePdfUrl } = req.body;
-    let commandHandled = false;
+    try {
+        if (file) {
+            const sanitizedFile = path.basename(file);
+            const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
 
-    if (message) { // Graphing and command logic only applies if there's a text message
-        // Parameter assignment detection
-        const assignmentMatch = message.match(/^(?:let|define|set)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|as|to)\s*(-?\d+(?:\.\d+)?)$/i);
-        if (assignmentMatch) {
-            commandHandled = true;
-            const varName = assignmentMatch[1];
-            if (varName.toLowerCase() === 'x') {
-                return res.json({
-                    type: "error",
-                    kanaResponse: "Sorry, 'x' is a reserved variable for graphing and cannot be set as a parameter.", subject, conversationId, title
-                });
+            if (fs.existsSync(filePath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.status(404).send('Local file not found.');
             }
-            const varValue = parseFloat(assignmentMatch[2]);
-            if (isNaN(varValue)) {
-                return res.status(400).json({
-                    type: "error",
-                    kanaResponse: `Sorry, '${assignmentMatch[2]}' is not a valid number for ${varName}.`, subject, conversationId, title
-                });
-            }
-            parameterScope[varName] = varValue;
-            console.log(`DEBUG: Parameter set: ${varName} = ${varValue}. Current scope:`, parameterScope);
-            return res.json({
-                type: "info",
-                kanaResponse: `Okay, I've set ${varName} = ${varValue}.`,
-                subject, conversationId, title
-            });
+        } else { 
+            const urlObject = new URL(downloadUrl);
+            const response = await axios({ method: 'get', url: downloadUrl, responseType: 'stream' });
+            res.setHeader('Content-Type', 'application/pdf');
+            response.data.pipe(res);
         }
-
-        // Conditional graphing intent detection
-        if (!commandHandled) {
-            const conditionalPlotMatch = message.match(/^if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([><=!]=?)\s*(-?\d+(?:\.\d+)?)\s*,\s*(?:then\s*)?(?:plot|graph)\s*(.+)$/i);
-            if (conditionalPlotMatch) {
-                commandHandled = true;
-                const varName = conditionalPlotMatch[1];
-                const operator = conditionalPlotMatch[2];
-                const comparisonValueStr = conditionalPlotMatch[3];
-                const expressionString = conditionalPlotMatch[4].trim();
-                console.log(`DEBUG: Conditional plot: if ${varName} ${operator} ${comparisonValueStr}, plot ${expressionString}`);
-                if (!parameterScope.hasOwnProperty(varName)) {
-                    return res.json({
-                        type: "error",
-                        kanaResponse: `Sorry, the variable '${varName}' in the condition is not defined. Please define it first (e.g., 'let ${varName} = 5').`,
-                        subject, conversationId, title
-                    });
-                }
-                const actualValue = parameterScope[varName];
-                const comparisonValue = parseFloat(comparisonValueStr);
-                if (isNaN(comparisonValue)) {
-                    return res.status(400).json({
-                        type: "error",
-                        kanaResponse: `Sorry, '${comparisonValueStr}' is not a valid number for comparison in the condition.`,
-                        subject, conversationId, title
-                    });
-                }
-                let conditionMet = false;
-                switch (operator) {
-                    case '>': conditionMet = actualValue > comparisonValue; break;
-                    case '<': conditionMet = actualValue < comparisonValue; break;
-                    case '>=': conditionMet = actualValue >= comparisonValue; break;
-                    case '<=': conditionMet = actualValue <= comparisonValue; break;
-                    case '==': conditionMet = actualValue == comparisonValue; break;
-                    case '!=': conditionMet = actualValue != comparisonValue; break;
-                    default:
-                        return res.json({ type: "error", kanaResponse: `Unknown operator '${operator}' in condition.`, subject, conversationId, title });
-                }
-                if (conditionMet) {
-                    console.log(`DEBUG: Condition MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}. Plotting ${expressionString}`);
-                    const width = 600; const height = 400;
-                    const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
-                    let compiledExpr;
-                    try { compiledExpr = math.compile(expressionString); }
-                    catch (error) { return res.status(400).json({ type: "error", kanaResponse: `Error compiling expression '${expressionString}': ${error.message}`, subject, conversationId, title }); }
-                    const labels = []; const dataPoints = [];
-                    const xMinPlot = -5; const xMaxPlot = 5; const stepsPlot = 100;
-                    let minActualY = Infinity, maxActualY = -Infinity;
-                    for (let i = 0; i <= stepsPlot; i++) {
-                        const x = xMinPlot + (xMaxPlot - xMinPlot) * i / stepsPlot;
-                        labels.push(x.toFixed(2));
-                        let yValue;
-                        try { yValue = compiledExpr.evaluate({ ...parameterScope, x: x }); if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null; }
-                        catch (evalError) { yValue = null; }
-                        dataPoints.push(yValue);
-                        if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
-                    }
-                    let yAxisMin = minActualY, yAxisMax = maxActualY;
-                    if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; } else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
-                    const configuration = { type: 'line', data: { labels: labels, datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }] }, options: { scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } }, plugins: { title: { display: true, text: `Graph of y = ${expressionString} (Condition: ${varName} ${operator} ${comparisonValueStr} was true)` } } } };
-                    const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
-                    return res.json({ type: "mathematical_graph", kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was met. Here's the graph of y = ${expressionString}:`, generatedImageUrl: dataUrl, subject, conversationId, title });
-                } else {
-                    console.log(`DEBUG: Condition NOT MET: ${varName} (${actualValue}) ${operator} ${comparisonValue}.`);
-                    return res.json({ type: "info", kanaResponse: `Condition (${varName} ${operator} ${comparisonValueStr}) was not met. No graph plotted.`, subject, conversationId, title });
-                }
-            }
-        }
-
-        // Graphing intent detection (direct plot)
-        if (!commandHandled) {
-            const graphRequestMatch = message.match(/^(?:plot|graph)(?:\s+a\s+graph\s+of)?(?:\s*y\s*=\s*|\s*f\x28x\x29\s*=\s*)?\s*(.+)$/i);
-            if (graphRequestMatch) {
-                commandHandled = true;
-                const expressionString = graphRequestMatch[1].trim();
-                console.log('DEBUG: Graphing intent detected for expression:', expressionString);
-                const width = 600; const height = 400;
-                const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
-                let compiledExpr;
-                try { compiledExpr = math.compile(expressionString); }
-                catch (error) { console.error('Error compiling expression:', error); return res.status(400).json({ type: "error", kanaResponse: `Sorry, I couldn't understand the mathematical expression: ${expressionString}. Error: ${error.message}`, subject, conversationId, title }); }
-                const labels = []; const dataPoints = [];
-                const xMinPlot = -5; const xMaxPlot = 5; const steps = 100;
-                let minActualY = Infinity; let maxActualY = -Infinity;
-                for (let i = 0; i <= steps; i++) {
-                    const x = xMinPlot + (xMaxPlot - xMinPlot) * i / steps;
-                    labels.push(x.toFixed(2));
-                    let yValue;
-                    try { yValue = compiledExpr.evaluate({ ...parameterScope, x: x }); if (typeof yValue !== 'number' || !isFinite(yValue)) yValue = null; }
-                    catch (evalError) { console.error(`Error evaluating expression at x=${x}:`, evalError); yValue = null; }
-                    dataPoints.push(yValue);
-                    if (yValue !== null) { minActualY = Math.min(minActualY, yValue); maxActualY = Math.max(maxActualY, yValue); }
-                }
-                let yAxisMin = minActualY, yAxisMax = maxActualY;
-                if (minActualY === Infinity) { yAxisMin = -1; yAxisMax = 1; } else { const padding = Math.abs(maxActualY - minActualY) * 0.1 || 1; yAxisMin -= padding; yAxisMax += padding; }
-                const configuration = { type: 'line', data: { labels: labels, datasets: [{ label: expressionString, data: dataPoints, borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false }] }, options: { scales: { y: { min: yAxisMin, max: yAxisMax }, x: { title: { display: true, text: 'x' } } }, plugins: { title: { display: true, text: `Graph of y = ${expressionString}` } } } };
-                const dataUrl = await chartJSNodeCanvas.renderToDataURL(configuration);
-                return res.json({ type: "mathematical_graph", kanaResponse: `Here's the graph of y = ${expressionString}:`, generatedImageUrl: dataUrl, subject, conversationId, title });
-            }
-        }
-    } // End of if(message) block for graphing & command logic
-
-    // If no command was handled by the logic above, or if there was no message to begin with (e.g. only image/note),
-    // proceed with general AI chat, but only if there's some content to process.
-    if (!commandHandled) {
-        if (!geminiModel) {
-            return res.status(503).json({ type: 'error', message: 'AI model not initialized. Check API key.' });
-        }
-
-        // Ensure there's something to send to the AI if it's not a command that already returned
-        // and if it's not an empty request.
-        if (!message && !pastedImageBase64 && !uploadedNoteContent) {
-            // This case might occur if 'message' was null/empty and no command was handled.
-            // Or if the request was genuinely empty.
-            return res.status(400).json({ type: 'error', message: 'No content provided for chat (message, image, or note).' });
-        }
-
-        try {
-            const userMessageParts = [];
-            if (uploadedNoteContent) { userMessageParts.push({ text: `Context from uploaded note:\n\n${uploadedNoteContent}` }); }
-            // The pastedImageBase64 logic is mostly superseded by /api/analyze-image, but kept for potential direct chat image inputs.
-            if (pastedImageBase64) {
-                const imageMimeType = pastedImageBase64.startsWith('data:image/jpeg') ? 'image/jpeg' :
-                                      pastedImageBase64.startsWith('data:image/png') ? 'image/png' :
-                                      'application/octet-stream';
-                userMessageParts.push({
-                    inlineData: {
-                        mimeType: imageMimeType,
-                        data: pastedImageBase64.split(',')[1]
-                    }
-                });
-            }
-            if (message) { userMessageParts.push({ text: message }); }
-
-            // This check is important if 'message' was present but empty, and no other content was provided.
-            if (userMessageParts.length === 0) {
-                return res.status(400).json({ type: 'error', message: 'Cannot send an empty message to the AI.' });
-            }
-
-            console.log('DEBUG: Sending to Gemini AI with parts:', JSON.stringify(userMessageParts, null, 2));
-            console.log('DEBUG: System Instruction:', JSON.stringify(systemInstruction, null, 2));
-
-            const result = await geminiModel.generateContent({
-                contents: [{ role: "user", parts: userMessageParts }],
-                systemInstruction: systemInstruction
-            });
-            const response = result.response;
-            const aiResponseText = await response.text(); // Ensure text() is awaited if it's async
-            
-            console.log('DEBUG: Gemini AI Response:', aiResponseText);
-            res.json({ type: 'success', kanaResponse: aiResponseText, subject, conversationId, title });
-
-        } catch (error) {
-            console.error('Error calling Gemini API:', error);
-            let errorMessage = 'Failed to get response from AI.';
-            if (error.message) { errorMessage += ` Details: ${error.message}`; }
-            if (error.response && error.response.data && error.response.data.error) {
-                errorMessage = error.response.data.error.message;
-            }
-            res.status(500).json({ type: 'error', message: errorMessage });
-        }
+    } catch (error) {
+        console.error('PDF Proxy Error:', error.message);
+        res.status(500).send('Failed to fetch the PDF file.');
     }
 });
 
-// API endpoint for CORE search
+app.post('/api/fetch-url-content', async (req, res) => {
+    const { url, conversationId } = req.body;
+    if (!url || !conversationId) {
+        return res.status(400).json({ error: 'url and conversationId are required.' });
+    }
+
+    try {
+        const response = await axios.get(url, { responseType: 'arraybuffer', headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const contentType = response.headers['content-type'];
+        let contentText = '';
+
+        if (contentType && contentType.includes('application/pdf')) {
+            contentText = await extractTextFromFile('application/pdf', response.data);
+        } else {
+            contentText = response.data.toString('utf-8').replace(/<[^>]*>/g, ' ').replace(/\s\s+/g, ' ').trim();
+        }
+
+        if (contentText) {
+            const conversation = getOrCreateConversation(conversationId);
+            conversation.contextParts.push({ text: `--- START OF WEB CONTENT: ${url} ---\n${contentText}\n--- END OF WEB CONTENT: ${url} ---` });
+            console.log(`DEBUG: Added content from ${url} to context for conversation ${conversationId}.`);
+            res.status(200).json({ message: 'URL content fetched and added to context successfully.' });
+        } else {
+            res.status(200).json({ message: 'No text content could be extracted from the URL.' });
+        }
+    } catch (error) {
+        console.error(`ERROR fetching URL content: ${error.message}`);
+        res.status(500).json({ error: `Failed to fetch or process content from URL: ${url}` });
+    }
+});
+
 app.get('/api/core-search', async (req, res) => {
-  const searchTerm = req.query.q;
-  if (!searchTerm) {
-    return res.status(400).json({ type: 'error', message: 'Search term (q) is required.' });
-  }
-
-  if (!process.env.CORE_API_KEY) {
-    console.error('CORE_API_KEY not configured.');
-    return res.status(500).json({ type: 'error', message: 'CORE API key not configured on server. Please set CORE_API_KEY environment variable.' });
-  }
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: 'Query parameter "q" is required.' });
+  if (!process.env.CORE_API_KEY) return res.status(500).json({ error: 'CORE API key not configured.' });
 
   try {
-    const coreApiUrl = 'https://api.core.ac.uk/v3/search/works';
-    console.log(`DEBUG: Searching CORE API for: "${searchTerm}"`);
-    const response = await axios.get(coreApiUrl, {
-      params: {
-        q: searchTerm,
-        limit: 20, // Return up to 20 results, can be made configurable
-        // Available fields include: title, authors, abstract, yearPublished, doi, downloadUrl, etc.
-        // We can specify fields to return if needed, e.g., fields: ['title', 'authors', 'doi', 'downloadUrl', 'abstract']
-      },
-      headers: {
-        'Authorization': `Bearer ${process.env.CORE_API_KEY}`
-      }
+    const response = await axios.get(`https://api.core.ac.uk/v3/search/works`, {
+      params: { q, limit: 20 },
+      headers: { 'Authorization': `Bearer ${process.env.CORE_API_KEY}` }
     });
-
-    if (response.data && response.data.results) {
-      res.json({ type: 'success', results: response.data.results, totalHits: response.data.totalHits });
-    } else {
-      // Handle cases where CORE API might return 200 OK but not the expected structure
-      console.warn('CORE API response did not contain expected results structure:', response.data);
-      res.json({ type: 'success', results: [], totalHits: 0, message: 'Received response from CORE, but no results found or unexpected format.' });
-    }
-
+    const transformedResults = response.data.results.map(item => ({
+      coreId: item.id, title: item.title, authors: item.authors, abstract: item.abstract,
+      year: item.yearPublished, downloadUrl: item.downloadUrl, doi: item.doi, publisher: item.publisher,
+    }));
+    res.json(transformedResults);
   } catch (error) {
-    let errorMessage = 'Failed to search CORE API.';
-    let statusCode = 500;
-    let errorDetails = error.message;
-
-    if (error.response) {
-      // CORE API returned an error status
-      console.error('Error response from CORE API:', error.response.status, error.response.data);
-      errorMessage = error.response.data.message || `CORE API Error: ${error.response.statusText}` || errorMessage;
-      statusCode = error.response.status || statusCode;
-      errorDetails = error.response.data;
-      if (error.response.status === 401) {
-          errorMessage = 'CORE API request unauthorized. Please check your API Key and ensure it is correctly set in the .env file.';
-      } else if (error.response.status === 403) {
-          errorMessage = 'CORE API request forbidden. Your API key might not have the necessary permissions or there might be an issue with your account.';
-      } else if (error.response.status === 429) {
-          errorMessage = 'CORE API rate limit exceeded. Please try again later.';
-      }
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error('No response received from CORE API:', error.request);
-      errorMessage = 'No response received from CORE API. Check network connectivity or CORE API status.';
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error('Error setting up request to CORE API:', error.message);
-    }
-    res.status(statusCode).json({ type: 'error', message: errorMessage, details: errorDetails });
+    console.error('CORE API Search Error:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Failed to search CORE API.' });
   }
 });
 
-// API endpoint to save an external (e.g., CORE) item as a study material
 app.post('/api/save-external-item', async (req, res) => {
-  const { 
-    title, 
-    authors, // Expected to be an array of objects like [{name: 'Author Name'}]
-    abstract,
-    doi,
-    downloadUrl,
-    yearPublished,
-    publisher,
-    targetCategory // The K.A.N.A. category like 'Research Papers'
-  } = req.body;
-
-  if (!title || !targetCategory) {
-    return res.status(400).json({ type: 'error', message: 'Title and target category are required to save an external item.' });
-  }
-
-  const newExternalMaterial = {
-    id: crypto.randomUUID(),
-    title: title,
-    originalFilename: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.corelink`, // Create a pseudo-filename
-    storedFilename: null, // No local file stored
-    filePath: null, // No local file path
-    mimetype: 'application/external-link', // Custom mimetype for external links
-    topic: targetCategory, // User-selected K.A.N.A. category
-    uploadTimestamp: new Date().toISOString(),
-    size: 0, // No actual file size
-    isExternal: true,
-    sourceApi: 'CORE',
-    authors: authors || [],
-    abstract: abstract || '',
-    yearPublished: yearPublished || null,
-    publisher: publisher || '',
-    externalUrl: downloadUrl || (doi ? `https://doi.org/${doi}` : null), // Prefer downloadUrl, fallback to DOI
-    doi: doi || null
-  };
-
-  if (!newExternalMaterial.externalUrl) {
-    console.warn('DEBUG: Attempted to save external item without a downloadUrl or DOI:', newExternalMaterial.title);
-    // Decide if this should be an error or if items without direct links are permissible
-  }
-
-  try {
-    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
-    let currentMaterials = [];
-    try {
-      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
-      currentMaterials = JSON.parse(data);
-    } catch (readErr) {
-      console.warn('DEBUG: study_materials.json not found or unreadable on save-external, starting new list.', readErr.message);
+    const { title, authors, year, doi, downloadUrl, abstract } = req.body;
+    if (!downloadUrl || !title) {
+        return res.status(400).json({ error: 'downloadUrl and title are required.' });
     }
 
-    currentMaterials.push(newExternalMaterial);
-    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
-    
-    // Update in-memory DB as well
-    studyMaterialsDb = currentMaterials;
+    try {
+        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filename = `studyMaterial-${uniqueSuffix}.pdf`;
+        const filePath = path.join(STUDY_MATERIALS_DIR, filename);
+        await fsPromises.writeFile(filePath, response.data);
 
-    res.status(201).json({ type: 'success', message: 'External item saved successfully!', material: newExternalMaterial });
+        const newMaterial = {
+            id: crypto.randomUUID(),
+            originalFilename: `${title}.pdf`,
+            storedFilename: filename,
+            filePath: filePath,
+            mimetype: 'application/pdf',
+            topic: 'CORE Import',
+            uploadTimestamp: new Date().toISOString(),
+            size: response.data.length,
+            metadata: { title, authors, year, doi, abstract, source: 'CORE' }
+        };
+        studyMaterialsDb.push(newMaterial);
+        await saveDb();
+        res.status(201).json({ message: 'Successfully saved paper to library.', file: newMaterial });
+    } catch (error) {
+        console.error('Error saving external item:', error.message);
+        res.status(500).json({ error: 'Failed to download or save the paper.' });
+    }
+});
+
+app.post('/api/chat', async (req, res) => {
+  const { message, conversationId, history } = req.body;
+  if (!message || !conversationId) {
+    return res.status(400).json({ error: 'message and conversationId are required.' });
+  }
+  if (!geminiModel) {
+    return res.status(500).json({ error: 'AI model not initialized.' });
+  }
+
+  const conversation = getOrCreateConversation(conversationId);
+  
+  // Combine server-side context with client-side history
+  const chat = geminiModel.startChat({
+      history: [...conversation.history, ...history],
+      generationConfig: { maxOutputTokens: 4096 }
+  });
+
+  try {
+    const result = await chat.sendMessage([message, ...conversation.contextParts]);
+    const response = result.response;
+    const aiResponseText = response.text();
+
+    // Update server-side history
+    conversation.history.push({ role: 'user', parts: [{ text: message }] });
+    conversation.history.push({ role: 'model', parts: [{ text: aiResponseText }] });
+
+    res.json({ kanaResponse: aiResponseText });
   } catch (error) {
-    console.error('Error saving external study material metadata:', error);
-    res.status(500).json({ type: 'error', message: 'Failed to save external study material metadata.' });
+      console.error('Gemini AI Error:', error);
+      res.status(500).json({ error: 'Failed to get response from AI.' });
   }
 });
 
-// Define the directory for study materials
-const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
-
-// Serve static files from the study_materials directory
-app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
-console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files`);
-
-// Placeholder for study materials metadata (replace with actual loading from study_materials.json if needed)
-// For now, assume study_materials.json is an array of objects like:
-// { originalFilename: "MyDoc.pdf", storedFilename: "unique-doc-name.pdf", topic: "Science" }
-// And that these files are stored in a known directory, e.g., './uploads/study_materials/'
-let studyMaterialsDb = []; 
-try {
-  // Corrected path joining for study_materials.json, assuming it's in the same dir as index.js
-  const smData = fs.readFileSync(path.join(__dirname, 'study_materials.json'), 'utf8');
-  studyMaterialsDb = JSON.parse(smData);
-  console.log('DEBUG: study_materials.json loaded successfully.');
-} catch (err) {
-  console.error('DEBUG: Could not load study_materials.json. Proceeding with empty study materials DB.', err.message);
-}
-
-// Helper function to extract text from a PDF file
-async function extractTextFromPdf(filePath) {
-  try {
-    const dataBuffer = await fs.promises.readFile(filePath);
-    const data = await pdf(dataBuffer);
-    return data.text;
-  } catch (error) {
-    console.error(`Error reading or parsing PDF at ${filePath}:`, error);
-    throw new Error(`Failed to extract text from PDF: ${error.message}`);
-  }
-}
-
-// New Quiz Generation Endpoint
 app.post('/api/kana/generate-quiz', async (req, res) => {
   const { sourceMaterialId, difficulty, numQuestions } = req.body;
-
-  if (!sourceMaterialId) {
-    return res.status(400).json({ type: 'error', message: 'Missing sourceMaterialId (e.g., filename or ID).' });
+  if (!sourceMaterialId || !difficulty || !numQuestions) {
+    return res.status(400).json({ error: 'sourceMaterialId, difficulty, and numQuestions are required.' });
   }
 
   try {
-    // Find the material in our "DB"
-    const materialInfo = studyMaterialsDb.find(m => m.id === sourceMaterialId || m.originalFilename === sourceMaterialId || m.storedFilename === sourceMaterialId);
+    const material = studyMaterialsDb.find(m => m.id === sourceMaterialId);
+    if (!material) return res.status(404).json({ error: 'Source material not found.' });
 
-    if (!materialInfo) {
-      return res.status(404).json({ type: 'error', message: `Source material '${sourceMaterialId}' not found.` });
-    }
+    const fileBuffer = await fsPromises.readFile(material.filePath);
+    const textContent = await extractTextFromFile(material.mimetype, fileBuffer);
+    if (!textContent) return res.status(400).json({ error: 'Could not extract text from the material.' });
 
-    // Use the absolute filePath from study_materials.json directly if it exists and is preferred
-    // Otherwise, construct it using STUDY_MATERIALS_DIR and storedFilename
-    let filePathToUse = materialInfo.filePath; // Prefer the absolute path from the JSON if available
-    if (!filePathToUse || !path.isAbsolute(filePathToUse)) { 
-        // Fallback or if filePath is relative/not provided, construct from STUDY_MATERIALS_DIR
-        filePathToUse = path.join(STUDY_MATERIALS_DIR, materialInfo.storedFilename);
-        console.log(`Constructed file path: ${filePathToUse} (original was: ${materialInfo.filePath})`);
-    }
-    
-    // Check if file exists
-    try {
-      await fs.promises.access(filePathToUse);
-      console.log(`Access confirmed for file: ${filePathToUse}`);
-    } catch (err) {
-      console.error(`File not found or inaccessible at path: ${filePathToUse} for material ID: ${sourceMaterialId}. Error: ${err.message}`);
-      return res.status(404).json({ type: 'error', message: `File for '${materialInfo.originalFilename}' not found or inaccessible on server.` });
-    }
+    const prompt = `Based on the following text, generate a quiz with ${numQuestions} questions at a ${difficulty} difficulty level. Format the output as a single JSON object. Each question should be an object with "question", "options" (an array of 4 strings), and "answer" (the correct string from options). The root of the JSON should be a single object with a key "quiz".\n\nTEXT: ${textContent.substring(0, 10000)}`;
 
-    console.log(`Generating quiz from: ${materialInfo.originalFilename} (difficulty: ${difficulty}, questions: ${numQuestions})`);
-    
-    const extractedText = await extractTextFromPdf(filePathToUse);
+    const result = await geminiModel.generateContent(prompt);
+    const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
+    const quizJson = JSON.parse(responseText);
 
-    if (!extractedText || extractedText.trim() === "") {
-        return res.status(500).json({ type: 'error', message: 'Extracted text is empty. Cannot generate quiz.' });
-    }
-
-    // --- Actual Gemini Call for Quiz Generation ---
-    if (!geminiModel) {
-      return res.status(500).json({ type: 'error', message: 'Quiz generation service is not available (Gemini model not initialized).' });
-    }
-
-    const requestedNumQuestions = parseInt(numQuestions, 10) || 5;
-    const requestedDifficulty = difficulty || 'medium';
-
-    // Truncate text to avoid exceeding API limits (e.g., ~30k characters for gemini-1.5-flash context window, be conservative)
-    // A character is roughly 4 tokens. 30k chars ~ 7.5k tokens. Max tokens for gemini-1.5-flash is 32k for prompt.
-    // Let's use a safe limit for the text, e.g., 20000 characters for the context part of the prompt.
-    const maxTextLength = 20000;
-    const contextText = extractedText.length > maxTextLength ? extractedText.substring(0, maxTextLength) + "... (text truncated)" : extractedText;
-
-    const prompt = `
-      You are an expert quiz generator. Based on the following text from the document titled "${materialInfo.originalFilename}", please generate a quiz.
-
-      Quiz Requirements:
-      - Number of questions: ${requestedNumQuestions}
-      - Difficulty level: ${requestedDifficulty}
-      - Topic: ${materialInfo.topic || 'General knowledge from the text'}
-
-      For each question, provide the following fields:
-      1.  "id": A unique string identifier for the question (e.g., "q1", "q2", ...).
-      2.  "questionText": The text of the question itself.
-      3.  "type": The type of question. This should be either "multiple-choice" or "theory".
-      4.  "options" (only for "multiple-choice" type): An array of exactly 4 strings, representing the answer choices. One of these must be the correct answer.
-      5.  "correctAnswer": 
-          - For "multiple-choice" questions: The 0-indexed integer of the correct option in the "options" array.
-          - For "theory" questions: A string representing the ideal or expected answer.
-      6.  "explanation": A brief explanation of why the correct answer is correct, or more details for a theory question.
-
-      The entire response MUST be a single, valid JSON object. This JSON object should have the following structure:
-      {
-        "title": "Quiz on ${materialInfo.topic || materialInfo.originalFilename}",
-        "category": "${materialInfo.topic || 'Generated Quiz'}",
-        "difficulty": "${requestedDifficulty}",
-        "questions": [ /* array of question objects as described above */ ]
-      }
-
-      Extracted Text for Quiz Generation:
-      --- BEGIN TEXT ---
-      ${contextText}
-      --- END TEXT ---
-
-      Please ensure the JSON is well-formed and complete. Do not include any text outside of the main JSON object.
-    `;
-    
-    console.log(`Sending prompt to Gemini for ${materialInfo.originalFilename}. Prompt length: ${prompt.length} chars. Context text length: ${contextText.length} chars.`);
-    // console.log("Gemini Prompt Snippet:", prompt.substring(0, 500) + "..."); // For debugging if needed
-
-    try {
-      const result = await geminiModel.generateContent(prompt);
-      const response = await result.response;
-      // Gemini might wrap JSON in backticks if it thinks it's code, so try to strip them.
-      let geminiText = response.text().trim();
-      if (geminiText.startsWith('```json')) {
-        geminiText = geminiText.substring(7);
-      }
-      if (geminiText.startsWith('```')) {
-        geminiText = geminiText.substring(3);
-      }
-      if (geminiText.endsWith('```')) {
-        geminiText = geminiText.substring(0, geminiText.length - 3);
-      }
-      geminiText = geminiText.trim(); // Trim again after stripping backticks
-
-      console.log("Gemini Raw Response (cleaned):", geminiText.substring(0, 500) + (geminiText.length > 500 ? '...' : ''));
-
-      const quizJson = JSON.parse(geminiText);
-      // Basic validation of the parsed JSON structure
-      if (!quizJson.title || !quizJson.category || !quizJson.difficulty || !Array.isArray(quizJson.questions)) {
-        console.error("Gemini response missing required quiz structure.", quizJson);
-        throw new Error("AI response did not conform to the expected quiz structure.");
-      }
-      res.json(quizJson);
-    } catch (e) {
-      console.error("Error during Gemini API call or parsing response:", e);
-      // Check if e.response exists (from Gemini API error) or e.message for other errors
-      const errorMessage = e.response && e.response.data && e.response.data.error ? e.response.data.error.message : e.message;
-      res.status(500).json({ 
-        type: 'error', 
-        message: 'Failed to generate quiz using AI: ' + errorMessage,
-        details: e.toString()
-      });
-    }
-    // --- End Actual Gemini Call ---
-
+    res.json(quizJson);
   } catch (error) {
-    console.error('Error in /generate-quiz endpoint:', error);
-    res.status(500).json({ type: 'error', message: 'Failed to generate quiz: ' + error.message });
+    console.error('Error in /generate-quiz:', error);
+    res.status(500).json({ error: 'Failed to generate quiz: ' + error.message });
   }
 });
 
-// Simple test route
 app.get('/', (req, res) => {
   res.send('K.A.N.A. Backend is running!');
 });
 
-// PDF Proxy Endpoint
-app.get('/api/kana/pdf-proxy', async (req, res) => {
-  const { url } = req.query;
-
-  if (!url) {
-    return res.status(400).send('Missing URL query parameter');
-  }
-
-  try {
-    const decodedUrl = decodeURIComponent(url);
-    console.log(`Proxying PDF from: ${decodedUrl}`);
-
-    const response = await axios({
-      method: 'get',
-      url: decodedUrl,
-      responseType: 'stream',
+const startServer = async () => {
+    await loadDb();
+    app.listen(port, () => {
+        console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
     });
+};
 
-    // Set the content type to application/pdf
-    res.setHeader('Content-Type', 'application/pdf');
-
-    // Pipe the PDF stream to the response
-    response.data.pipe(res);
-
-  } catch (error) {
-    console.error('Error proxying PDF:', error.message);
-    if (error.response) {
-      console.error('Proxied URL Error Status:', error.response.status);
-      console.error('Proxied URL Error Data:', error.response.data);
-      // Forward the status code from the external server if available
-      return res.status(error.response.status).send('Error fetching PDF from external source.');
-    }
-    res.status(500).send('Error proxying PDF');
-  }
-});
-
-// K.A.N.A. Chat API endpoint
-// Endpoint to upload a note
-app.post('/api/upload-note', upload.single('noteFile'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ type: 'error', message: 'No file uploaded.' });
-  }
-
-  try {
-    let textContent = '';
-    if (req.file.mimetype === 'text/plain') {
-      textContent = req.file.buffer.toString('utf8');
-    } else if (req.file.mimetype === 'application/pdf') {
-      const data = await pdf(req.file.buffer);
-      textContent = data.text;
-    }
-
-    uploadedNoteContent = textContent;
-    uploadedNoteName = req.file.originalname;
-    console.log(`Note uploaded and processed: ${uploadedNoteName}, length: ${uploadedNoteContent.length}`);
-    res.json({ 
-      type: 'success',
-      message: `Note '${uploadedNoteName}' uploaded successfully. K.A.N.A. will now use it as context.`,
-      fileName: uploadedNoteName
-    });
-  } catch (error) {
-    console.error('Error processing uploaded file:', error);
-    uploadedNoteContent = null; // Clear context on error
-    uploadedNoteName = null;
-    res.status(500).json({ type: 'error', message: 'An error occurred while searching CORE.' });
-  }
-});
-
-// API endpoint to save an external (e.g., CORE) item as a study material
-app.post('/api/save-external-item', async (req, res) => {
-  const { 
-    title, 
-    authors, // Expected to be an array of objects like [{name: 'Author Name'}]
-    abstract,
-    doi,
-    downloadUrl,
-    yearPublished,
-    publisher,
-    targetCategory // The K.A.N.A. category like 'Research Papers'
-  } = req.body;
-
-  if (!title || !targetCategory) {
-    return res.status(400).json({ type: 'error', message: 'Title and target category are required to save an external item.' });
-  }
-
-  const newExternalMaterial = {
-    id: crypto.randomUUID(),
-    title: title,
-    originalFilename: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.corelink`, // Create a pseudo-filename
-    storedFilename: null, // No local file stored
-    filePath: null, // No local file path
-    mimetype: 'application/external-link', // Custom mimetype for external links
-    topic: targetCategory, // User-selected K.A.N.A. category
-    uploadTimestamp: new Date().toISOString(),
-    size: 0, // No actual file size
-    isExternal: true,
-    sourceApi: 'CORE',
-    authors: authors || [],
-    abstract: abstract || '',
-    yearPublished: yearPublished || null,
-    publisher: publisher || '',
-    externalUrl: downloadUrl || (doi ? `https://doi.org/${doi}` : null), // Prefer downloadUrl, fallback to DOI
-    doi: doi || null
-  };
-
-  if (!newExternalMaterial.externalUrl) {
-    console.warn('DEBUG: Attempted to save external item without a downloadUrl or DOI:', newExternalMaterial.title);
-    // Decide if this should be an error or if items without direct links are permissible
-    // For now, we'll allow it, but it might be less useful to the user.
-  }
-
-  try {
-    const studyMaterialsJsonPath = path.join(__dirname, 'study_materials.json');
-    let currentMaterials = [];
-    try {
-      const data = await fsPromises.readFile(studyMaterialsJsonPath, 'utf8');
-      currentMaterials = JSON.parse(data);
-    } catch (readErr) {
-      console.warn('DEBUG: study_materials.json not found or unreadable on save-external, starting new list.', readErr.message);
-    }
-
-    currentMaterials.push(newExternalMaterial);
-    await fsPromises.writeFile(studyMaterialsJsonPath, JSON.stringify(currentMaterials, null, 2), 'utf8');
-    
-    // Update in-memory DB as well
-    studyMaterialsDb = currentMaterials;
-
-    res.status(201).json({ type: 'success', message: 'External item saved successfully!', material: newExternalMaterial });
-  } catch (error) {
-    console.error('Error saving external study material metadata:', error);
-    res.status(500).json({ type: 'error', message: 'Failed to save external study material metadata.' });
-  }
-});
-
-// Endpoint to clear uploaded note context
-// New Endpoint for Image Analysis (OCR + Gemini)
-app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
-  const { message, subject, conversationId, title, activePdfUrl, uploadedNoteName } = req.body;
-  
-  if (!req.file) {
-    return res.status(400).json({ type: 'error', message: 'No image file uploaded.' });
-  }
-
-  console.log(`Received image analysis request:`);
-  console.log(`  File: ${req.file.originalname} (${req.file.mimetype}, ${req.file.size} bytes)`);
-  console.log(`  Message: "${message || ''}"`);
-  console.log(`  Subject: ${subject}`);
-  console.log(`  Conversation ID: ${conversationId}`);
-  console.log(`  Title: ${title}`);
-  if (activePdfUrl) console.log(`  Active PDF URL: ${activePdfUrl}`);
-  if (uploadedNoteName) console.log(`  Uploaded Note Name: ${uploadedNoteName}`);
-
-  if (!visionClient) {
-    return res.status(500).json({ type: 'error', message: 'Image analysis service is not available (Vision client not initialized).' });
-  }
-  if (!geminiModel) {
-    return res.status(500).json({ type: 'error', message: 'Chat service is not available (Gemini model not initialized).' });
-  }
-
-  try {
-    const imageBuffer = req.file.buffer;
-
-    // 1. Send to Vision AI for OCR and Label Detection
-    const [visionResults] = await visionClient.annotateImage({
-      image: { content: imageBuffer },
-      features: [
-        { type: 'TEXT_DETECTION' },
-        { type: 'LABEL_DETECTION', maxResults: 10 }, // Get up to 10 labels
-        // Consider adding { type: 'OBJECT_LOCALIZATION' } for more detail if needed
-      ],
-    });
-
-    const textAnnotations = visionResults.textAnnotations || [];
-    const fullTextAnnotation = textAnnotations.length > 0 ? textAnnotations[0].description : null;
-    const labels = visionResults.labelAnnotations ? visionResults.labelAnnotations.map(label => label.description) : [];
-
-    console.log('Vision API - Full Text Annotation:', fullTextAnnotation ? `"${fullTextAnnotation.substring(0, 100).replace(/\n/g, ' ')}..."` : 'None');
-    console.log('Vision API - Labels:', labels.join(', '));
-
-    // 2. Construct prompt for Gemini
-    let geminiPrompt = `You are K.A.N.A. (Knowledge Assistant for Natural Academics). Your purpose is to help students learn and understand academic topics. Be helpful, informative, and concise. If you don't know something, say so. Prioritize using provided context. Steer conversations back to an educational topic. Do not invent information.
-
-The user has uploaded an image titled '${req.file.originalname}'. You have analyzed it with the following results:
-`;
-
-    if (fullTextAnnotation) {
-      geminiPrompt += `
----BEGIN DETECTED TEXT FROM IMAGE (OCR)---
-${fullTextAnnotation}
----END DETECTED TEXT FROM IMAGE---
-`;
-    }
-
-    if (labels.length > 0) {
-      geminiPrompt += `
-The image appears to contain or be about: ${labels.join(', ')}.
-`;
-    }
-
-    if (!fullTextAnnotation && labels.length === 0) {
-      geminiPrompt += "You could not detect any specific text or labels in the image.\n";
-    }
-
-    geminiPrompt += `
-User's message related to the image: "${message || '(No specific message provided alongside the image)'}"
-
-Based on the image content and the user's message, please provide a helpful and informative academic response.`;
-
-    // Add other context if available and relevant (e.g., PDF context, note context)
-    // This part needs to be consistent with how context is added in the /api/kana/chat endpoint
-    let fullPromptForGemini = geminiPrompt;
-    if (activePdfUrl) {
-      // Assuming getPdfText is a function that retrieves cached/fetched PDF text
-      // const pdfText = await getPdfText(activePdfUrl); // You'll need to implement or adapt getPdfText
-      // if (pdfText) fullPromptForGemini = `---BEGIN PDF CONTEXT---\n${pdfText}\n---END PDF CONTEXT---\n\n${geminiPrompt}`;
-      // For now, let's just indicate that a PDF is active, as getPdfText is not fully implemented here.
-      fullPromptForGemini = `(The user also has a PDF titled '${activePdfUrl}' active as context.)\n\n${geminiPrompt}`;
-    }
-    if (uploadedNoteContent && uploadedNoteName) {
-      fullPromptForGemini = `---BEGIN UPLOADED NOTE CONTENT ('${uploadedNoteName}')---\n${uploadedNoteContent}\n---END UPLOADED NOTE CONTENT---\n\n${fullPromptForGemini}`;
-    }
-
-    console.log("\n--- Sending Combined Prompt to Gemini for Image Analysis ---");
-    console.log(fullPromptForGemini.substring(0, 500) + (fullPromptForGemini.length > 500 ? '...' : '')); // Log truncated prompt
-    console.log("-----------------------------------------------------------\n");
-
-    // 3. Get response from Gemini
-    const result = await geminiModel.generateContent(fullPromptForGemini);
-    const geminiResponseText = await result.response.text();
-
-    console.log("K.A.N.A.'s (Gemini) Answer (Image Analysis):", geminiResponseText.substring(0,200) + "...");
-
-    // 4. Send structured response back to frontend
-    res.json({
-      type: 'image_with_explanation', // Consistent with frontend expectation
-      kanaResponse: geminiResponseText,
-      imageUrl: null, // We are not storing/reserving the image yet
-      explanation: geminiResponseText, 
-      originalFileName: req.file.originalname,
-      // Optionally, still send raw OCR/labels if frontend might use them directly
-      ocrText: fullTextAnnotation,
-      detectedLabels: labels
-    });
-
-  } catch (error) {
-    console.error('Error during image analysis:', error);
-    res.status(500).json({ type: 'error', message: 'Error analyzing image: ' + error.message });
-  }
-});
-
-app.post('/api/kana/clear-note-context', (req, res) => {
-  uploadedNoteContent = null;
-  uploadedNoteName = null;
-  console.log('Uploaded note context cleared.');
-  res.json({ type: 'success', message: 'Uploaded note context has been cleared.' });
-});
-
-// K.A.N.A. Image Generation and Explanation API endpoint
-app.post('/api/kana/generate-and-explain', async (req, res) => {
-  const { message } = req.body;
-
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required' });
-  }
-  if (!HUGGING_FACE_API_TOKEN) {
-    console.error('Hugging Face API Token is not configured for image generation.');
-    return res.status(500).json({ error: 'Image generation service not configured (missing HF Token).' });
-  }
-  if (!GOOGLE_API_KEY || !geminiModel) {
-    console.error('Google API Key is not configured or Gemini model failed to initialize for explanation.');
-    return res.status(500).json({ error: 'Text explanation service not configured (Gemini issue).' });
-  }
-
-  // Attempt to extract image prompt. Example: "Generate an image of a cat riding a unicorn and explain it."
-  // This regex looks for "Generate an image of ... and explain it."
-  const imagePromptRegex = /generate an image of (.*?) and explain it/i;
-  const match = message.match(imagePromptRegex);
-  let imagePromptText = '';
-
-  if (match && match[1]) {
-    imagePromptText = match[1].trim();
-  } else {
-    // Fallback or a simpler trigger phrase if the complex regex fails
-    const simpleImageTrigger = "generate image: ";
-    if (message.toLowerCase().startsWith(simpleImageTrigger)) {
-        imagePromptText = message.substring(simpleImageTrigger.length).trim();
-    } else {
-        return res.status(400).json({ error: 'Could not understand the image generation request. Try: "Generate an image of [your idea] and explain it." or "Generate image: [your idea]"' });
-    }
-  }
-
-  if (!imagePromptText) {
-    return res.status(400).json({ error: 'Image prompt is empty. Please specify what image to generate.' });
-  }
-
-  try {
-    // 1. Generate Image with Hugging Face
-    console.log(`Sending to Hugging Face for image generation: "${imagePromptText}"`);
-    const hfImageResponse = await axios.post(
-      HF_IMAGE_MODEL_URL,
-      { inputs: imagePromptText },
-      {
-        headers: { 
-          'Authorization': `Bearer ${HUGGING_FACE_API_TOKEN}`,
-          'Accept': 'image/jpeg' // Specify that we want a JPEG image
-        },
-        responseType: 'arraybuffer' // Get image as binary data
-      }
-    );
-
-    const imageBase64 = Buffer.from(hfImageResponse.data, 'binary').toString('base64');
-    const imageUrl = `data:image/jpeg;base64,${imageBase64}`;
-    console.log('Image generated and converted to base64.');
-
-    // 2. Get Explanation from Gemini (based on the image prompt)
-    const explanationPrompt = `An image was generated based on the following idea: "${imagePromptText}". Please provide a brief explanation of this concept or subject.`;
-    console.log('Sending prompt to Google Gemini for explanation:', explanationPrompt);
-
-    const geminiResult = await geminiModel.generateContent(explanationPrompt);
-    const geminiResponse = await geminiResult.response;
-    const explanationText = await geminiResponse.text();
-    console.log('Received explanation from Google Gemini:', explanationText);
-
-    res.json({ 
-      kanaResponse: explanationText, // For consistency with chat endpoint
-      generatedImageUrl: imageUrl, 
-      explanation: explanationText 
-    });
-
-  } catch (error) {
-    console.error('Error in generate-and-explain endpoint:');
-    if (error.response && error.response.data) {
-      // Try to decode error from Hugging Face if it's JSON
-      try {
-        const errorDataString = Buffer.from(error.response.data).toString('utf-8');
-        const errorJson = JSON.parse(errorDataString);
-        console.error('HF/Gemini Error Data:', errorJson);
-        if (errorJson.error && errorJson.error.includes('currently loading')) {
-            return res.status(503).json({ error: `The image model is currently loading. Estimated time: ${errorJson.estimated_time || 'a moment'}. Please try again.`});
-        }
-      } catch (e) {
-        console.error('Raw Error Data (not JSON):', Buffer.from(error.response.data).toString('utf-8'));
-      }
-      console.error('Status:', error.response.status);
-    }
-    console.error('Error Message:', error.message);
-    res.status(500).json({ error: 'Failed to generate image or get explanation.', details: error.message });
-  }
-});
-
-// Basic error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
-
-// Start the server
-app.listen(port, () => {
-  console.log(`K.A.N.A. backend server listening at http://localhost:${port}`);
-});
+startServer();
