@@ -48,3 +48,40 @@ export interface Chat {
   title: string;
   subject: string;
 }
+
+export interface CoreApiAuthor {
+  name: string;
+}
+
+export interface LibraryItem {
+  id: string;
+  title: string;
+  authors?: CoreApiAuthor[];
+  category: string;
+  coverImage?: string;
+  description?: string;
+  publishDate?: string;
+  rating?: number;
+  views?: number;
+  readTime?: string;
+  storedFilename: string | null;
+  mimetype: string;
+  originalFilename?: string;
+  isExternal?: boolean;
+  externalUrl?: string;
+  abstract?: string;
+  size?: string;
+  uploadDate?: string;
+  fileType?: string;
+}
+
+export interface CoreSearchResultItem {
+  coreId: string;
+  title: string;
+  authors: CoreApiAuthor[];
+  abstract?: string;
+  year?: number;
+  downloadUrl?: string;
+  doi?: string;
+  publisher?: string;
+}

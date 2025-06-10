@@ -1,98 +1,139 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { 
+  FileText, FileArchive, FileImage, FileVideo, FileAudio,
+  Search, X, Upload, File as FileIcon, 
+  Loader2, CheckSquare, Folder
+} from 'lucide-react';
+import type { LibraryItem, CoreSearchResultItem } from '../lib/types';
 
-const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
-import { X, File, Upload, Folder, Search, CheckSquare, ExternalLink } from 'lucide-react'; // Added CheckSquare
-
-// It's highly recommended to centralize these interfaces if used in multiple places
-// For now, we'll define them here to match what LibraryHub expects.
-interface CoreApiAuthor {
-  name: string;
+// Define the component props
+export interface StudyMaterialsPanelProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSelectMaterial?: (material: LibraryItem) => void;
 }
 
-interface LibraryItem {
-  id: string;
-  title: string;
-  authors?: CoreApiAuthor[];
-  category: string;
-  coverImage?: string;
-  description?: string;
-  publishDate?: string;
-  rating?: number;
-  views?: number;
-  readTime?: string;
-  storedFilename: string | null;
-  mimetype: string;
-  originalFilename?: string;
-  isExternal?: boolean;
-  externalUrl?: string;
-  abstract?: string;
-  size?: string; // Assuming size might come from backend or can be calculated
-  // Add any other fields that your backend's /api/library/items provides
-}
+// File type options for filtering
+const fileTypeOptions = [
+  { value: 'all', label: 'All File Types' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'document', label: 'Document' },
+  { value: 'image', label: 'Image' },
+  { value: 'video', label: 'Video' },
+  { value: 'audio', label: 'Audio' },
+] as const;
 
-// Placeholder - Define based on actual CORE API response structure (transformed by your backend)
-interface CoreSearchResultItem {
-  coreId: string; // Or whatever ID CORE provides
-  title: string;
-  authors: { name: string }[];
-  abstract?: string;
-  year?: number;
-  downloadUrl?: string; // Link to PDF or landing page
-  doi?: string;
-  publisher?: string;
-  // Add other relevant fields
-}
+// File icons mapping
+const fileIcons: Record<string, React.ReactNode> = {
+  'pdf': <FileText className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />,
+  'doc': <FileText className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0" />,
+  'docx': <FileText className="h-5 w-5 text-blue-600 mr-3 flex-shrink-0" />,
+  'txt': <FileText className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />,
+  'zip': <FileArchive className="h-5 w-5 text-yellow-500 mr-3 flex-shrink-0" />,
+  'mp4': <FileVideo className="h-5 w-5 text-purple-500 mr-3 flex-shrink-0" />,
+  'mp3': <FileAudio className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />,
+  'jpg': <FileImage className="h-5 w-5 text-pink-500 mr-3 flex-shrink-0" />,
+  'jpeg': <FileImage className="h-5 w-5 text-pink-500 mr-3 flex-shrink-0" />,
+  'png': <FileImage className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" />,
+};
 
-interface StudyMaterialsPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelectMaterial: (material: LibraryItem) => void; // New prop
-}
+// Helper function to get file icon based on file extension
+const getFileIcon = (filename: string): React.ReactNode => {
+  const extension = filename.split('.').pop()?.toLowerCase() || 'file';
+  return fileIcons[extension] || <FileText className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />;
+};
 
 const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
-  isOpen,
-  onClose,
-  onSelectMaterial,
+  isOpen = false,
+  onClose = () => {},
+  onSelectMaterial = () => {}
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState('All');
-  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
-  const [folders, setFolders] = useState<string[]>(['All']);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFileForUpload, setSelectedFileForUpload] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // UI State
   const [searchMode, setSearchMode] = useState<'library' | 'coreApi'>('library');
-  const [coreApiSearchTerm, setCoreApiSearchTerm] = useState<string>('');
-  const [coreApiResults, setCoreApiResults] = useState<CoreSearchResultItem[]>([]);
-  const [isCoreApiSearching, setIsCoreApiSearching] = useState<boolean>(false);
-  const [coreApiError, setCoreApiError] = useState<string | null>(null);
+  
+  // Upload State
+  const [selectedFileForUpload, setSelectedFileForUpload] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [, setUploadSuccessMessage] = useState('');
+  const [, setUploadError] = useState('');
+  
+  // Library State
+  const [, setIsLoading] = useState(false);
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
+  
+  // Filter & Sort State
+  const [selectedFolder, setSelectedFolder] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // CORE API State
+  const [coreSearchQuery, setCoreSearchQuery] = useState('');
+  const [isCoreSearching, setIsCoreSearching] = useState(false);
+  const [, setCoreSearchError] = useState('');
+  
+  // API base URL from environment variables
+  const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
+  
+  // Drag and drop state
+  // Drag state is managed directly in the JSX
 
-  const fetchLibraryItems = () => {
-    setIsLoading(true);
-    setError(null);
-    fetch(`${KANA_API_BASE_URL}/api/study-materials`) // Assuming this is your endpoint
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch library items: ${res.statusText}`);
-        }
-        return res.json();
-      })
-      .then((data: LibraryItem[]) => {
-        setLibraryItems(data);
-        const uniqueCategories = Array.from(new Set(data.map(item => item.category)));
-        setFolders(['All', ...uniqueCategories]);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error("Error fetching library items:", err);
-        setError(err.message);
-        setIsLoading(false);
-      });
+  // Filtered materials based on search
+  const filteredMaterials = useMemo(() => {
+    return libraryItems.filter(item => {
+      const matchesSearch = searchTerm === '' || 
+        (item.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (item.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      
+      const matchesFolder = selectedFolder === 'All' || item.category === selectedFolder;
+      
+      return matchesSearch && matchesFolder;
+    }).sort((a, b) => {
+      // Use uploadDate if available, otherwise use current date
+      const dateA = new Date(a.uploadDate || new Date());
+      const dateB = new Date(b.uploadDate || new Date());
+      
+      // Sort by newest first by default
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [libraryItems, searchTerm, selectedFolder]);
+
+  const fetchLibraryItems = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch library items: ${response.statusText}`);
+      }
+      
+      const data: LibraryItem[] = await response.json();
+      
+      // Process items to add fileType if not present
+      const processedItems = data.map(item => ({
+        ...item,
+        fileType: item.fileType || getFileTypeFromMime(item.mimetype || '')
+      }));
+      
+      setLibraryItems(processedItems);
+    } catch (err) {
+      console.error("Error fetching library items:", err);
+      setUploadError('Failed to load library items. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [KANA_API_BASE_URL]);
+
+  const getFileTypeFromMime = (mimeType: string): string => {
+    if (!mimeType) return 'other';
+    
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (mimeType.includes('word') || mimeType.includes('document') || mimeType.includes('text')) return 'document';
+    if (mimeType.includes('image')) return 'image';
+    if (mimeType.includes('video')) return 'video';
+    if (mimeType.includes('audio')) return 'audio';
+    return 'other';
   };
 
   useEffect(() => {
@@ -101,366 +142,454 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Upload button click is now handled directly in the onClick handler
 
-  const filteredMaterials = libraryItems.filter(material => {
-    if (!material) return false; // Skip if material itself is undefined
-
-    const matchesCategory = selectedFolder === 'All' || (material.category && material.category === selectedFolder);
-    
-    const titleMatch = material.title && typeof material.title === 'string' && material.title.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const authorMatch = material.authors && Array.isArray(material.authors) && material.authors.some(a => a && a.name && typeof a.name === 'string' && a.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const descriptionMatch = material.description && typeof material.description === 'string' && material.description.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesCategory && (titleMatch || authorMatch || descriptionMatch);
-  });
-
-  const handleUploadButtonClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelectedForUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileSelectedForUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       setSelectedFileForUpload(file);
-      setUploadError(null);
-      setUploadSuccessMessage(null);
+      setUploadError('');
+      setUploadSuccessMessage('');
+      // Auto-start upload when file is selected
+      handlePerformUpload();
     }
   };
 
   const handlePerformUpload = async () => {
     if (!selectedFileForUpload) return;
-
+    
     setIsUploading(true);
-    setUploadError(null);
-    setUploadSuccessMessage(null);
-
-    const formData = new FormData();
-    formData.append('file', selectedFileForUpload);
-    // You might want to add other metadata here, e.g., category, title if not derived by backend
-    // formData.append('title', selectedFileForUpload.name); // Example
-
+    setUploadProgress(0);
+    
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, { // Assuming this is your upload endpoint
+      const formData = new FormData();
+      formData.append('file', selectedFileForUpload);
+      
+      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
         method: 'POST',
         body: formData,
       });
-
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Upload failed with non-JSON response.'}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error('Upload failed');
       }
-
-      // const result = await response.json(); // If backend returns data about the uploaded file
-      setUploadSuccessMessage(`Successfully uploaded: ${selectedFileForUpload.name}`);
+      
+      // We don't need the response data, just check if it was successful
+      await response.json();
+      
+      // Refresh the library items
+      await fetchLibraryItems();
+      
+      setUploadSuccessMessage('File uploaded successfully!');
       setSelectedFileForUpload(null);
-      fetchLibraryItems(); // Refresh the list
-    } catch (err: any) {
-      setUploadError(err.message || 'An unknown error occurred during upload.');
-      console.error('Upload error:', err);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError('Failed to upload file. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
+  const [coreSearchResults, setCoreSearchResults] = useState<CoreSearchResultItem[]>([]);
+  const [, setIsSavingCorePaper] = useState(false);
+
   const handleCoreApiSearch = async () => {
-    if (!coreApiSearchTerm.trim()) {
-      setCoreApiError('Please enter a search term.');
-      setCoreApiResults([]);
-      return;
-    }
-    setIsCoreApiSearching(true);
-    setCoreApiError(null);
-    setCoreApiResults([]);
+    if (!coreSearchQuery.trim()) return;
+    
+    setIsCoreSearching(true);
+    setCoreSearchError('');
+    
     try {
-      // IMPORTANT: Replace '/api/core/search' with your actual backend endpoint for CORE API searches
-      const response = await fetch(`${KANA_API_BASE_URL}/api/core-search?query=${encodeURIComponent(coreApiSearchTerm)}`);
+      const response = await fetch(
+        `${KANA_API_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`
+      );
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Search failed with non-JSON response.' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error('Search failed');
       }
-      const data: CoreSearchResultItem[] = await response.json();
-      setCoreApiResults(data);
+      
+      const data = await response.json();
+      setCoreSearchResults(data);
       if (data.length === 0) {
-        setCoreApiError('No results found for your query.');
+        setCoreSearchError('No results found for your query.');
       }
     } catch (err: any) {
-      setCoreApiError(err.message || 'An unknown error occurred while searching CORE API.');
+      setCoreSearchError(err.message || 'An unknown error occurred while searching CORE API.');
       console.error('CORE API Search error:', err);
     } finally {
-      setIsCoreApiSearching(false);
+      setIsCoreSearching(false);
     }
   };
 
-  // Placeholder for saving CORE item to library
   const handleSaveCoreApiItem = async (item: CoreSearchResultItem) => {
     console.log('Attempting to save CORE item:', item);
-    // TODO: Implement API call to backend to save this item
-    // e.g., POST to /api/library/add-external with item details
-    // After successful save, you might want to show a success message and/or refresh library items
-    alert(`Save functionality for "${item.title}" is not yet implemented.`);
+    setIsSavingCorePaper(true);
+    
+    try {
+      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: item.title,
+          description: item.abstract,
+          source: 'CORE_API',
+          metadata: {
+            authors: item.authors,
+            year: item.year,
+            doi: item.doi,
+            publisher: item.publisher,
+            downloadUrl: item.downloadUrl
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save item to library');
+      }
+      
+      // After successful save, refresh the library
+      await fetchLibraryItems();
+      setUploadSuccessMessage(`Successfully saved "${item.title}" to your library.`);
+    } catch (err) {
+      setUploadError('Failed to save paper to library.');
+      console.error('Error saving paper:', err);
+    } finally {
+      setIsSavingCorePaper(false);
+    }
   };
 
-  const handleSelectMaterial = (material: LibraryItem) => {
-    onSelectMaterial(material);
-    // Optionally close the panel after selection, or let the parent component decide
-    // onClose(); 
-  };
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title-asc' | 'title-desc'>('newest');
+  const [selectedFileType, setSelectedFileType] = useState('all');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  
+  // Categories for filtering
+  const categories = [
+    { id: 'all', name: 'All Files' },
+    { id: 'recent', name: 'Recently Added' },
+    { id: 'favorites', name: 'Favorites' },
+    { id: 'pdf', name: 'PDFs' },
+    { id: 'documents', name: 'Documents' },
+    { id: 'images', name: 'Images' },
+  ];
+  
+  // Simulate upload progress
+  useEffect(() => {
+    if (isUploading) {
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setIsUploading(false);
+            setUploadSuccessMessage('Upload completed successfully!');
+            setTimeout(() => setUploadSuccessMessage(''), 3000);
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 300);
+      return () => clearInterval(interval);
+    } else {
+      setUploadProgress(0);
+    }
+  }, [isUploading]);
 
+  if (!isOpen) return null;
+  
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0a0e17] border border-[#1a223a] rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b border-[#1a223a]">
-          <h3 className="text-lg font-medium flex items-center text-white">
-            <File className="h-5 w-5 mr-2 text-blue-400" />
-            Study Materials
-          </h3>
-          <div className="flex items-center">
-            {/* Mode Toggle Placeholder - Will be styled better */}
-            <div className="mr-4 flex border border-[#1a223a] rounded-md">
-              <button 
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 flex flex-col bg-[#0a0f1e] text-white overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-[#1a223a] bg-[#0c1220]">
+          <h2 className="text-xl font-semibold">Study Materials</h2>
+          <div className="flex items-center space-x-4">
+            {/* Search Mode Toggle */}
+            <div className="flex bg-[#0f172a] rounded-lg p-1">
+              <button
+                type="button"
+                className={`px-4 py-2 rounded-md flex items-center ${
+                  searchMode === 'library'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
                 onClick={() => setSearchMode('library')}
-                className={`px-3 py-1 text-sm rounded-l-md ${searchMode === 'library' ? 'bg-blue-600 text-white' : 'bg-[#0a0e17] text-gray-300 hover:bg-[#141b2d]'}`}>My Library</button>
-              <button 
+              >
+                <Folder className="h-4 w-4 mr-2" />
+                My Library
+              </button>
+              <button
+                type="button"
+                className={`px-4 py-2 rounded-md flex items-center ${
+                  searchMode === 'coreApi'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
                 onClick={() => setSearchMode('coreApi')}
-                className={`px-3 py-1 text-sm rounded-r-md ${searchMode === 'coreApi' ? 'bg-blue-600 text-white' : 'bg-[#0a0e17] text-gray-300 hover:bg-[#141b2d]'}`}>Search CORE API</button>
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Search CORE
+              </button>
             </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex flex-1 overflow-hidden">
-          {/* Conditional Rendering based on searchMode will go here */}
-          {/* For now, keeping the library view active to avoid breaking existing structure */}
 
-          {/* Sidebar */}
-          <div className="w-56 border-r border-[#1a223a] p-4 overflow-y-auto flex flex-col">
-            <input type="file" ref={fileInputRef} onChange={handleFileSelectedForUpload} accept=".pdf,.txt,.md,.docx" style={{ display: 'none' }} />
-            <button onClick={handleUploadButtonClick} className="w-full mb-2 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium flex items-center justify-center text-white">
-              <Upload className="h-4 w-4 mr-2" />
-              Choose File to Upload
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-[#1e293b] text-gray-400 hover:text-white transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
             </button>
-            {selectedFileForUpload && (
-              <div className="mb-2 text-xs text-gray-300">
-                <p className="truncate">Selected: {selectedFileForUpload.name}</p>
-                <button 
-                  onClick={handlePerformUpload} 
-                  disabled={isUploading}
-                  className="w-full mt-1 py-1.5 bg-green-600 hover:bg-green-700 rounded-md text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {isUploading ? 'Uploading...' : 'Confirm Upload'}
-                </button>
-              </div>
-            )}
-            {uploadSuccessMessage && <p className="mb-2 text-xs text-green-400">{uploadSuccessMessage}</p>}
-            {uploadError && <p className="mb-2 text-xs text-red-400">Error: {uploadError}</p>}
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar */}
+          <div className="w-64 border-r border-[#1a223a] bg-[#0c1220] p-4 flex flex-col">
+            {/* Upload Section */}
+            <div className="mb-6">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Upload File</span>
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileSelectedForUpload} 
+                className="hidden" 
+                accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
+                multiple
+              />
+              {isUploading && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Uploading... {uploadProgress}%</p>
+                </div>
+              )}
+            </div>
             
-            <div className="space-y-1 flex-grow">
-              {folders.map(folder => (
+            {/* Search */}
+            <div className="mb-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search library..."
+                  value={searchTerm}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-[#1a223a] rounded-md py-2 pl-10 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            
+            {/* Filters */}
+            <div className="mb-6">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                File Type
+              </h3>
+              <select
+                value={selectedFileType}
+                onChange={(e) => setSelectedFileType(e.target.value)}
+                className="w-full bg-[#0f172a] border border-[#1a223a] rounded-md py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {fileTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">
+                Sort By
+              </h3>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full bg-[#0f172a] border border-[#1a223a] rounded-md py-2 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="title-asc">Title (A-Z)</option>
+                <option value="title-desc">Title (Z-A)</option>
+              </select>
+            </div>
+            
+            {/* Categories */}
+            <div className="flex-1 overflow-y-auto">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Categories
+              </h3>
+              <div className="space-y-1">
                 <button
-                  key={folder}
-                  onClick={() => setSelectedFolder(folder)}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center ${
-                    selectedFolder === folder ? 'bg-[#1a223a] text-white' : 'text-gray-400 hover:bg-[#141b2d] hover:text-white'
+                  onClick={() => setSelectedFolder('All')}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                    selectedFolder === 'All' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'text-gray-300 hover:bg-[#1a223a]'
                   }`}
                 >
-                  <Folder className="h-4 w-4 mr-2 flex-shrink-0" />
-                  <span className="truncate">{folder}</span>
+                  All Items
                 </button>
-              ))}
+                {categories.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => setSelectedFolder(folder.name)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                      selectedFolder === folder.name 
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-300 hover:bg-[#1a223a]'
+                    }`}
+                  >
+                    {folder.name}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          {/* Main content - Will also be conditional based on searchMode */}
-          {searchMode === 'library' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Search (Library) */}
-            <div className="p-4 border-b border-[#1a223a]">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search your library by title, author, description..."
-                  className="w-full bg-[#141b2d] border border-[#1a223a] rounded-md py-2 pl-8 pr-3 text-sm text-white focus:ring-blue-500 focus:border-blue-500"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-              </div>
-            </div>
-            {/* Materials list (Library) */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {isLoading && <p className="text-gray-400">Loading materials...</p>}
-              {error && <p className="text-red-500">Error: {error}</p>}
-              {!isLoading && !error && filteredMaterials.length === 0 && (
-                <p className="text-gray-400">No materials found in your library matching your criteria.</p>
-              )}
-              {!isLoading && !error && filteredMaterials.length > 0 && (
-                <div className="space-y-2">
-                  {filteredMaterials.map(material => (
-                    <div
-                      key={material.id}
-                      className="flex items-center justify-between p-3 bg-[#141b2d] rounded-lg border border-[#1a223a] hover:border-blue-500 transition-colors"
+          
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {searchMode === 'library' ? (
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredMaterials.map((item) => (
+                    <div 
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedMaterialId(item.id);
+                        onSelectMaterial(item);
+                      }}
+                      className={`bg-[#0f172a] rounded-lg overflow-hidden border ${
+                        selectedMaterialId === item.id 
+                          ? 'border-blue-500 ring-2 ring-blue-500' 
+                          : 'border-[#1a223a] hover:border-blue-300'
+                      } transition-all cursor-pointer`}
                     >
-                      <div className="flex items-center overflow-hidden">
-                        {material.isExternal ? (
-                            <ExternalLink className="h-5 w-5 text-purple-400 mr-3 flex-shrink-0" />
-                        ) : (
-                            <File className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" />
-                        )}
-                        <div className="truncate">
-                          <p className="font-medium text-white truncate" title={material.title}>{material.title}</p>
-                          <p className="text-sm text-gray-400 truncate">
-                            {material.category}
-                            {material.authors && material.authors.length > 0 && ` • ${material.authors.map(a => a.name).join(', ')}`}
-                            {material.size && ` • ${material.size}`}
+                      <div className="p-4">
+                        <div className="flex items-center space-x-3 mb-3">
+                          {getFileIcon(item.originalFilename || '')}
+                          <h3 className="font-medium text-white truncate">{item.title}</h3>
+                        </div>
+                        {item.description && (
+                          <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+                            {item.description}
                           </p>
+                        )}
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{item.category}</span>
+                          <span>{item.uploadDate ? new Date(item.uploadDate).toLocaleDateString() : ''}</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleSelectMaterial(material)}
-                        title="Select this material for AI context"
-                        className="p-2 bg-green-600 hover:bg-green-700 rounded-md transition-colors text-white ml-2 flex-shrink-0"
-                      >
-                        <CheckSquare className="h-4 w-4" />
-                      </button>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-            </div>
-          )}
-          {searchMode === 'coreApi' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* CORE API Search Input */}
-              <div className="p-4 border-b border-[#1a223a]">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search CORE database (e.g., 'machine learning applications')"
-                    className="flex-grow bg-[#141b2d] border border-[#1a223a] rounded-md py-2 px-3 text-sm text-white focus:ring-blue-500 focus:border-blue-500"
-                    value={coreApiSearchTerm}
-                    onChange={e => setCoreApiSearchTerm(e.target.value)}
-                    onKeyPress={e => e.key === 'Enter' && handleCoreApiSearch()}
-                  />
-                  <button 
-                    onClick={handleCoreApiSearch}
-                    disabled={isCoreApiSearching}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium text-white disabled:opacity-50 flex items-center justify-center"
-                  >
-                    <Search className="h-4 w-4 mr-2" />
-                    {isCoreApiSearching ? 'Searching...' : 'Search CORE'}
-                  </button>
-                </div>
-              </div>
-              {/* CORE API Results Display */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {isCoreApiSearching && <p className="text-gray-400 text-center">Searching CORE database...</p>}
-                {coreApiError && !isCoreApiSearching && <p className="text-red-500 text-center">Error: {coreApiError}</p>}
-                {!isCoreApiSearching && coreApiResults.length > 0 && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-300 mb-2">Found {coreApiResults.length} result(s):</p>
-                    {coreApiResults.map(item => (
-                      <div key={item.coreId} className="p-3 bg-[#141b2d] rounded-lg border border-[#1a223a]">
-                        <h5 className="font-semibold text-white mb-1" title={item.title}>{item.title}</h5>
-                        {item.authors && item.authors.length > 0 && (
-                          <p className="text-xs text-gray-400 mb-1">Authors: {item.authors.map(a => a.name).join(', ')}</p>
-                        )}
-                        {item.year && <p className="text-xs text-gray-400 mb-1">Year: {item.year}</p>}
-                        {item.publisher && <p className="text-xs text-gray-400 mb-1">Publisher: {item.publisher}</p>}
-                        {item.abstract && (
-                          <p className="text-sm text-gray-300 mt-1 mb-2 leading-relaxed max-h-20 overflow-y-auto pr-1 text-ellipsis">
-                            {item.abstract.substring(0, 250)}{item.abstract.length > 250 ? '...' : ''}
-                          </p>
-                        )}
-                        <div className="mt-2 flex items-center gap-2">
-                          {item.downloadUrl && (
-                            <a 
-                              href={item.downloadUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-md text-xs font-medium text-white flex items-center"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1.5" /> View/Download
-                            </a>
-                          )}
-                          <button 
-                            onClick={() => handleSaveCoreApiItem(item)}
-                            title="Save this item to your K.A.N.A. library"
-                            className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-md text-xs font-medium text-white flex items-center"
-                          >
-                            <File className="h-3 w-3 mr-1.5" /> Save to Library
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                
+                {filteredMaterials.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                    <FileIcon className="h-12 w-12 mb-4 opacity-50" />
+                    <p>No materials found. Try adjusting your filters or upload a new file.</p>
                   </div>
                 )}
-                {!isCoreApiSearching && !coreApiError && coreApiResults.length === 0 && coreApiSearchTerm && (
-                  <p className="text-gray-400 text-center">No results found for "{coreApiSearchTerm}". Try a different query.</p>
-                )}
               </div>
-            </div>
-          )}
-          {/* Old Main content - to be removed or fully integrated into conditional rendering 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Search */}
-            <div className="p-4 border-b border-[#1a223a]">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search materials by title, author, description..."
-                  className="w-full bg-[#141b2d] border border-[#1a223a] rounded-md py-2 pl-8 pr-3 text-sm text-white focus:ring-blue-500 focus:border-blue-500"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-              </div>
-            </div>
-            {/* Materials list */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {isLoading && <p className="text-gray-400">Loading materials...</p>}
-              {error && <p className="text-red-500">Error: {error}</p>}
-              {!isLoading && !error && filteredMaterials.length === 0 && (
-                <p className="text-gray-400">No materials found matching your criteria.</p>
-              )}
-              {!isLoading && !error && filteredMaterials.length > 0 && (
-                <div className="space-y-2">
-                  {filteredMaterials.map(material => (
-                    <div
-                      key={material.id}
-                      className="flex items-center justify-between p-3 bg-[#141b2d] rounded-lg border border-[#1a223a] hover:border-blue-500 transition-colors"
-                    >
-                      <div className="flex items-center overflow-hidden">
-                        {material.isExternal ? (
-                            <ExternalLink className="h-5 w-5 text-purple-400 mr-3 flex-shrink-0" />
-                        ) : (
-                            <File className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" />
-                        )}
-                        <div className="truncate">
-                          <p className="font-medium text-white truncate" title={material.title}>{material.title}</p>
-                          <p className="text-sm text-gray-400 truncate">
-                            {material.category}
-                            {material.authors && material.authors.length > 0 && ` • ${material.authors.map(a => a.name).join(', ')}`}
-                            {material.size && ` • ${material.size}`}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleSelectMaterial(material)}
-                        title="Select this material for AI context"
-                        className="p-2 bg-green-600 hover:bg-green-700 rounded-md transition-colors text-white ml-2 flex-shrink-0"
-                      >
-                        <CheckSquare className="h-4 w-4" />
-                      </button>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex space-x-4 mb-6">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={coreSearchQuery}
+                        onChange={(e) => setCoreSearchQuery(e.target.value)}
+                        placeholder="Search for academic papers..."
+                        className="w-full bg-[#0f172a] border border-[#1a223a] rounded-md py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onKeyDown={(e) => e.key === 'Enter' && handleCoreApiSearch()}
+                      />
                     </div>
-                  ))}
+                    <button
+                      onClick={handleCoreApiSearch}
+                      disabled={isCoreSearching || !coreSearchQuery.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                      {isCoreSearching ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Searching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4" />
+                          <span>Search</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {isCoreSearching ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                    </div>
+                  ) : coreSearchResults.length > 0 ? (
+                    <div className="space-y-6">
+                      {coreSearchResults.map((result) => (
+                        <div key={result.coreId} className="bg-[#0f172a] rounded-lg p-4 border border-[#1a223a]">
+                          <h3 className="text-lg font-medium text-white mb-2">{result.title}</h3>
+                          {result.authors && result.authors.length > 0 && (
+                            <p className="text-sm text-gray-400 mb-2">
+                              {result.authors.map(a => a.name).join(', ')}
+                            </p>
+                          )}
+                          {result.abstract && (
+                            <p className="text-sm text-gray-300 mb-4 line-clamp-3">
+                              {result.abstract}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex space-x-2">
+                              {result.year && (
+                                <span className="text-xs bg-[#1a223a] text-gray-400 px-2 py-1 rounded">
+                                  {result.year}
+                                </span>
+                              )}
+                              {result.publisher && (
+                                <span className="text-xs bg-[#1a223a] text-gray-400 px-2 py-1 rounded">
+                                  {result.publisher}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleSaveCoreApiItem(result)}
+                              className="text-sm text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                            >
+                              <span>Save to Library</span>
+  <CheckSquare className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : coreSearchQuery ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>No results found for "{coreSearchQuery}"</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>Search for academic papers using the CORE API</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          {/*</div> Closing div for old main content - now handled by conditional rendering */}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
