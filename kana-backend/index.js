@@ -303,36 +303,73 @@ app.post('/api/save-external-item', async (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { message, conversationId, history } = req.body;
-  if (!message || !conversationId) {
-    return res.status(400).json({ error: 'message and conversationId are required.' });
-  }
-  if (!geminiModel) {
-    return res.status(500).json({ error: 'AI model not initialized.' });
-  }
-
-  const conversation = getOrCreateConversation(conversationId);
-  
-  // Combine server-side context with client-side history
-  const clientHistory = Array.isArray(history) ? history : [];
-  const chat = geminiModel.startChat({
-      history: [...conversation.history, ...clientHistory],
-      generationConfig: { maxOutputTokens: 4096 }
-  });
-
   try {
-    const result = await chat.sendMessage([message, ...conversation.contextParts]);
-    const response = result.response;
-    const aiResponseText = response.text();
+    const { conversationId, message, history, subject, title } = req.body;
+    if (!message || !conversationId) {
+      return res.status(400).json({ error: 'Missing message or conversationId' });
+    }
 
-    // Update server-side history
-    conversation.history.push({ role: 'user', parts: [{ text: message }] });
-    conversation.history.push({ role: 'model', parts: [{ text: aiResponseText }] });
+    const conversation = getOrCreateConversation(conversationId);
+    
+    // Check for plot request
+    const plotKeywords = ['plot', 'graph', 'chart', 'draw', 'diagram'];
+    const wantsPlot = plotKeywords.some(keyword => message.toLowerCase().includes(keyword));
 
-    res.json({ kanaResponse: aiResponseText });
+    if (wantsPlot) {
+        console.log(`DEBUG: Detected plot request for conversation ${conversationId}`);
+        const plotPrompt = `The user wants a chart based on this request: "${message}". Generate a valid JSON object compatible with Chart.js. The object must have 'type', 'data', and 'options' properties. For 'data', include 'labels' and 'datasets'. Each dataset needs a 'label' and a 'data' array. Only output the raw JSON object.`;
+        
+        try {
+            const plotModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const plotResult = await plotModel.generateContent(plotPrompt);
+            const plotResponseText = plotResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+            const chartData = JSON.parse(plotResponseText);
+
+            console.log('DEBUG: Successfully generated chart data.');
+            // Note: The frontend expects a 'type' field at the top level to identify the message.
+            return res.json({
+                type: 'mathematical_graph',
+                chartData: chartData,
+                conversationId: conversationId
+            });
+        } catch (e) {
+            console.error("Error generating or parsing chart JSON from AI:", e);
+            // Fallback to a normal text response if chart generation fails
+            res.json({ kanaResponse: "I tried to generate a chart, but I couldn't. Please try rephrasing your request." });
+            return;
+        }
+    }
+
+    // Default chat logic with context
+    const clientHistory = Array.isArray(history) ? history : [];
+    const chat = geminiModel.startChat({
+        history: [...conversation.history, ...clientHistory],
+        generationConfig: { maxOutputTokens: 4096 }
+    });
+
+    let messageToSend = message;
+    if (conversation.context && conversation.context.trim().length > 0) {
+        console.log(`DEBUG: Prepending document context for conversation ${conversationId}`);
+        messageToSend = `Please use the following context to answer the user's question.\n\n--- Context ---\n${conversation.context}\n\n--- User Question ---\n${message}`;
+    }
+
+    const result = await chat.sendMessage(messageToSend);
+    const kanaResponseText = result.response.text();
+
+    // Update conversation history
+    conversation.history.push({ role: 'user', parts: [{ text: message }] }); // Push original message for history
+    conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+
+    res.json({
+      kanaResponse: kanaResponseText,
+      conversationId: conversationId,
+      subject: subject || 'General',
+      title: title || 'Chat'
+    });
+
   } catch (error) {
-      console.error('Gemini AI Error:', error);
-      res.status(500).json({ error: 'Failed to get response from AI.' });
+    console.error('Chat endpoint error:', error);
+    res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
   }
 });
 
