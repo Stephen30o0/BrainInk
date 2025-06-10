@@ -420,7 +420,7 @@ const startServer = async () => {
         console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
 
         const conversation = getOrCreateConversation(conversationId);
-        const visionModel = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+        const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
         
