@@ -320,7 +320,7 @@ app.post('/api/chat', async (req, res) => {
         const plotPrompt = `The user wants a chart based on this request: "${message}". Generate a valid JSON object compatible with Chart.js. The object must have 'type', 'data', and 'options' properties. For 'data', include 'labels' and 'datasets'. Each dataset needs a 'label' and a 'data' array. Only output the raw JSON object.`;
         
         try {
-            const plotModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const plotModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const plotResult = await plotModel.generateContent(plotPrompt);
             const plotResponseText = plotResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
             const chartData = JSON.parse(plotResponseText);
