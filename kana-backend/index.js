@@ -376,7 +376,7 @@ app.post('/api/chat', async (req, res) => {
 
         const result = await chat.sendMessage(message);
         const response = result.response;
-        const functionCall = response.functionCalls?.[0];
+        const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall;
 
         if (functionCall && functionCall.name === 'generate_graph_data') {
             const { functionStr, xMin, xMax, step } = functionCall.args;
