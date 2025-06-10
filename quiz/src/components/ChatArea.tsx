@@ -371,10 +371,17 @@ const ChatArea = ({
         .then(data => {
                     console.log("DEBUG: Received data from backend:", data);
           if (data.type === "mathematical_graph" && data.generatedImageUrl && data.kanaResponse) {
+            const fullImageUrl = `${KANA_API_BASE_URL}${data.generatedImageUrl}`;
             addMessage({
-              id: uuidv4(), sender: 'kana', content: data.kanaResponse,
-              timestamp: Date.now(), type: 'mathematical_graph', imageUrl: data.generatedImageUrl,
-              subject, conversationId, title
+              id: uuidv4(), 
+              sender: 'kana', 
+              content: data.kanaResponse, // The text part of the message
+              timestamp: Date.now(), 
+              type: 'mathematical_graph', 
+              imageUrl: fullImageUrl, // The full, corrected URL for the image
+              subject, 
+              conversationId, 
+              title
             });
             setXp(prev => prev + 2);
           } else if (data.kanaResponse !== undefined) {

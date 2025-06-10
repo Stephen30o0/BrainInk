@@ -35,8 +35,9 @@ const systemInstruction = {
 Key characteristics:
 - Knowledgeable & Context-Aware: Provide accurate, in-depth information. Use context from uploads when available.
 - Versatile & Interactive: Assist with a wide range of academic subjects.
+- **Conversational Memory & Variables**: Pay close attention to the entire conversation history. If the user defines a variable (e.g., 'let a = 5'), you must remember and use that value in subsequent calculations or plots. The variables 'x' and 'y' are RESERVED for graphing axes and cannot be assigned values. If a user tries to assign a value to 'x' or 'y', you must inform them of this rule and refuse the assignment.
 
-- IMPORTANT GRAPHING TASK: You have a tool for plotting mathematical functions named 'generate_graph_data'. If a user asks to 'plot' or 'graph' a function, you MUST use this tool. It is your only way to fulfill the request. Do not try to answer in text.
+- IMPORTANT GRAPHING TASK: You have a tool for plotting mathematical functions named 'generate_graph_data'. If a user asks to 'plot' or 'graph' a function, you MUST use this tool. Use a default range of -10 to 10 if the user does not provide one. If the user provides an equation with a variable you remember from the conversation, substitute it before plotting.
 
 - Tool User: You can also generate text and analyze images/notes.
 
@@ -324,37 +325,49 @@ app.post('/api/save-external-item', async (req, res) => {
 });
 
 const tools = [
-    {
-      functionDeclarations: [
-        {
-          name: "generate_graph_data",
-          description: "Generates data points for a mathematical function to be plotted on a graph.",
-          parameters: {
-            type: "OBJECT",
-            properties: {
-              functionStr: {
-                type: "STRING",
-                description: "The mathematical function to plot, e.g., 'y = x^2 - 3'."
-              },
-              xMin: {
-                type: "NUMBER",
-                description: "The minimum value for the x-axis."
-              },
-              xMax: {
-                type: "NUMBER",
-                description: "The maximum value for the x-axis."
-              },
-              step: {
-                type: "NUMBER",
-                description: "The increment step for x-axis values."
-              }
-            },
-            required: ["functionStr", "xMin", "xMax", "step"]
-          }
-        }
-      ]
-    }
+  {
+    functionDeclarations: [
+      {
+        name: 'generate_graph_data',
+        description: 'Generates data for a mathematical graph based on a function string. Defaults to xMin=-10, xMax=10, step=1 if not provided.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            functionStr: { type: 'STRING', description: 'The mathematical function to be plotted, e.g., \'y = 2x + 5\'.' },
+            xMin: { type: 'NUMBER', description: 'Optional. The minimum value for x. Defaults to -10.' },
+            xMax: { type: 'NUMBER', description: 'Optional. The maximum value for x. Defaults to 10.' },
+            step: { type: 'NUMBER', description: 'Optional. The increment step for x. Defaults to 1.' },
+          },
+          required: ['functionStr'],
+        },
+      },
+    ],
+  },
 ];
+
+// Helper function to generate graph data and handle evaluation errors
+async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
+    console.log(`DEBUG: AI requested graph generation for function: ${functionStr} over [${xMin}, ${xMax}] with step ${step}`);
+    const data = [];
+    try {
+        // WARNING: Using eval() is a security risk in production. This is a simplified example.
+        let expression = functionStr.split('=')[1].trim();
+        // Sanitize the expression to be valid JavaScript
+        expression = expression
+            .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
+            .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication with variables and parentheses (e.g., 2x -> 2 * x, 3(x) -> 3 * (x))
+            .replace(/\)\( /g, ') * ('); // Handle implicit multiplication between parentheses (e.g., (x+1)(x-1) -> (x+1) * (x-1))
+
+        const func = new Function('x', `return ${expression};`);
+        for (let x = xMin; x <= xMax; x += step) {
+            data.push({ x: x, y: func(x) });
+        }
+        return data; // Return data on success
+    } catch (evalError) {
+        console.error("Error evaluating math function:", evalError);
+        return null; // Return null on failure
+    }
+}
 
 app.post('/api/chat', async (req, res) => {
     try {
@@ -380,54 +393,38 @@ app.post('/api/chat', async (req, res) => {
 
         if (functionCall && functionCall.name === 'generate_graph_data') {
             const { functionStr, xMin, xMax, step } = functionCall.args;
-            console.log(`DEBUG: AI requested graph generation for function: ${functionStr}`);
+            const graphData = await generateGraphData(functionStr, xMin, xMax, step);
 
-            const data = [];
-            try {
-                // WARNING: Using eval() is a security risk in production. This is a simplified example.
-                let expression = functionStr.split('=')[1].trim();
-                // Sanitize the expression to be valid JavaScript, e.g., '2x' -> '2 * x'
-                expression = expression.replace(/(\d+\.?\d*)\s*([a-zA-Z])/g, '$1 * $2');
-                const func = new Function('x', `return ${expression};`);
-                for (let x = xMin; x <= xMax; x += step) {
-                    data.push({ x: x, y: func(x) });
-                }
-
-                const imageUrl = await generateGraphImage(data, functionStr, 'x', 'y');
-
+            if (graphData) {
+                const imageUrl = await generateGraphImage(graphData, functionStr, 'x', 'y');
                 if (imageUrl) {
                     const kanaResponseText = `Here is the graph for ${functionStr}.`;
                     conversation.history.push({ role: 'user', parts: [{ text: message }] });
                     conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-
                     return res.json({
                         type: 'mathematical_graph',
                         kanaResponse: kanaResponseText,
                         generatedImageUrl: imageUrl
                     });
                 } else {
-                    throw new Error("Graph image generation failed.");
+                    // This case might happen if canvas fails, but the function was valid
+                    throw new Error("Graph image generation failed after data calculation.");
                 }
-
-            } catch (evalError) {
-                console.error("Error evaluating math function:", evalError);
-                const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression.");
+            } else {
+                // This case handles the evaluation error from generateGraphData
+                const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression and ensure it's valid.");
                 const kanaResponseText = fallbackResponse.response.text();
                 conversation.history.push({ role: 'user', parts: [{ text: message }] });
                 conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
                 return res.json({ kanaResponse: kanaResponseText });
             }
-
         } else {
             const kanaResponseText = response.text();
-            // Enhanced logging to debug empty responses
             console.log(`DEBUG: AI returned no function call. Raw response object:`, JSON.stringify(response, null, 2));
-
             conversation.history.push({ role: 'user', parts: [{ text: message }] });
             conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
             return res.json({ kanaResponse: kanaResponseText });
         }
-
     } catch (error) {
         console.error('Error in /api/chat:', error);
         res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
