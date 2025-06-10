@@ -299,8 +299,9 @@ app.post('/api/chat', async (req, res) => {
   const conversation = getOrCreateConversation(conversationId);
   
   // Combine server-side context with client-side history
+  const clientHistory = Array.isArray(history) ? history : [];
   const chat = geminiModel.startChat({
-      history: [...conversation.history, ...history],
+      history: [...conversation.history, ...clientHistory],
       generationConfig: { maxOutputTokens: 4096 }
   });
 
