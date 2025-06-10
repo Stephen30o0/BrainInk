@@ -170,35 +170,35 @@ app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), 
 
 app.get('/pdf-proxy', async (req, res) => {
     const { file, url } = req.query;
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+
     if (!file && !url) {
-        return res.status(400).send('Missing "file" or "url" query parameter.');
+        return res.status(400).json({ error: 'Missing "file" or "url" query parameter.' });
     }
 
     try {
-        res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
-
         if (file) {
             const sanitizedFile = path.basename(file);
             const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
 
             if (fs.existsSync(filePath)) {
                 res.setHeader('Content-Type', 'application/pdf');
-                fs.createReadStream(filePath).pipe(res);
+                return fs.createReadStream(filePath).pipe(res);
             } else {
-                res.status(404).send('Local file not found.');
+                return res.status(404).json({ error: 'Local file not found.' });
             }
         } else { // url
-            const urlObject = new URL(url);
+            new URL(url); // Validate URL format
             const response = await axios({ method: 'get', url: url, responseType: 'stream' });
             res.setHeader('Content-Type', 'application/pdf');
-            response.data.pipe(res);
+            return response.data.pipe(res);
         }
     } catch (error) {
         console.error('PDF Proxy Error:', error.message);
         if (error.message.includes('Invalid URL')) {
-            return res.status(400).send('Invalid URL format provided.');
+            return res.status(400).json({ error: 'Invalid URL format provided.' });
         }
-        res.status(500).send('Failed to fetch the PDF file.');
+        return res.status(500).json({ error: 'Failed to fetch the PDF file.' });
     }
 });
 
@@ -321,19 +321,25 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.post('/api/clear-note-context', (req, res) => {
-  const { conversationId } = req.body;
-  if (!conversationId) {
-    return res.status(400).json({ error: 'conversationId is required.' });
-  }
+  try {
+    const { conversationId } = req.body;
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId is required.' });
+    }
 
-  if (conversationContexts[conversationId]) {
-    console.log(`DEBUG: Clearing context for conversationId: ${conversationId}`);
-    conversationContexts[conversationId].history = [];
-    conversationContexts[conversationId].contextParts = [];
+    if (conversationContexts[conversationId]) {
+      console.log(`DEBUG: Clearing context for conversationId: ${conversationId}`);
+      // Reset the context for the given conversation
+      conversationContexts[conversationId] = {
+        history: [],
+        contextParts: [],
+      };
+    }
+    // Always return success, even if there was no context to clear.
     res.status(200).json({ message: 'Context cleared successfully.' });
-  } else {
-    console.log(`DEBUG: No context found to clear for conversationId: ${conversationId}`);
-    res.status(200).json({ message: 'No active context to clear.' });
+  } catch (error) {
+    console.error('Error in /clear-note-context:', error);
+    res.status(500).json({ error: 'An unexpected error occurred while clearing context.' });
   }
 });
 
