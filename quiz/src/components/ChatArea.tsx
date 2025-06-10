@@ -11,30 +11,7 @@ import quizzes from './data/QuizData';
 import pastPapers from './data/PastPaperData';
 import MessageItem from './MessageItem'; // Removed duplicate import
 
-// TODO: Centralize these interfaces in lib/types.ts
-interface CoreApiAuthor {
-  name: string;
-}
 
-interface LibraryItem {
-  id: string;
-  title: string;
-  authors?: CoreApiAuthor[];
-  category: string;
-  coverImage?: string;
-  description?: string;
-  publishDate?: string;
-  rating?: number;
-  views?: number;
-  readTime?: string;
-  storedFilename: string | null;
-  mimetype: string;
-  originalFilename?: string;
-  isExternal?: boolean;
-  externalUrl?: string;
-  abstract?: string;
-  size?: string;
-}
 import { Quiz, QuizQuestion, QuizAttempt } from '../lib/types';
 import { useQuiz } from '../lib/hooks/useQuiz';
 import QuizSession from './quiz/QuizSession';
@@ -445,12 +422,13 @@ const ChatArea = ({
     }
     setIsUploading(true);
     setUploadError(null);
-    const formData = new FormData();
-    formData.append('noteFile', selectedFile);
-
     const subject = activeChat?.subject || 'General';
     const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
+
+    const formData = new FormData();
+    formData.append('studyMaterial', selectedFile);
+    formData.append('conversationId', conversationId);
 
     try {
       const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
@@ -735,7 +713,7 @@ const ChatArea = ({
           {formattedTime}
         </div>
         <div className="bg-[#141b2d] p-4 rounded-lg border border-[#1a223a]">
-          <p className="mb-4">{question.question}</p>
+          <p className="mb-4">{question.questionText}</p>
           {question.type === 'multiple-choice' && question.options && <div className="space-y-2">
               {question.options.map((option: string, idx: number) => <button key={idx} onClick={() => answerQuestion(question.id, idx)} className="w-full text-left p-3 bg-[#1a223a] hover:bg-[#232d4a] rounded-md transition-colors">
                   {option}
@@ -825,7 +803,7 @@ const ChatArea = ({
                       Incorrect
                     </span>}
                 </div>
-                <p className="text-sm mt-1">{question.question}</p>
+                <p className="text-sm mt-1">{question.questionText}</p>
                 <button onClick={() => setShowingExplanation(prev => prev === question.id ? null : question.id)} className="text-xs text-blue-400 mt-2 flex items-center">
                   View Explanation
                 </button>
