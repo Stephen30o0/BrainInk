@@ -380,10 +380,18 @@ app.post('/api/chat', async (req, res) => {
         const conversation = getOrCreateConversation(conversationId);
         const clientHistory = Array.isArray(history) ? history : [];
 
+        // Combine the base system instruction with any document context for this specific conversation.
+        const effectiveSystemInstruction = {
+            parts: [
+                ...systemInstruction.parts,
+                ...conversation.contextParts
+            ]
+        };
+
         const chat = geminiModel.startChat({
             history: [...conversation.history, ...clientHistory],
             tools: tools,
-            systemInstruction: systemInstruction,
+            systemInstruction: effectiveSystemInstruction,
             generationConfig: { maxOutputTokens: 8192 }
         });
 
