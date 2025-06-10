@@ -543,6 +543,10 @@ const ChatArea = ({
     try {
       const response = await fetch(`${KANA_API_BASE_URL}/api/clear-note-context`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ conversationId }),
       });
       if (response.ok) {
         setUploadedNoteName(null);
