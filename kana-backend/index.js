@@ -371,7 +371,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { conversationId, message, history } = req.body;
+        const { conversationId, message, history, pdfContextUrl } = req.body;
 
         if (!conversationId || !message) {
             return res.status(400).json({ error: 'Missing conversationId or message.' });
@@ -379,6 +379,28 @@ app.post('/api/chat', async (req, res) => {
 
         const conversation = getOrCreateConversation(conversationId);
         const clientHistory = Array.isArray(history) ? history : [];
+
+        // If there's a specific PDF context URL from a past paper, fetch and add it.
+        if (pdfContextUrl) {
+            try {
+                console.log(`DEBUG: Fetching PDF context from URL: ${pdfContextUrl}`);
+                const response = await axios.get(pdfContextUrl, { responseType: 'arraybuffer' });
+                const pdfText = await extractTextFromFile('application/pdf', response.data);
+                if (pdfText) {
+                    const contextIdentifier = `PAST PAPER CONTEXT: ${pdfContextUrl}`;
+                    // Avoid adding duplicate context by checking for the identifier
+                    if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
+                        conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${pdfText}\n--- END OF ${contextIdentifier} ---` });
+                        console.log(`DEBUG: Added PDF context for conversation ${conversationId}.`);
+                    } else {
+                        console.log(`DEBUG: PDF context for ${pdfContextUrl} already exists.`);
+                    }
+                }
+            } catch (error) {
+                console.error(`ERROR fetching or processing PDF context from ${pdfContextUrl}:`, error.message);
+                // Non-fatal, just log and continue. The chat can proceed without this context.
+            }
+        }
 
         // Combine the base system instruction with any document context for this specific conversation.
         const effectiveSystemInstruction = {
