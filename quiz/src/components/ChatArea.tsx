@@ -76,6 +76,14 @@ const ChatArea = ({
   const [isStudyMaterialsPanelOpen, setIsStudyMaterialsPanelOpen] = React.useState<boolean>(false);
   const [selectedStudyMaterialContext, setSelectedStudyMaterialContext] = React.useState<LibraryItem | null>(null);
 
+  // Stable conversation ID for the current chat session.
+  const [conversationId, setConversationId] = React.useState<string>(uuidv4());
+
+  React.useEffect(() => {
+    // When the user switches to a different chat, generate a new ID to start a fresh conversation context.
+    setConversationId(uuidv4());
+  }, [activeChat]);
+
   const [quizSession, setQuizSession] = React.useState<{
     id: string;
     type: 'quiz' | 'pastpaper';
@@ -203,9 +211,9 @@ const ChatArea = ({
     const currentInput = input.trim(); // Capture input before clearing
     const currentPastedFile = pastedImageFile; // Capture file before clearing
 
-    // Define subject, conversationId, and title based on activeChat or defaults
+    // Define subject and title based on activeChat or defaults.
+    // The conversationId is now managed by a state variable to ensure it's stable for the session.
     const subject = activeChat?.subject || 'General';
-    const conversationId = activeChat?.id?.toString() || uuidv4();
     // For title, if it's a new chat (no activeChat.id yet), use a generic or input-derived title
     // If it's an existing chat, use activeChat.title
     const title = activeChat?.title || (currentInput.length > 0 ? currentInput.slice(0, 30) + '...' : 'New Chat');
@@ -429,7 +437,6 @@ const ChatArea = ({
     setIsUploading(true);
     setUploadError(null);
     const subject = activeChat?.subject || 'General';
-    const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
 
     const formData = new FormData();
@@ -522,7 +529,6 @@ const ChatArea = ({
 
   const handleClearNoteContext = async () => {
     const subject = activeChat?.subject || 'General';
-    const conversationId = activeChat?.id?.toString() || uuidv4();
     const title = activeChat?.title || 'System Message';
     try {
       const response = await fetch(`${KANA_API_BASE_URL}/api/clear-note-context`, {
