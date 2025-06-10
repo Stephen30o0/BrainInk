@@ -311,6 +311,39 @@ app.post('/api/save-external-item', async (req, res) => {
     }
 });
 
+const tools = [
+    {
+      functionDeclarations: [
+        {
+          name: "generate_graph_data",
+          description: "Generates data points for a mathematical function to be plotted on a graph.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              functionStr: {
+                type: "STRING",
+                description: "The mathematical function to plot, e.g., 'y = x^2 - 3'."
+              },
+              xMin: {
+                type: "NUMBER",
+                description: "The minimum value for the x-axis."
+              },
+              xMax: {
+                type: "NUMBER",
+                description: "The maximum value for the x-axis."
+              },
+              step: {
+                type: "NUMBER",
+                description: "The increment step for x-axis values."
+              }
+            },
+            required: ["functionStr", "xMin", "xMax", "step"]
+          }
+        }
+      ]
+    }
+];
+
 app.post('/api/chat', async (req, res) => {
     try {
         const { conversationId, message, history } = req.body;
