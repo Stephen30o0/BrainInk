@@ -390,8 +390,10 @@ app.post('/api/chat', async (req, res) => {
         const result = await chat.sendMessage(message);
         const response = result.response;
         const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+        const userMessage = Array.isArray(message) ? message.find(p => p.text)?.text || '' : message;
+        const isGraphRequest = /\b(plot|graph)\b/i.test(userMessage);
 
-        if (functionCall && functionCall.name === 'generate_graph_data') {
+        if (isGraphRequest && functionCall && functionCall.name === 'generate_graph_data') {
             const { functionStr, xMin, xMax, step } = functionCall.args;
             const graphData = await generateGraphData(functionStr, xMin, xMax, step);
 
