@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Send, XCircle, BookOpen, FileText, BarChart2, File, UploadCloud, X } from 'lucide-react'; // Cleaned up unused icons
 import { useMessages, useXP, useQuizAttempts, MessageWithSubject } from '../lib/store';
 import { Chat, PastPaper, LibraryItem } from '../lib/types'; // Moved PastPaper here too for consistency, Chat added, LibraryItem added
-import { Bar, Line, Pie, Doughnut, Radar, PolarArea } from 'react-chartjs-2';
+import { Bar, Line, Pie, Doughnut, Radar, PolarArea, Scatter } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -57,6 +57,7 @@ const DynamicChart = ({ type, data, options }: DynamicChartProps) => {
     case 'doughnut': return <Doughnut data={data} options={chartOptions} />;
     case 'radar': return <Radar data={data} options={chartOptions} />;
     case 'polararea': return <PolarArea data={data} options={chartOptions} />;
+    case 'scatter': return <Scatter data={data} options={chartOptions} />;
     default: return <p>Unsupported chart type: {type}</p>;
   }
 };
