@@ -135,7 +135,7 @@ export const Friends = () => {
       }
 
       // Call friend achievements API
-      const response = await fetch(`${API_BASE_URL}/achievements/${friendId}`, {
+      const response = await fetch(`${API_BASE_URL}/friends/${friendId}/achievements`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
