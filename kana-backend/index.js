@@ -371,7 +371,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const { conversationId, message, history, pdfContextUrl } = req.body;
+        const { conversationId, message, history, pdfContextUrl, studyMaterialContext } = req.body;
 
         if (!conversationId || !message) {
             return res.status(400).json({ error: 'Missing conversationId or message.' });
@@ -399,6 +399,46 @@ app.post('/api/chat', async (req, res) => {
             } catch (error) {
                 console.error(`ERROR fetching or processing PDF context from ${pdfContextUrl}:`, error.message);
                 // Non-fatal, just log and continue. The chat can proceed without this context.
+            }
+        }
+
+        // If there's a specific study material context, find and add it.
+        if (studyMaterialContext && studyMaterialContext.id) {
+            console.log(`DEBUG: Received request to use study material context with ID: ${studyMaterialContext.id}`);
+            try {
+                const material = studyMaterialsDb.find(m => m.id === studyMaterialContext.id);
+                if (material) {
+                    console.log(`DEBUG: Found study material: ${material.title}`);
+                    let materialText = null;
+
+                    // Case 1: Local file path exists
+                    if (material.filePath) {
+                        const fileBuffer = await fsPromises.readFile(material.filePath);
+                        materialText = await extractTextFromFile(material.mimetype, fileBuffer);
+                    } 
+                    // Case 2: Remote PDF URL exists (and no local path)
+                    else if (material.pdfUrl) {
+                        console.log(`DEBUG: Fetching study material PDF from URL: ${material.pdfUrl}`);
+                        const response = await axios.get(material.pdfUrl, { responseType: 'arraybuffer' });
+                        materialText = await extractTextFromFile('application/pdf', response.data);
+                    }
+
+                    if (materialText) {
+                        const contextIdentifier = `STUDY MATERIAL CONTEXT: ${material.title}`;
+                        if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
+                            conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${materialText}\n--- END OF ${contextIdentifier} ---` });
+                            console.log(`DEBUG: Added study material context for conversation ${conversationId}.`);
+                        } else {
+                            console.log(`DEBUG: Study material context for ${material.title} already exists.`);
+                        }
+                    } else {
+                        console.log(`WARN: Could not extract text from study material '${material.title}'.`);
+                    }
+                } else {
+                    console.log(`WARN: Study material with id ${studyMaterialContext.id} not found.`);
+                }
+            } catch (error) {
+                console.error(`ERROR processing study material context for id ${studyMaterialContext.id}:`, error.message);
             }
         }
 

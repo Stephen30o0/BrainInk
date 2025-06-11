@@ -70,7 +70,6 @@ const ChatArea = ({
   const [typingKanaMessage, setTypingKanaMessage] = React.useState<{ id: string; fullText: string; currentIndex: number } | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [activePdfContextUrl, setActivePdfContextUrl] = React.useState<string | null>(null);
-  const [useDocumentContext] = React.useState(true); // Default to using document context, setUseDocumentContext removed as it's unused
   const chatContainerRef = React.useRef<HTMLDivElement>(null);
   const [isQuizMode, setIsQuizMode] = React.useState(false); // Default to false
   const [isStudyMaterialsPanelOpen, setIsStudyMaterialsPanelOpen] = React.useState<boolean>(false);
@@ -357,7 +356,7 @@ const ChatArea = ({
           subject,
           conversationId,
           title,
-          activePdfUrl: useDocumentContext ? activePdfContextUrl : undefined,
+          pdfContextUrl: activePdfContextUrl, // Pass the active PDF context URL
           uploadedNoteName: uploadedNoteName ? uploadedNoteName : undefined,
         };
 
