@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
 import { motion } from 'framer-motion';
-import { Book, FileText, Film, Gamepad, Archive, ArrowLeft, Search, Clock, UploadCloud, Link } from 'lucide-react';
+import { Book, FileText, Film, Gamepad, Archive, ArrowLeft, Search, Clock, UploadCloud, Link, X } from 'lucide-react';
 import { TextbookViewer } from './TextbookViewer';
 import { ResearchPapers } from './ResearchPapers';
 import { VideoLectures } from './VideoLectures';
@@ -123,6 +123,45 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
   const [showSaveModal, setShowSaveModal] = useState<boolean>(false);
   const [selectedSaveCategory, setSelectedSaveCategory] = useState<string>('Research Papers'); // Default category
   const [saveStatusMessage, setSaveStatusMessage] = useState<string | null>(null);
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!window.confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials/${itemId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setAllLibraryItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        // Optionally, show a success message
+        // alert('Item deleted successfully.');
+      } else {
+        let errorMessage = `Error: ${response.status} ${response.statusText}`;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || 'An unknown error occurred.';
+          } else {
+            // The response is not JSON, it might be HTML or plain text.
+            const textError = await response.text();
+            console.error('Received non-JSON error response:', textError); // Log the full HTML/text for debugging
+            errorMessage = `The server returned an unexpected response. Please check the console for details.`;
+          }
+        } catch (e) {
+          console.error('Failed to parse error response:', e);
+        }
+        console.error('Failed to delete item:', errorMessage);
+        alert(`Failed to delete item: ${errorMessage}`);
+      }
+    } catch (error) {
+      console.error('An error occurred while deleting the item:', error);
+      alert('An error occurred while deleting the item.');
+    }
+  };
 
 
   const transformBackendMaterialToLibraryItem = useCallback((material: BackendStudyMaterial & Partial<CoreSearchResultItem> & { isExternal?: boolean, externalUrl?: string, sourceApi?: string, topic?: string }): LibraryItem => {
@@ -736,10 +775,21 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
           {filteredItems.map(item => (
             <motion.div
               key={item.id}
-              className="bg-dark/40 rounded-lg p-4 border border-primary/20 cursor-pointer hover:shadow-xl hover:border-accent/70 transition-all duration-300 ease-in-out"
+              className="relative group bg-dark/60 rounded-lg shadow-lg overflow-hidden cursor-pointer border border-primary/20 hover:border-primary/50 transition-colors duration-300"
               onClick={() => setSelectedItem(item)}
-              whileHover={{ y: -5 }}
+              layoutId={`card-container-${item.id}`}
             >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevents the card's onClick from firing
+                  handleDeleteItem(item.id);
+                }}
+                className="absolute top-2 right-2 z-10 p-1.5 bg-red-600/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                aria-label="Delete item"
+                title="Delete Item"
+              >
+                <X size={16} />
+              </button>
               <div className="w-full h-32 bg-dark/60 rounded-md flex items-center justify-center text-5xl mb-3 text-gray-500">
                 {item.coverImage || '❓'} 
               </div>
@@ -773,7 +823,6 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
           >
             <h3 className="text-xl font-pixel text-accent mb-1">Save to K.A.N.A. Library</h3>
             <p className="text-sm text-gray-300 mb-4 truncate">Item: {itemToSave.title}</p>
-            
             <div className="mb-4">
               <label htmlFor="category-select" className="block text-sm font-medium text-gray-300 mb-1">Select Category:</label>
               <select 
