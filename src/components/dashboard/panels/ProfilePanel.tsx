@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// import { useNavigate } from 'react-router-dom'; // No longer needed here
 import { Trophy, Star, Medal, Clock, Calendar, Settings, X, User, Mail } from 'lucide-react';
-import { useProfileCustomizationModal } from '../../../contexts/ProfileCustomizationModalContext'; // Adjusted path
+import { apiService } from '../../../services/apiService';
 
 interface ProfileData {
   username: string;
@@ -32,83 +31,132 @@ interface Achievement {
   earned_at?: string;
 }
 
-interface UserProgressResponse {
-  total_xp: number;
-  current_rank?: {
-    id: number;
-    name: string;
-    tier: string;
-    level: number;
-    required_xp: number;
-    emoji?: string;
-  };
-  login_streak: number;
-  total_quiz_completed: number;
-  tournaments_won: number;
-  tournaments_entered: number;
-  courses_completed: number;
-  time_spent_hours: number;
-}
-
-interface UserStatsResponse {
-  user_id: number;
-  username: string;
-  total_xp: number;
-  current_rank: string;
-  achievements_count: number;
-  stats: {
-    login_streak: number;
-    total_quiz_completed: number;
-    tournaments_won: number;
-    tournaments_entered: number;
-    courses_completed: number;
-    time_spent_hours: number;
-  };
-}
-
 export const ProfilePanel = () => {
-  // const navigate = useNavigate(); // No longer needed here
-  const { openProfileModal, profileUpdateKey } = useProfileCustomizationModal();
-  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
-  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
     email: '',
-    avatar: '', // Will be populated by useEffect or API
+    avatar: '',
     bio: '',
     fname: '',
     lname: ''
   });
   const [recentAchievements, setRecentAchievements] = useState<Achievement[]>([]);
 
-  useEffect(() => {
-    const storedAvatar = localStorage.getItem('userAvatar');
-    const storedDisplayName = localStorage.getItem('userDisplayName');
-    if (storedAvatar) {
-      setCurrentUserAvatar(storedAvatar);
+  // Function to generate user initials
+  const getUserInitials = (fname?: string, lname?: string, username?: string): string => {
+    if (fname && lname) {
+      return (fname.charAt(0) + lname.charAt(0)).toUpperCase();
     }
-    if (storedDisplayName) {
-      setCurrentUserDisplayName(storedDisplayName);
+    
+    if (fname) {
+      return fname.substring(0, 2).toUpperCase();
     }
-    console.log('[ProfilePanel] useEffect for avatar/displayName ran. Update Key:', profileUpdateKey);
-  }, [profileUpdateKey]); // Add profileUpdateKey to dependency array
+    
+    if (lname) {
+      return lname.substring(0, 2).toUpperCase();
+    }
+    
+    if (username && username.length >= 2) {
+      return username.substring(0, 2).toUpperCase();
+    }
+    
+    return username?.charAt(0).toUpperCase() || '?';
+  };
 
-  // Enhanced token validation and refresh
+  // Enhanced token validation
   const getValidToken = async (): Promise<string | null> => {
     const token = localStorage.getItem('access_token');
     if (!token) {
-      console.log('No access token found in simplified getValidToken');
-      // setError('Please log in again.'); // Temporarily commented out to reduce complexity
+      console.log('No access token found');
       return null;
     }
-    console.log('Simplified getValidToken returning token:', token ? token.substring(0,10)+'...' : null);
     return token;
   };
 
-  const fetchUserProgress = async () => {
+  // Load profile data using apiService (fast retrieval)
+  const loadProfileData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Try to get preloaded data first
+      let preloadedData = apiService.getPreloadedData();
+      
+      if (!preloadedData) {
+        console.log('No preloaded data found, loading...');
+        try {
+          preloadedData = await apiService.preloadAllData();
+        } catch (preloadError) {
+          console.error('Failed to preload data:', preloadError);
+          // Fallback to direct API calls
+          await loadProfileFromAPI();
+          return;
+        }
+      }
+
+      // Get data from preloaded cache
+      const userProfile = apiService.getUserProfile();
+      const progress = apiService.getUserProgress();
+      const stats = apiService.getUserStats();
+      const achievements = apiService.getAchievements();
+
+      console.log('🔍 Raw userProfile data:', userProfile);
+      console.log('🔍 Raw progress data:', progress);
+      console.log('🔍 Raw stats data:', stats);
+
+      // Set profile data from preloaded cache with safe defaults
+      if (userProfile || progress || stats) {
+        const profileInfo: ProfileData = {
+          username: userProfile?.username || stats?.username || 'Unknown User',
+          email: userProfile?.email || '',
+          fname: userProfile?.fname || '',
+          lname: userProfile?.lname || '',
+          avatar: '',
+          bio: userProfile?.bio || 'No bio available',
+          totalXp: progress?.total_xp || stats?.total_xp || 0,
+          rank: progress?.current_rank?.name || stats?.current_rank || 'Beginner',
+          league: progress?.current_rank?.tier || 'Novice',
+          studyHours: progress?.time_spent_hours || stats?.stats?.time_spent_hours || 0,
+          loginStreak: progress?.login_streak || stats?.stats?.login_streak || 0,
+          tournamentsWon: progress?.tournaments_won || stats?.stats?.tournaments_won || 0,
+          tournamentsEntered: progress?.tournaments_entered || stats?.stats?.tournaments_entered || 0,
+          coursesCompleted: progress?.courses_completed || stats?.stats?.courses_completed || 0,
+          quizCompleted: progress?.total_quiz_completed || stats?.stats?.total_quiz_completed || 0,
+          memberSince: 'Member'
+        };
+
+        // Generate avatar if none exists
+        profileInfo.avatar = getUserInitials(profileInfo.fname, profileInfo.lname, profileInfo.username);
+
+        setProfileData(profileInfo);
+        console.log('✅ Profile data set:', profileInfo);
+      }
+
+      // Get recent achievements from preloaded data
+      const recentAchievements = achievements
+        .filter(achievement => achievement.earned_at)
+        .sort((a, b) => new Date(b.earned_at!).getTime() - new Date(a.earned_at!).getTime())
+        .slice(0, 5);
+
+      setRecentAchievements(recentAchievements);
+
+      console.log('✅ Profile data loaded from cache');
+
+    } catch (err: any) {
+      console.error('Error loading profile data:', err);
+      setError('Failed to load profile data');
+      // Fallback to API
+      await loadProfileFromAPI();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fallback API loading method (same as your original)
+  const loadProfileFromAPI = async () => {
     const token = await getValidToken();
     if (!token) {
       setLoading(false);
@@ -116,28 +164,80 @@ export const ProfilePanel = () => {
     }
 
     try {
-      console.log('Making request to: https://brainink-backend-achivements-micro.onrender.com/progress');
-      console.log('Using token:', token.substring(0, 20) + '...');
+      console.log('Loading profile data from API fallback...');
 
+      // Get user data from token first
+      const tokenUserData = getUserDataFromToken();
+      console.log('User data from token:', tokenUserData);
+      
+      // Set initial profile data from token
+      setProfileData(prev => ({
+        ...prev,
+        fname: tokenUserData.fname || '',
+        lname: tokenUserData.lname || '',
+        username: tokenUserData.username || '',
+        email: tokenUserData.email || '',
+        avatar: getUserInitials(tokenUserData.fname, tokenUserData.lname, tokenUserData.username)
+      }));
+
+      // Then fetch additional data from APIs
+      await Promise.all([
+        fetchUserProgress(),
+        fetchUserStats(),
+        fetchUserAchievements()
+      ]);
+
+    } catch (err: any) {
+      console.error('Error loading profile from API:', err);
+      setError('Failed to load profile data');
+    }
+  };
+
+  // Function to extract user data from token (same as your original)
+  const getUserDataFromToken = (): { fname?: string; lname?: string; username?: string; email?: string } => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) return {};
+
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) return {};
+
+      const base64Payload = tokenParts[1];
+      const paddedPayload = base64Payload.padEnd(base64Payload.length + (4 - base64Payload.length % 4) % 4, '=');
+      const decodedPayload = atob(paddedPayload);
+      const payload = JSON.parse(decodedPayload);
+      
+      console.log('Decoded token payload for user data:', payload);
+      
+      return {
+        fname: payload.fname || payload.first_name,
+        lname: payload.lname || payload.last_name,
+        username: payload.username || payload.sub,
+        email: payload.email
+      };
+    } catch (error) {
+      console.error('Error extracting user data from token:', error);
+      return {};
+    }
+  };
+
+  // Original API methods (kept as fallback)
+  const fetchUserProgress = async () => {
+    const token = await getValidToken();
+    if (!token) return;
+
+    try {
       const response = await fetch('https://brainink-backend-achivements-micro.onrender.com/progress', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          // Add additional headers that might be needed
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
         }
       });
 
-      console.log('User Progress API Response status:', response.status);
-      console.log('User Progress API Response headers:', Object.fromEntries(response.headers.entries()));
-      
       if (response.ok) {
-        const data: UserProgressResponse = await response.json();
-        console.log('User Progress API Response data:', data);
-        
+        const data = await response.json();
         setProfileData(prev => ({
           ...prev,
           totalXp: data.total_xp || 0,
@@ -150,149 +250,65 @@ export const ProfilePanel = () => {
           coursesCompleted: data.courses_completed || 0,
           studyHours: data.time_spent_hours || 0
         }));
-        
-        // Clear any previous errors
-        setError(null);
-      } else {
-        const errorText = await response.text();
-        console.error('User Progress API Error Response:', errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { detail: `HTTP ${response.status}: ${errorText}` };
-        }
-        
-        console.error('User Progress API Error: ' + JSON.stringify(errorData));
-        
-        if (response.status === 401) {
-          // Handle authentication error like in SignUp.tsx
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('encrypted_user_data');
-          setError('Authentication failed. Please log in again.');
-        } else {
-          setError(errorData.detail || `Failed to fetch user progress (${response.status})`);
-        }
       }
     } catch (err) {
-      console.error('Network error fetching user progress:', err);
-      setError('Network error while fetching user progress. Please check your connection.');
+      console.error('Error fetching user progress:', err);
     }
   };
 
   const fetchUserStats = async () => {
     const token = await getValidToken();
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     try {
-      console.log('Making request to: https://brainink-backend-achivements-micro.onrender.com/stats');
-      console.log('Using token:', token.substring(0, 20) + '...');
-
       const response = await fetch('https://brainink-backend-achivements-micro.onrender.com/stats', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
         }
       });
 
-      console.log('User Stats API Response status:', response.status);
-      console.log('User Stats API Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (response.ok) {
-        const data: UserStatsResponse = await response.json();
-        console.log('User Stats API Response data:', data);
-
+        const data = await response.json();
         setProfileData(prev => ({
           ...prev,
-          username: currentUserDisplayName || data.username || prev.username || 'User',
+          username: data.username || prev.username || 'User',
           memberSince: 'Member',
-          avatar: currentUserAvatar || data.username?.substring(0, 2).toUpperCase() || prev.avatar
+          avatar: getUserInitials(prev.fname, prev.lname, data.username)
         }));
-      } else {
-        const errorText = await response.text();
-        console.error('User Stats API Error Response:', errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { detail: `HTTP ${response.status}: ${errorText}` };
-        }
-        
-        console.error('User Stats API Error: ' + JSON.stringify(errorData));
-        
-        if (response.status === 401) {
-          console.warn('Authentication failed for stats - clearing tokens');
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('encrypted_user_data');
-          setError('Session expired. Please log in again.');
-        }
       }
     } catch (err) {
-      console.error('Network error fetching user stats:', err);
-      // Don't set error here as this is secondary data
-    } finally {
-      setLoading(false);
+      console.error('Error fetching user stats:', err);
     }
   };
 
   const fetchUserAchievements = async () => {
     const token = await getValidToken();
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     try {
-      console.log('Making request to: https://brainink-backend-achivements-micro.onrender.com/achievements');
-      console.log('Using token:', token.substring(0, 20) + '...');
-
       const response = await fetch('https://brainink-backend-achivements-micro.onrender.com/achievements', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
         }
       });
 
-      console.log('User Achievements API Response status:', response.status);
-      console.log('User Achievements API Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (response.ok) {
-        const data: Achievement[] = await response.json();
-        console.log('User Achievements API Response data:', data);
-        
-        // Sort by earned date and take the 3 most recent
+        const data = await response.json();
         const sortedAchievements = data
-          .filter(achievement => achievement.earned_at)
-          .sort((a, b) => new Date(b.earned_at!).getTime() - new Date(a.earned_at!).getTime())
+          .filter((achievement: Achievement) => achievement.earned_at)
+          .sort((a: Achievement, b: Achievement) => new Date(b.earned_at!).getTime() - new Date(a.earned_at!).getTime())
           .slice(0, 3);
           
         setRecentAchievements(sortedAchievements);
-      } else {
-        const errorText = await response.text();
-        console.error('User Achievements API Error Response:', errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { detail: `HTTP ${response.status}: ${errorText}` };
-        }
-        
-        console.error('User Achievements API Error: ' + JSON.stringify(errorData));
       }
     } catch (err) {
-      console.error('Network error fetching achievements:', err);
+      console.error('Error fetching achievements:', err);
     }
   };
 
@@ -308,9 +324,6 @@ export const ProfilePanel = () => {
     }
 
     try {
-      console.log('Making request to: https://brainink-backend.onrender.com/update-profile');
-      console.log('Using token:', token.substring(0, 20) + '...');
-
       const response = await fetch('https://brainink-backend.onrender.com/update-profile', {
         method: 'PUT',
         headers: {
@@ -326,50 +339,37 @@ export const ProfilePanel = () => {
         })
       });
 
-      console.log('Update Profile API Response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('Update Profile API Response data:', data);
         
-        // Update token if provided (following SignUp.tsx pattern)
         if (data.access_token) {
           localStorage.setItem('access_token', data.access_token);
-          console.log('Updated access token in localStorage');
         }
         
         if (data.encrypted_data) {
           localStorage.setItem('encrypted_user_data', data.encrypted_data);
-          console.log('Updated encrypted user data in localStorage');
         }
+        
+        // Update avatar with new initials
+        setProfileData(prev => ({
+          ...prev,
+          avatar: getUserInitials(prev.fname, prev.lname, prev.username)
+        }));
         
         setIsEditing(false);
         setError(null);
         
-        // Refresh data
-        await Promise.all([
-          fetchUserStats(),
-          fetchUserProgress(),
-          fetchUserAchievements()
-        ]);
+        // Refresh the cache and reload data
+        await apiService.refreshData('user');
+        await loadProfileData();
         
-        console.log('Profile updated successfully');
       } else {
         const errorText = await response.text();
-        console.error('Update Profile API Error Response:', errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { detail: `HTTP ${response.status}: ${errorText}` };
-        }
-        
-        setError(errorData.detail || 'Failed to update profile');
+        setError('Failed to update profile');
       }
     } catch (err) {
-      console.error('Network error updating profile:', err);
-      setError('Network error while updating profile. Please check your connection.');
+      console.error('Error updating profile:', err);
+      setError('Network error while updating profile');
     } finally {
       setLoading(false);
     }
@@ -377,43 +377,25 @@ export const ProfilePanel = () => {
 
   // Retry function for failed requests
   const retryFetchData = async () => {
-    setLoading(true);
-    setError(null);
-    
-    await Promise.all([
-      fetchUserProgress(),
-      fetchUserStats(),
-      fetchUserAchievements()
-    ]);
+    await apiService.refreshData('user');
+    await loadProfileData();
   };
 
-  // Check for authentication on component mount
+  // Initialize component
   useEffect(() => {
-    const initializeProfile = async () => {
-      const token = await getValidToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      // If token is valid, proceed with fetching data
-      await Promise.all([
-        fetchUserProgress(),
-        fetchUserStats(),
-        fetchUserAchievements()
-      ]);
-    };
-
-    initializeProfile();
+    loadProfileData();
   }, []);
 
-  // Debug: Log current state
+  // Update avatar whenever name or username changes
   useEffect(() => {
-    console.log('Current profileData:', profileData);
-    console.log('Current loading state:', loading);
-    console.log('Current error state:', error);
-    console.log('Current token:', localStorage.getItem('access_token')?.substring(0, 20) + '...');
-  }, [profileData, loading, error]);
+    const newAvatar = getUserInitials(profileData.fname, profileData.lname, profileData.username);
+    if (newAvatar !== profileData.avatar) {
+      setProfileData(prev => ({
+        ...prev,
+        avatar: newAvatar
+      }));
+    }
+  }, [profileData.fname, profileData.lname, profileData.username]);
 
   if (loading && !profileData.username) {
     return (
@@ -448,29 +430,13 @@ export const ProfilePanel = () => {
 
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <button
-          onClick={openProfileModal}
-          className="w-20 h-20 flex items-center justify-center relative group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-dark rounded-lg cursor-pointer"
-          aria-label="Edit profile avatar"
-        >
-          {(() => {
-            const avatarValue = currentUserAvatar || profileData.avatar;
-            const altText = currentUserDisplayName || profileData.username || 'User Avatar';
-            if (avatarValue && (avatarValue.startsWith('http') || avatarValue.includes('/'))) {
-              return <img src={avatarValue} alt={altText} className="max-w-full max-h-full object-contain pointer-events-none" />;
-            } else if (avatarValue) {
-              return <span className="text-5xl pointer-events-none">{avatarValue}</span>;
-            } else {
-              return <span className="text-5xl pointer-events-none">👤</span>;
-            }
-          })()}
-          {/* Simple Edit Icon Overlay on hover - uncomment and style further if desired */}
-          {/* <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none">
-            <Settings size={32} className="text-white" />
-          </div> */}
-        </button>
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
+          <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
+            {profileData.avatar || '?'}
+          </div>
+        </div>
         <div>
-          <h2 className="font-pixel text-xl text-primary">{currentUserDisplayName || profileData.username}</h2>
+          <h2 className="font-pixel text-xl text-primary">{profileData.username || 'User'}</h2>
           <div className="flex items-center gap-2 mt-1">
             <Medal size={14} className="text-yellow-400" />
             <span className="text-gray-400 text-sm">{profileData.rank}</span>
@@ -609,26 +575,14 @@ export const ProfilePanel = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Avatar Display - Clickable to open modal */}
+              {/* Avatar Display */}
               <div className="flex flex-col items-center gap-4 mb-6">
-                <button
-                  type="button" // Important: type="button" to prevent form submission
-                  onClick={openProfileModal} 
-                  className="w-24 h-24 flex items-center justify-center rounded-lg overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-dark"
-                  aria-label="Edit avatar via modal"
-                >
-                  {(currentUserAvatar && (currentUserAvatar.startsWith('http') || currentUserAvatar.includes('/'))) ? (
-                    <img src={currentUserAvatar} alt="User Avatar" className="w-full h-full object-cover" />
-                  ) : currentUserAvatar && currentUserAvatar.length <= 2 ? (
-                    <span className="text-5xl">{currentUserAvatar}</span> /* Increased size slightly */
-                  ) : profileData.avatar && (profileData.avatar.startsWith('http') || profileData.avatar.includes('/')) ? (
-                    <img src={profileData.avatar} alt="User Avatar" className="w-full h-full object-cover" />
-                  ) : profileData.avatar && profileData.avatar.length <= 2 ? (
-                    <span className="text-5xl">{profileData.avatar}</span> /* Increased size slightly */
-                  ) : (
-                    <span className="text-5xl">👤</span>
-                  )}
-                </button>
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
+                  <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
+                    {profileData.avatar || '?'}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">Avatar based on your name initials</p>
               </div>
 
               {/* First Name */}

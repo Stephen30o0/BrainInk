@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Search, Phone, Video, Image as ImageIcon, Smile, Send, Heart, MoreHorizontal, X, Camera } from 'lucide-react';
+import { apiService } from '../../services/apiService';
 
-// API Configuration
-const API_BASE_URL = 'https://brainink-backend-freinds-micro.onrender.com/friends';
-
-// Types and Interfaces
+// Define types locally since import is causing issues
 interface User {
   id: number;
   username: string;
   fname: string;
   lname: string;
   avatar: string;
+  email?: string;
 }
 
 interface Message {
@@ -60,46 +59,38 @@ export const MessagesPanel = ({
   const [sendingMessage, setSendingMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Token validation and user ID extraction
-  const getValidToken = async (): Promise<string | null> => {
+  // API Configuration
+  const API_BASE_URL = 'https://brainink-backend-freinds-micro.onrender.com/friends';
+
+  // Token validation function
+  const getValidToken = (): string | null => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       console.log('No access token found');
       return null;
     }
-    console.log('Token found:', token.substring(0, 10) + '...');
     return token;
   };
 
+  // Token utility functions
   const getUserIdFromToken = (token: string): number | null => {
     try {
       const tokenParts = token.split('.');
-      if (tokenParts.length !== 3) {
-        console.error('Invalid token format');
-        return null;
-      }
+      if (tokenParts.length !== 3) return null;
 
       const base64Payload = tokenParts[1];
       const paddedPayload = base64Payload.padEnd(base64Payload.length + (4 - base64Payload.length % 4) % 4, '=');
       const decodedPayload = atob(paddedPayload);
       const payload = JSON.parse(decodedPayload);
 
-      console.log('Decoded token payload:', payload);
-
-      const userId = payload.user_id || payload.sub || payload.id || payload.userId;
-      if (!userId) {
-        return null;
-      }
-
-      console.log('Extracted user ID:', userId);
-      return parseInt(userId);
+      return payload.user_id || payload.sub || payload.id || payload.userId ?
+        parseInt(payload.user_id || payload.sub || payload.id || payload.userId) : null;
     } catch (error) {
       console.error('Error decoding token:', error);
       return null;
     }
   };
 
-  // Format timestamp for display
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
@@ -119,9 +110,90 @@ export const MessagesPanel = ({
     }
   };
 
+  // Load chats from preloaded data
+  const loadChatsFromPreloadedData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get preloaded data
+      let preloadedData = apiService.getPreloadedData();
+
+      if (!preloadedData) {
+        console.log('No preloaded data found, loading...');
+        try {
+          preloadedData = await apiService.preloadAllData();
+        } catch (preloadError) {
+          console.error('Failed to preload data:', preloadError);
+          // Fallback to regular loading
+          await loadFriends();
+          return;
+        }
+      }
+
+      const friends = apiService.getFriends();
+      const token = getValidToken();
+
+      if (!token) {
+        setError('Please log in to view messages');
+        return;
+      }
+
+      // Extract user ID from token
+      const userId = getUserIdFromToken(token);
+      if (!userId) {
+        setError('Unable to identify user');
+        return;
+      }
+
+      setCurrentUserId(userId);
+
+      // Convert friends to chats with preloaded conversation data
+      const chatsWithMessages = friends.map(friend => {
+        const conversation = apiService.getConversation(friend.username);
+        const latestMessage = conversation.length > 0 ? conversation[conversation.length - 1] : undefined;
+
+        // Calculate unread count
+        const unreadCount = conversation.filter(msg =>
+          msg.sender_id !== userId &&
+          (!msg.read_at || msg.status !== 'read')
+        ).length;
+
+        return {
+          id: friend.id.toString(),
+          user: friend,
+          messages: [],
+          unreadCount,
+          lastMessage: latestMessage ? {
+            ...latestMessage,
+            timestamp: formatTimestamp(latestMessage.created_at)
+          } : undefined
+        };
+      });
+
+      // Sort by last message timestamp
+      chatsWithMessages.sort((a, b) => {
+        if (!a.lastMessage && !b.lastMessage) return 0;
+        if (!a.lastMessage) return 1;
+        if (!b.lastMessage) return -1;
+
+        return new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime();
+      });
+
+      setChats(chatsWithMessages);
+      console.log('Loaded chats from preloaded data:', chatsWithMessages.length);
+
+    } catch (err: any) {
+      console.error('Error loading chats:', err);
+      setError('Failed to load conversations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Send message function
   const sendMessage = async (friendUsername: string, content: string): Promise<boolean> => {
-    const token = await getValidToken();
+    const token = getValidToken();
     if (!token || !currentUserId) {
       console.log('No token or user ID for sending message');
       return false;
@@ -170,7 +242,7 @@ export const MessagesPanel = ({
 
   // Mark messages as read
   const markMessagesAsRead = async (friendUsername: string): Promise<void> => {
-    const token = await getValidToken();
+    const token = getValidToken();
     if (!token || !currentUserId) return;
 
     try {
@@ -199,7 +271,7 @@ export const MessagesPanel = ({
 
   // Load conversation with friend
   const loadConversation = async (friendUsername: string, page: number = 1, pageSize: number = 50): Promise<Message[]> => {
-    const token = await getValidToken();
+    const token = getValidToken();
     if (!token || !currentUserId) {
       console.log('No token or user ID for conversation');
       return [];
@@ -251,7 +323,7 @@ export const MessagesPanel = ({
 
   // Load friends list to create chats
   const loadFriends = async () => {
-    const token = await getValidToken();
+    const token = getValidToken();
     if (!token || !currentUserId) {
       return;
     }
@@ -470,26 +542,6 @@ export const MessagesPanel = ({
     }
   };
 
-  // Update the useEffect for initial scroll when messages load
-  useEffect(() => {
-    if (selectedChat) {
-      const active = chats.find(chat => chat.id === selectedChat);
-      if (active && active.messages.length > 0) {
-        // Immediate scroll when messages are first loaded
-        setTimeout(() => {
-          scrollToBottomImmediate();
-        }, 200);
-      }
-    }
-  }, [selectedChat, chats]);
-
-  // Keep the existing useEffect for smooth scrolling during conversation
-  useEffect(() => {
-    if (selectedChat) {
-      scrollToBottom();
-    }
-  }, [chats]);
-
   // Initialize component
   useEffect(() => {
     const initializeMessages = async () => {
@@ -499,7 +551,7 @@ export const MessagesPanel = ({
       setError(null);
       setChats([]);
 
-      const token = await getValidToken();
+      const token = getValidToken();
       if (!token) {
         setError('Please log in to view messages');
         setLoading(false);
@@ -521,15 +573,22 @@ export const MessagesPanel = ({
 
   useEffect(() => {
     if (currentUserId && isOpen) {
-      loadFriends().finally(() => setLoading(false));
+      loadChatsFromPreloadedData();
     }
   }, [currentUserId, isOpen]);
 
+  // Update the useEffect for initial scroll when messages load
   useEffect(() => {
     if (selectedChat) {
-      scrollToBottom();
+      const active = chats.find(chat => chat.id === selectedChat);
+      if (active && active.messages.length > 0) {
+        // Immediate scroll when messages are first loaded
+        setTimeout(() => {
+          scrollToBottomImmediate();
+        }, 200);
+      }
     }
-  }, [selectedChat]);
+  }, [selectedChat, chats]);
 
   if (!isOpen) return null;
 
@@ -581,26 +640,19 @@ export const MessagesPanel = ({
             <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="p-4 text-center text-gray-400">
-                  Loading friends...
+                  Loading conversations...
                 </div>
               ) : filteredChats.length === 0 ? (
                 <div className="p-4 text-center text-gray-400">
-                  {searchQuery ? 'No friends found matching search' : (
-                    chats.length === 0 ? 'No friends connected yet' : 'No friends found'
-                  )}
-                  <div className="text-xs mt-2">
-                    {chats.length === 0 && !searchQuery && (
-                      <span>Add friends to start messaging</span>
-                    )}
-                  </div>
+                  {searchQuery ? 'No conversations found' : 'No friends to message yet'}
                 </div>
               ) : (
                 filteredChats.map(chat => (
                   <div
                     key={chat.id}
                     onClick={() => handleChatSelect(chat.id)}
-                    className={`p-3 flex items-center gap-3 cursor-pointer transition-colors
-                      ${selectedChat === chat.id ? 'bg-primary/10' : 'hover:bg-primary/5'}`}
+                    className={`p-3 flex items-center gap-3 cursor-pointer transition-colors ${selectedChat === chat.id ? 'bg-primary/10' : 'hover:bg-primary/5'
+                      }`}
                   >
                     <div className="relative">
                       <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg">
@@ -625,9 +677,7 @@ export const MessagesPanel = ({
                     </div>
                     {chat.unreadCount > 0 && (
                       <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-xs text-white">
-                          {chat.unreadCount}
-                        </span>
+                        <span className="text-xs text-white">{chat.unreadCount}</span>
                       </div>
                     )}
                   </div>
@@ -640,7 +690,7 @@ export const MessagesPanel = ({
           <div className="flex-1 flex flex-col min-h-0">
             {selectedChat && activeChat ? (
               <>
-                {/* Chat Header - Fixed height */}
+                {/* Chat Header */}
                 <div className="p-4 border-b border-primary/20 flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
@@ -671,44 +721,40 @@ export const MessagesPanel = ({
                   </div>
                 </div>
 
-                {/* Messages Container - Scrollable area */}
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="p-4 space-y-4">
-                      {activeChat.messages.length === 0 ? (
-                        <div className="text-center text-gray-400 py-8">
-                          No messages yet. Start the conversation!
-                        </div>
-                      ) : (
-                        activeChat.messages.map(message => (
-                          <div key={message.id} className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className="max-w-[70%] group">
-                              <div className={`rounded-2xl px-4 py-2 ${message.isMe
-                                ? 'bg-primary/20 text-white'
-                                : 'bg-gray-800 text-white'
-                                }`}>
-                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-400">
-                                  {message.timestamp}
+                {/* Messages Container - Scrollable */}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <div className="h-full overflow-y-auto p-4 space-y-4">
+                    {activeChat.messages.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">
+                        No messages yet. Start the conversation!
+                      </div>
+                    ) : (
+                      activeChat.messages.map(message => (
+                        <div key={message.id} className={`flex ${message.isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className="max-w-[70%] group">
+                            <div className={`rounded-2xl px-4 py-2 ${message.isMe
+                              ? 'bg-primary/20 text-white'
+                              : 'bg-gray-800 text-white'
+                              }`}>
+                              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-gray-400">{message.timestamp}</span>
+                              {message.isMe && (
+                                <span className="text-xs text-gray-500">
+                                  {message.status === 'read' ? '✓✓' : message.status === 'sent' ? '✓' : '○'}
                                 </span>
-                                {message.isMe && (
-                                  <span className="text-xs text-gray-500">
-                                    {message.status === 'read' ? '✓✓' : message.status === 'sent' ? '✓' : '○'}
-                                  </span>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </div>
-                        ))
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
+                        </div>
+                      ))
+                    )}
+                    <div ref={messagesEndRef} />
                   </div>
                 </div>
 
-                {/* Input Area - Fixed at bottom */}
+                {/* Input Area */}
                 <div className="p-3 border-t border-primary/20 bg-dark/50 flex-shrink-0">
                   <form onSubmit={handleSendMessage} className="flex items-center gap-3">
                     <button type="button" className="text-primary hover:text-primary/80">
@@ -734,15 +780,13 @@ export const MessagesPanel = ({
                     <button
                       type="submit"
                       disabled={!newMessage.trim() || sendingMessage}
-                      className="text-primary hover:text-primary/80 disabled:opacity-50 transition-opacity"
+                      className="text-primary hover:text-primary/80 disabled:opacity-50"
                     >
                       <Send size={20} />
                     </button>
                   </form>
                   {sendingMessage && (
-                    <div className="text-xs text-gray-400 mt-1 px-4">
-                      Sending...
-                    </div>
+                    <div className="text-xs text-gray-400 mt-1 px-4">Sending...</div>
                   )}
                 </div>
               </>
@@ -750,12 +794,7 @@ export const MessagesPanel = ({
               <div className="flex-1 flex items-center justify-center text-gray-400">
                 <div className="text-center">
                   <h3 className="text-lg font-medium mb-2">Select a chat to start messaging</h3>
-                  <p className="text-sm">
-                    {chats.length === 0
-                      ? 'Add friends in the Friends panel to start messaging'
-                      : 'Choose a friend from your list to begin chatting'
-                    }
-                  </p>
+                  <p className="text-sm">Choose a friend from your list to begin chatting</p>
                 </div>
               </div>
             )}

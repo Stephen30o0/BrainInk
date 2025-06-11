@@ -24,6 +24,7 @@ import { WalletProvider } from './components/shared/WalletContext';
 import { ChatbotInterface } from './pages/ChatbotInterface';
 import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
+import { Friends } from './pages/Friends';
 import { QuizInterface } from './components/quiz/QuizInterface';
 import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedLayout';
 // CustomizeProfilePage will now be primarily rendered via the modal
@@ -94,7 +95,8 @@ export function App() {
                     <Route path="/messages" element={<MessagingPage />} />
                     <Route path="/chatbot" element={<ChatbotInterface />} />
                     <Route path="/achievements" element={<Achievements />} />
-                    <Route path="/notifications" element={<Notifications />} />
+                                        <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/friends" element={<Friends />} />
                     <Route path="/quiz/math" element={<QuizInterface />} />
                   </Route>
                 </Routes>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, Lock, Mail, User, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
+import { apiService } from '../services/apiService';
 
 // Define the Google API interface
 interface GoogleAccountsType {
@@ -24,10 +25,7 @@ declare global {
     };
     handleCredentialResponse?: (response: any) => void;
   }
-  
-  interface ImportMeta {
-    env: Record<string, string>;
-  }
+
 }
 
 export const SignUp = () => {
@@ -41,6 +39,7 @@ export const SignUp = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreloading, setIsPreloading] = useState(false);
   const [error, setError] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
   const navigate = useNavigate();
@@ -54,6 +53,39 @@ export const SignUp = () => {
     console.log('GOOGLE_CLIENT_ID from env:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
     console.log('Using GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
   }, []);
+
+  // Function to handle successful authentication and preload data
+  const handleSuccessfulAuth = async (data: any, isGoogleAuth = false) => {
+    try {
+      // Store tokens
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('encrypted_user_data', data.encrypted_data);
+
+      console.log(`${isGoogleAuth ? 'Google' : 'Regular'} authentication successful:`, data);
+
+      // Start preloading data immediately
+      setIsPreloading(true);
+      setError('Loading your data...');
+
+      try {
+        await apiService.preloadAllData();
+        console.log('✅ All data preloaded successfully');
+        setError('');
+        navigate('/townsquare');
+      } catch (preloadError) {
+        console.error('⚠️ Error preloading data:', preloadError);
+        // Still navigate even if preload fails - data will load on demand
+        setError('');
+        navigate('/townsquare');
+      } finally {
+        setIsPreloading(false);
+      }
+    } catch (error) {
+      console.error('Error in handleSuccessfulAuth:', error);
+      setError('Authentication succeeded but data loading failed');
+      setIsPreloading(false);
+    }
+  };
 
   useEffect(() => {
     // Validate Google Client ID
@@ -92,11 +124,7 @@ export const SignUp = () => {
         console.log('API Response data:', data);
 
         if (apiResponse.ok) {
-          localStorage.setItem('access_token', data.access_token);
-          localStorage.setItem('encrypted_user_data', data.encrypted_data);
-
-          console.log('Google authentication successful:', data);
-          navigate('/townsquare');
+          await handleSuccessfulAuth(data, true);
         } else {
           setError(data.detail || 'Google authentication failed');
         }
@@ -226,11 +254,7 @@ export const SignUp = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('encrypted_user_data', data.encrypted_data);
-
-        console.log('Registration successful:', data);
-        navigate('/townsquare');
+        await handleSuccessfulAuth(data, false);
       } else {
         setError(data.detail || 'Registration failed');
       }
@@ -262,11 +286,7 @@ export const SignUp = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('encrypted_user_data', data.encrypted_data);
-
-        console.log('Login successful:', data);
-        navigate('/townsquare');
+        await handleSuccessfulAuth(data, false);
       } else {
         setError(data.detail || 'Login failed');
       }
@@ -375,8 +395,16 @@ export const SignUp = () => {
           <form onSubmit={isLogin ? handleLogin : handleSubmit} className="space-y-6">
             {/* Show error message if exists */}
             {error && (
-              <div className="text-red-500 text-sm mb-4 text-center bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <div className={`text-sm mb-4 text-center border rounded-lg p-3 ${isPreloading
+                  ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                  : 'text-red-500 bg-red-500/10 border-red-500/20'
+                }`}>
                 {error}
+                {isPreloading && (
+                  <div className="mt-2">
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -476,10 +504,10 @@ export const SignUp = () => {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isPreloading}
               className="w-full bg-gradient-to-r from-primary to-secondary text-dark font-pixel py-3 rounded-lg hover:opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isLoading ? (
+              {isLoading || isPreloading ? (
                 <div className="w-5 h-5 border-2 border-dark border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>

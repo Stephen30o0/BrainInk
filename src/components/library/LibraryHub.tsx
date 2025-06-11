@@ -775,18 +775,15 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
           {filteredItems.map(item => (
             <motion.div
               key={item.id}
-              className="relative group bg-dark/60 rounded-lg shadow-lg overflow-hidden cursor-pointer border border-primary/20 hover:border-primary/50 transition-colors duration-300"
+              className="relative group bg-dark/60 p-4 rounded-lg shadow-md cursor-pointer border border-primary/20 hover:border-primary/50 transition-all duration-200 flex flex-col justify-between"
               onClick={() => setSelectedItem(item)}
-              layoutId={`card-container-${item.id}`}
+              layoutId={`library-item-${item.id}`}
+              whileHover={{ y: -4 }}
             >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevents the card's onClick from firing
-                  handleDeleteItem(item.id);
-                }}
-                className="absolute top-2 right-2 z-10 p-1.5 bg-red-600/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} 
+                className="absolute top-2 right-2 p-1.5 bg-red-600/70 rounded-full text-white hover:bg-red-500 transition-all z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
                 aria-label="Delete item"
-                title="Delete Item"
               >
                 <X size={16} />
               </button>

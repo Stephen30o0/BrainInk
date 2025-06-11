@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, MessageSquare, Crown, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
+import { ArrowLeft, Search, UserPlus, MessageSquare, Crown, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { apiService } from '../../../services/apiService';
+import { apiService } from '../services/apiService';
 
 // API Configuration
 const API_BASE_URL = 'https://brainink-backend-freinds-micro.onrender.com/friends';
@@ -58,7 +58,7 @@ interface FriendProfile {
 
 type ActiveTab = 'friends' | 'pending';
 
-export const FriendsPanel = () => {
+export const Friends = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ActiveTab>('friends');
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,7 +138,7 @@ export const FriendsPanel = () => {
   const loadFriendAchievements = async (friendId: number): Promise<Achievement[]> => {
     try {
       console.log(`Loading achievements for friend ${friendId}`);
-
+      
       // Try to get friend's achievements from direct API call
       const token = await getValidToken();
       if (!token) {
@@ -146,7 +146,7 @@ export const FriendsPanel = () => {
         return [];
       }
 
-      // Call friend achievements API (you'll need to implement this endpoint)
+      // Call friend achievements API
       const response = await fetch(`${API_BASE_URL}/achievements/${friendId}`, {
         method: 'GET',
         headers: {
@@ -176,14 +176,14 @@ export const FriendsPanel = () => {
   const loadFriendProfile = async (friend: Friend | User) => {
     try {
       setProfileLoading(true);
-
+      
       // Quick load - use existing friend data for immediate display
       const friendData: Friend = 'status' in friend ? friend : transformUserToFriend(friend);
-
+      
       // Get current user's stats from apiService for immediate display
       const userStats = apiService.getUserStats();
       const userProgress = apiService.getUserProgress();
-
+      
       // Build stats from API data
       const stats = {
         totalXp: userProgress?.total_xp || userStats?.total_xp || 0,
@@ -208,7 +208,7 @@ export const FriendsPanel = () => {
       // Load achievements separately in background
       console.log('Loading achievements for friend:', friendData.id);
       const friendAchievements = await loadFriendAchievements(friendData.id);
-
+      
       // Update profile with loaded achievements
       setSelectedFriend(prev => prev ? {
         ...prev,
@@ -238,7 +238,7 @@ export const FriendsPanel = () => {
   const quickLoadFriendsData = async () => {
     try {
       console.log('Quick loading friends data from apiService...');
-
+      
       // Quick load from apiService cache
       const friendsList = apiService.getFriends() || [];
       const pendingRequestsList = apiService.getPendingFriendRequests() || [];
@@ -277,7 +277,7 @@ export const FriendsPanel = () => {
     try {
       // First try quick load from apiService
       const quickLoadSuccess = await quickLoadFriendsData();
-
+      
       if (!quickLoadSuccess) {
         console.log('Quick load failed, trying full preload...');
         // If quick load fails, try full preload
@@ -411,17 +411,13 @@ export const FriendsPanel = () => {
     }
   };
 
-  const handleMessageClick = (friend?: Friend) => {
-    if (friend) {
-      navigate('/messages', {
-        state: {
-          selectedFriend: friend,
-          openConversation: true
-        }
-      });
-    } else {
-      navigate('/messages');
-    }
+  const handleMessageClick = (friend: Friend) => {
+    navigate('/messages', {
+      state: {
+        selectedFriend: friend,
+        openConversation: true
+      }
+    });
   };
 
   const handleSearchFriends = async (query: string) => {
@@ -493,7 +489,7 @@ export const FriendsPanel = () => {
     }
   };
 
-  // KEEPING THE EXACT SAME handleSendFriendRequest FUNCTION - DON'T CHANGE
+  // USING EXACT SAME handleSendFriendRequest AS FriendsPanel
   const handleSendFriendRequest = async (userId: string) => {
     const token = await getValidToken();
     if (!token || !currentUserId) {
@@ -705,19 +701,20 @@ export const FriendsPanel = () => {
     await loadFriendsData();
   };
 
+  // Initialize component
   useEffect(() => {
     const initializeFriends = async () => {
       const token = await getValidToken();
       if (!token) {
-        setLoading(false);
         setError('Please log in to view friends');
+        setLoading(false);
         return;
       }
 
       const userId = getUserIdFromToken(token);
       if (!userId) {
-        setLoading(false);
         setError('Unable to identify user from token');
+        setLoading(false);
         return;
       }
 
@@ -735,146 +732,150 @@ export const FriendsPanel = () => {
 
   if (loading) {
     return (
-      <div className="p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-dark flex items-center justify-center">
         <div className="text-primary">Loading friends...</div>
       </div>
     );
   }
 
   const currentList = activeTab === 'friends' ? friends : pendingRequests;
-  const filteredList = currentList.filter((item: Friend) =>
+  const filteredList = currentList.filter((item: Friend) => 
     item.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="p-4">
-      {/* Header with link to Friends page */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-pixel text-lg text-primary">Friends</h2>
-        <button
-          onClick={() => navigate('/friends')}
-          className="text-primary/70 hover:text-primary text-sm flex items-center gap-1 transition-colors"
-        >
-          View All
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-1">
-            <path d="M4 3L7 6L4 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
-          {error}
-          <div className="flex gap-2 mt-2">
+    <div className="min-h-screen bg-dark">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-dark/90 backdrop-blur-md border-b border-primary/20 z-50">
+        <div className="h-full px-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => setError(null)}
-              className="text-red-300 hover:text-red-100 text-xs underline"
+              onClick={() => navigate('/townsquare')}
+              className="text-primary hover:text-primary/80"
             >
-              Dismiss
+              <ArrowLeft size={24} />
             </button>
-            <button
-              onClick={retryFetchData}
-              className="text-red-300 hover:text-red-100 text-xs underline"
-            >
-              Retry
-            </button>
+            <h1 className="font-pixel text-xl text-primary">Friends</h1>
           </div>
+          <button
+            onClick={() => setIsAddFriendModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors"
+          >
+            <UserPlus size={16} />
+            <span className="text-sm">Add Friend</span>
+          </button>
         </div>
-      )}
+      </header>
 
-      {/* Search Bar */}
-      <div className="relative mb-6">
-        <input
-          type="text"
-          placeholder="Search friends..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-primary"
-        />
-        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-      </div>
-
-      {/* Tabs - Only Friends and Pending */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveTab('friends')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${activeTab === 'friends'
-            ? 'bg-primary/20 text-primary border border-primary/30'
-            : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
-            }`}
-        >
-          <Users size={16} />
-          All Friends
-          {friends.length > 0 && (
-            <span className="ml-1 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-xs">
-              {friends.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${activeTab === 'pending'
-            ? 'bg-primary/20 text-primary border border-primary/30'
-            : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
-            }`}
-        >
-          <UserCheck size={16} />
-          Requests
-          {pendingRequests.length > 0 && (
-            <span className="ml-1 bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full text-xs">
-              {pendingRequests.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Friends List - Simple Clean Layout */}
-      <div className="space-y-4 max-h-96 overflow-y-auto">
-        {filteredList.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            {activeTab === 'pending' ? 'No pending friend requests' : 'No friends yet'}
-            {activeTab === 'friends' && (
-              <div>
-                <p className="text-sm mt-2">Add some friends to get started!</p>
-                <button
-                  onClick={() => navigate('/friends')}
-                  className="mt-3 px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors text-sm"
-                >
-                  Go to Friends Page
-                </button>
-              </div>
-            )}
+      {/* Main Content */}
+      <div className="pt-16 px-6 py-6 max-w-4xl mx-auto">
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            {error}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => setError(null)}
+                className="text-red-300 hover:text-red-100 text-xs underline"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={retryFetchData}
+                className="text-red-300 hover:text-red-100 text-xs underline"
+              >
+                Retry
+              </button>
+            </div>
           </div>
-        ) : (
-          filteredList.map((friend: Friend) => (
-            <div
-              key={friend.id}
-              className="bg-dark/30 border border-primary/20 rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
-              onClick={() => handleFriendClick(friend)}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center text-xl">
-                  {friend.username?.substring(0, 2).toUpperCase() || '👤'}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-pixel text-primary text-sm">
-                        {friend.fname && friend.lname
-                          ? `${friend.fname} ${friend.lname}`
-                          : friend.username
-                        }
-                      </h3>
-                      <p className="text-gray-400 text-xs mt-1">
-                        @{friend.username}
-                      </p>
-                      <p className="text-gray-500 text-xs">
-                        {friend.status}
-                      </p>
-                    </div>
+        )}
+
+        {/* Search Bar */}
+        <div className="relative mb-6">
+          <input
+            type="text"
+            placeholder="Search friends..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-primary"
+          />
+          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        </div>
+
+        {/* Tabs - Only Friends and Pending */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('friends')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium ${activeTab === 'friends'
+              ? 'bg-primary/20 text-primary border border-primary/30'
+              : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
+              }`}
+          >
+            <Users size={18} />
+            All Friends
+            {friends.length > 0 && (
+              <span className="ml-1 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-xs">
+                {friends.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium ${activeTab === 'pending'
+              ? 'bg-primary/20 text-primary border border-primary/30'
+              : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
+              }`}
+          >
+            <UserCheck size={18} />
+            Requests
+            {pendingRequests.length > 0 && (
+              <span className="ml-1 bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full text-xs">
+                {pendingRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Friends Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredList.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-400">
+              <Users size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-lg mb-2">
+                {activeTab === 'pending' ? 'No pending friend requests' : 'No friends yet'}
+              </p>
+              {activeTab === 'friends' && (
+                <p className="text-sm">Add some friends to get started!</p>
+              )}
+            </div>
+          ) : (
+            filteredList.map((friend: Friend) => (
+              <div
+                key={friend.id}
+                className="bg-dark/30 border border-primary/20 rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer hover:transform hover:scale-105"
+                onClick={() => activeTab === 'friends' && handleFriendClick(friend)}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl mb-3">
+                    {friend.username?.substring(0, 2).toUpperCase() || '👤'}
                   </div>
-                  <div className="flex gap-2 mt-3">
+                  
+                  <h3 className="font-pixel text-primary text-sm mb-1">
+                    {friend.fname && friend.lname 
+                      ? `${friend.fname} ${friend.lname}` 
+                      : friend.username
+                    }
+                  </h3>
+                  
+                  <p className="text-gray-400 text-xs mb-1">
+                    @{friend.username}
+                  </p>
+                  
+                  <p className="text-gray-500 text-xs mb-3">
+                    {friend.status}
+                  </p>
+
+                  <div className="flex gap-2 w-full">
                     {activeTab === 'pending' ? (
                       <>
                         <button
@@ -882,7 +883,7 @@ export const FriendsPanel = () => {
                             e.stopPropagation();
                             handleAcceptFriend(friend.id);
                           }}
-                          className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded hover:bg-green-500/30 transition-colors"
+                          className="flex-1 px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded hover:bg-green-500/30 transition-colors"
                         >
                           Accept
                         </button>
@@ -891,7 +892,7 @@ export const FriendsPanel = () => {
                             e.stopPropagation();
                             handleDeclineFriend(friend.id);
                           }}
-                          className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded hover:bg-red-500/30 transition-colors"
+                          className="flex-1 px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded hover:bg-red-500/30 transition-colors"
                         >
                           Decline
                         </button>
@@ -903,43 +904,25 @@ export const FriendsPanel = () => {
                             e.stopPropagation();
                             handleMessageClick(friend);
                           }}
-                          className="p-1 hover:bg-primary/20 rounded transition-colors"
+                          className="p-2 hover:bg-primary/20 rounded transition-colors"
                           title="Send Message"
                         >
-                          <MessageSquare size={16} className="text-primary" />
+                          <MessageSquare size={14} className="text-primary" />
                         </button>
-                        <button
-                          className="p-1 hover:bg-primary/20 rounded transition-colors"
-                          title="View Profile"
+                        <button 
+                          className="p-2 hover:bg-primary/20 rounded transition-colors"
+                          title="More Options"
                         >
-                          <Shield size={16} className="text-primary" />
+                          <Shield size={14} className="text-primary" />
                         </button>
                       </>
                     )}
                   </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Add Friend Button */}
-      <div className="mt-6 flex gap-2">
-        <button
-          onClick={() => setIsAddFriendModalOpen(true)}
-          className="flex-1 bg-dark/50 border border-primary/20 rounded-lg p-3 text-primary flex items-center justify-center gap-2 hover:bg-primary/10 transition-colors"
-        >
-          <UserPlus size={16} />
-          <span className="text-sm">Add New Friend</span>
-        </button>
-        <button
-          onClick={() => navigate('/friends')}
-          className="px-4 bg-primary/20 border border-primary/30 rounded-lg text-primary hover:bg-primary/30 transition-colors flex items-center justify-center"
-          title="View All Friends"
-        >
-          <Users size={16} />
-        </button>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Friend Profile Modal */}
@@ -947,7 +930,7 @@ export const FriendsPanel = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-primary/20">
-              <h3 className="font-pixel text-xl text-primary">User Profile</h3>
+              <h3 className="font-pixel text-xl text-primary">Friend Profile</h3>
               <button
                 onClick={() => setIsProfileModalOpen(false)}
                 className="text-gray-400 hover:text-white"
@@ -965,8 +948,8 @@ export const FriendsPanel = () => {
                 </div>
                 <div>
                   <h2 className="font-pixel text-xl text-primary">
-                    {selectedFriend.friend.fname && selectedFriend.friend.lname
-                      ? `${selectedFriend.friend.fname} ${selectedFriend.friend.lname}`
+                    {selectedFriend.friend.fname && selectedFriend.friend.lname 
+                      ? `${selectedFriend.friend.fname} ${selectedFriend.friend.lname}` 
                       : selectedFriend.friend.username
                     }
                   </h2>
@@ -1089,10 +1072,10 @@ export const FriendsPanel = () => {
         </div>
       )}
 
-      {/* Add Friend Modal - KEEPING EXACTLY AS IS */}
+      {/* Add Friend Modal - Same as FriendsPanel */}
       {isAddFriendModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-pixel text-primary text-lg">Add Friend</h3>
               <button
@@ -1123,7 +1106,7 @@ export const FriendsPanel = () => {
                     onClick={() => handleSearchResultClick(user)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-xl">
+                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-lg">
                         {user.username?.substring(0, 2).toUpperCase() || '👤'}
                       </div>
                       <div>
