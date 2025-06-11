@@ -381,9 +381,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
       downloadUrl: itemToSave.downloadUrl,
       yearPublished: itemToSave.yearPublished,
       publisher: itemToSave.publisher,
-      targetCategory: selectedSaveCategory,
-      // Ensure all fields expected by the backend are included
-      // sourceApi: 'CORE' is set by backend
+      topic: selectedSaveCategory, // Use 'topic' for the category
     };
 
     try {
@@ -395,13 +393,12 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
         body: JSON.stringify(payload),
       });
       const result = await response.json();
-      if (response.ok && result.type === 'success') {
-        setSaveStatusMessage('Item saved successfully to your library!');
+      if (response.ok) {
+        alert(result.message || 'Successfully saved paper to library!');
         fetchLibraryItems(); // Refresh library items
-        // Optionally close modal after a short delay or keep it open with success message
         setTimeout(() => closeSaveModal(), 1500);
       } else {
-        throw new Error(result.message || 'Failed to save item.');
+        throw new Error(result.message || 'Failed to save paper.');
       }
     } catch (error: any) {
       console.error('Failed to save external item:', error);
