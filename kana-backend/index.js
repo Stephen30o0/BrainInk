@@ -163,10 +163,7 @@ app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), 
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded.' });
   }
-  if (!conversationId) {
-    await fsPromises.unlink(req.file.path);
-    return res.status(400).json({ error: 'conversationId is required.' });
-  }
+  // conversationId is now optional. If provided, the file content will be added to the conversation context.
 
   try {
     const materialId = crypto.randomUUID();
@@ -187,7 +184,8 @@ app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), 
     const fileBuffer = await fsPromises.readFile(newMaterial.filePath);
     const fileTextContent = await extractTextFromFile(newMaterial.mimetype, fileBuffer);
     
-    if (fileTextContent) {
+    // If a conversationId is provided, add the file's text content to that conversation's context.
+    if (conversationId && fileTextContent) {
         const conversation = getOrCreateConversation(conversationId);
         conversation.contextParts.push({
             text: `--- START OF FILE: ${newMaterial.originalFilename} ---\n${fileTextContent}\n--- END OF FILE: ${newMaterial.originalFilename} ---`
