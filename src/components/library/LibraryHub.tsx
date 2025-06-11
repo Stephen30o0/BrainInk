@@ -334,13 +334,15 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     try {
       const response = await fetch(`${KANA_API_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`);
       const data = await response.json();
-      if (response.ok && data.type === 'success') {
-        const resultsWithSource = data.results.map((item: CoreSearchResultItem) => ({ ...item, source: 'CORE' }));
+      if (response.ok) {
+        // The backend now returns the array of results directly on success.
+        const resultsWithSource = data.map((item: CoreSearchResultItem) => ({ ...item, source: 'CORE' }));
         setCoreSearchResults(resultsWithSource);
         if (resultsWithSource.length === 0) {
           setCoreSearchError('No results found for your query.');
         }
       } else {
+        // On failure, the backend returns an object with a message property.
         throw new Error(data.message || 'Failed to fetch CORE search results.');
       }
     } catch (err: any) {

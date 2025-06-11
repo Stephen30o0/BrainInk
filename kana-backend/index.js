@@ -269,7 +269,7 @@ app.get('/pdf-proxy', async (req, res) => {
         if (error.message.includes('Invalid URL')) {
             return res.status(400).json({ error: 'Invalid URL format provided.' });
         }
-        return res.status(500).json({ error: 'Failed to fetch the PDF file.' });
+        return res.status(500).json({ error: 'Failed to fetch or process URL content.' });
     }
 });
 
@@ -304,25 +304,56 @@ app.post('/api/fetch-url-content', async (req, res) => {
     }
 });
 
-app.get('/api/core-search', async (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.status(400).json({ error: 'Query parameter "q" is required.' });
-  if (!process.env.CORE_API_KEY) return res.status(500).json({ error: 'CORE API key not configured.' });
+// Helper for exponential backoff
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  try {
-    const response = await axios.get(`https://api.core.ac.uk/v3/search/works`, {
-      params: { q, limit: 20 },
-      headers: { 'Authorization': `Bearer ${process.env.CORE_API_KEY}` }
-    });
-    const transformedResults = response.data.results.map(item => ({
-      coreId: item.id, title: item.title, authors: item.authors, abstract: item.abstract,
-      year: item.yearPublished, downloadUrl: item.downloadUrl, doi: item.doi, publisher: item.publisher,
-    }));
-    res.json(transformedResults);
-  } catch (error) {
-    console.error('CORE API Search Error:', error.response ? error.response.data : error.message);
-    res.status(500).json({ error: 'Failed to search CORE API.' });
-  }
+app.get('/api/core-search', async (req, res) => {
+    const { q } = req.query;
+    if (!q) {
+        return res.status(400).json({ error: 'Query parameter "q" is required.' });
+    }
+    if (!process.env.CORE_API_KEY) {
+        console.error('CORE_API_KEY is not set.');
+        return res.status(500).json({ error: 'CORE Search is not configured on the server.' });
+    }
+
+    const searchUrl = 'https://api.core.ac.uk/v3/search/works';
+    const MAX_RETRIES = 3;
+    let attempt = 0;
+
+    while (attempt < MAX_RETRIES) {
+        try {
+            console.log(`CORE Search: Attempt ${attempt + 1} for query \"${q}\"`);
+            const response = await axios.post(searchUrl, 
+                { q: `title:(${q}) OR abstract:(${q})` },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.CORE_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            const transformedResults = response.data.results.map(item => ({
+              coreId: item.id, title: item.title, authors: item.authors, abstract: item.abstract,
+              year: item.yearPublished, downloadUrl: item.downloadUrl, doi: item.doi, publisher: item.publisher,
+            }));
+            return res.json(transformedResults);
+        } catch (error) {
+            const isServerBusy = error.response && (error.response.status === 503 || JSON.stringify(error.response.data).includes('rejected execution'));
+            
+            if (isServerBusy && attempt < MAX_RETRIES - 1) {
+                const delay = Math.pow(2, attempt) * 1000; // 1s, 2s
+                console.warn(`CORE API is busy. Retrying in ${delay}ms...`);
+                await sleep(delay);
+                attempt++;
+            } else {
+                console.error('CORE API Search Error:', error.response ? error.response.data : error.message);
+                const status = error.response ? error.response.status : 500;
+                const message = error.response ? error.response.data : 'Failed to fetch from CORE API after multiple retries.';
+                return res.status(status).json({ message });
+            }
+        }
+    }
 });
 
 app.post('/api/save-external-item', async (req, res) => {
