@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Search, UserPlus, MessageSquare, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Search, UserPlus, MessageSquare, Crown, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 
@@ -13,6 +13,18 @@ interface User {
   fname: string;
   lname: string;
   avatar: string;
+}
+
+interface FriendRequest {
+  id: number;
+  requester_id: number;
+  addressee_id: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  accepted_at?: string;
+  message?: string;
+  friend_info?: User;
 }
 
 interface Friend extends User {
@@ -135,7 +147,7 @@ export const Friends = () => {
       }
 
       // Call friend achievements API
-      const response = await fetch(`${API_BASE_URL}/friends/${friendId}/achievements`, {
+      const response = await fetch(`${API_BASE_URL}/achievements/${friendId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
