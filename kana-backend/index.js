@@ -557,6 +557,42 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
   }
 });
 
+app.delete('/api/study-materials/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const materialIndex = studyMaterialsDb.findIndex(m => m.id === id);
+    if (materialIndex === -1) {
+      return res.status(404).json({ error: 'Study material not found.' });
+    }
+
+    const material = studyMaterialsDb[materialIndex];
+
+    // If there's an associated file, delete it from the server
+    if (material.filePath) {
+      try {
+        await fsPromises.unlink(material.filePath);
+        console.log(`Deleted file: ${material.filePath}`);
+      } catch (fileError) {
+        // Log the error but don't block deletion of the DB entry
+        console.error(`Error deleting file ${material.filePath}:`, fileError);
+      }
+    }
+
+    // Remove the material from the database array
+    studyMaterialsDb.splice(materialIndex, 1);
+
+    // Save the updated database
+    await saveDb();
+
+    console.log(`Deleted study material with ID: ${id}`);
+    res.status(200).json({ message: 'Study material deleted successfully.' });
+
+  } catch (error) {
+    console.error('Error deleting study material:', error);
+    res.status(500).json({ error: 'An internal error occurred while deleting the material.' });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send('K.A.N.A. Backend is running!');
 });
