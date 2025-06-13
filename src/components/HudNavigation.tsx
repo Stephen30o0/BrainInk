@@ -13,7 +13,6 @@ export const HudNavigation = () => {
   const [activeSection, setActiveSection] = useState('hero');
   const [isScrolling, setIsScrolling] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
   useEffect(() => {
     const handleScroll = () => {
