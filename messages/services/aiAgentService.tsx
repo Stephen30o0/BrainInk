@@ -37,7 +37,7 @@ interface AgentDrop {
 }
 
 class AIAgentService {
-  private readonly BACKEND_API_BASE = 'http://localhost:10000';
+  private readonly BACKEND_API_BASE = 'https://kana-backend-app.onrender.com';
   
   constructor() {
     // Frontend service - connects to backend API
