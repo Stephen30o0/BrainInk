@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, MessageSquare, Crown, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, UserPlus, MessageSquare, Star, Shield, X, Users, UserCheck, Trophy, Clock, Calendar, Medal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../../services/apiService';
 
@@ -11,20 +11,7 @@ interface User {
   id: number;
   username: string;
   fname: string;
-  lname: string;
-  avatar: string;
-}
-
-interface FriendRequest {
-  id: number;
-  requester_id: number;
-  addressee_id: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  accepted_at?: string;
-  message?: string;
-  friend_info?: User;
+  lname: string;  avatar: string;
 }
 
 interface Friend extends User {
@@ -64,14 +51,12 @@ export const FriendsPanel = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [friendSearchQuery, setFriendSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');  const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Friend[]>([]);
   const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
@@ -171,12 +156,9 @@ export const FriendsPanel = () => {
       return apiService.getAchievements() || [];
     }
   };
-
   // Load friend profile with quick name data and separate achievements loading
   const loadFriendProfile = async (friend: Friend | User) => {
     try {
-      setProfileLoading(true);
-
       // Quick load - use existing friend data for immediate display
       const friendData: Friend = 'status' in friend ? friend : transformUserToFriend(friend);
 
@@ -199,11 +181,9 @@ export const FriendsPanel = () => {
       setSelectedFriend({
         friend: friendData,
         achievements: [], // Start with empty, will load separately
-        stats
-      });
+        stats      });
 
       setIsProfileModalOpen(true);
-      setProfileLoading(false);
 
       // Load achievements separately in background
       console.log('Loading achievements for friend:', friendData.id);
@@ -213,12 +193,9 @@ export const FriendsPanel = () => {
       setSelectedFriend(prev => prev ? {
         ...prev,
         achievements: friendAchievements.slice(0, 5) // Show recent achievements
-      } : null);
-
-    } catch (error) {
+      } : null);    } catch (error) {
       console.error('Error loading friend profile:', error);
       setError('Failed to load friend profile');
-      setProfileLoading(false);
     }
   };
 
@@ -236,8 +213,7 @@ export const FriendsPanel = () => {
 
   // Quick load friends data from apiService
   const quickLoadFriendsData = async () => {
-    try {
-      console.log('Quick loading friends data from apiService...');
+    try {      console.log('Quick loading friends data from apiService...');
 
       // Quick load from apiService cache
       const friendsList = apiService.getFriends() || [];

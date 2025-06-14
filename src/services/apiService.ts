@@ -84,10 +84,20 @@ interface PreloadedData {
         conversations: Map<string, Message[]>;
     };
     achievements: Achievement[];
+    tournaments: {
+        myTournaments: {
+            created: any[];
+            participating: any[];
+            invited: any[];
+        };
+        availableTournaments: any[];
+        invitations: any[];
+    };
     notifications: {
         friendRequests: any[];
         messages: any[];
         achievements: any[];
+        tournaments: any[];
     };
     lastUpdated: number;
 }
@@ -102,6 +112,39 @@ class APIService {
     private readonly MAIN_API = 'https://brainink-backend.onrender.com';
     private readonly FRIENDS_API = 'https://brainink-backend-freinds-micro.onrender.com/friends';
     private readonly ACHIEVEMENTS_API = 'https://brainink-backend-achivements-micro.onrender.com';
+
+    // Tournament API endpoints
+    private readonly TOURNAMENTS_API = 'https://brainink-backend-achivements-micro.onrender.com/tournaments';
+
+    // Tournament Types (matching your backend enums)
+    public static readonly TOURNAMENT_STATUS = {
+        DRAFT: 'draft',
+        OPEN: 'open',
+        IN_PROGRESS: 'in_progress',
+        COMPLETED: 'completed',
+        CANCELLED: 'cancelled'
+    } as const;
+
+    public static readonly TOURNAMENT_TYPE = {
+        PUBLIC: 'public',
+        PRIVATE: 'private',
+        INVITE_ONLY: 'invite_only'
+    } as const;
+
+    public static readonly BRACKET_TYPE = {
+        SINGLE_ELIMINATION: 'single_elimination',
+        DOUBLE_ELIMINATION: 'double_elimination',
+        ROUND_ROBIN: 'round_robin'
+    } as const;
+
+    public static readonly DIFFICULTY_LEVEL = {
+        ELEMENTARY: 'elementary',
+        MIDDLE_SCHOOL: 'middle_school',
+        HIGH_SCHOOL: 'high_school',
+        UNIVERSITY: 'university',
+        PROFESSIONAL: 'professional',
+        MIXED: 'mixed'
+    } as const;
 
     private constructor() { }
 
@@ -219,11 +262,11 @@ class APIService {
             const [friendsResponse, requestsResponse] = await Promise.allSettled([
                 this.makeRequest(`${this.FRIENDS_API}/list/${currentUserId}`),
                 this.makeRequest(`${this.FRIENDS_API}/requests/pending/${currentUserId}`)
-            ]);
-
-            let friends: User[] = [];
+            ]);            let friends: User[] = [];
             if (friendsResponse.status === 'fulfilled') {
                 const friendsData = friendsResponse.value;
+                console.log('🔍 Raw friends API response:', friendsData);
+                
                 if (Array.isArray(friendsData)) {
                     friends = friendsData;
                 } else if (friendsData.friends && Array.isArray(friendsData.friends)) {
@@ -231,6 +274,12 @@ class APIService {
                 } else if (friendsData.data && Array.isArray(friendsData.data)) {
                     friends = friendsData.data;
                 }
+                
+                console.log('🔍 Processed friends array:', friends);
+                console.log('🔍 First friend structure:', friends[0]);
+                console.log('🔍 Friend usernames:', friends.map(f => f?.username || 'MISSING'));
+            } else {
+                console.error('❌ Friends API request failed:', friendsResponse.reason);
             }
 
             const pendingRequests: FriendRequest[] = requestsResponse.status === 'fulfilled' ?
@@ -271,16 +320,46 @@ class APIService {
         }
     }
 
+    // Load tournament data for preloading
+    private async loadTournamentData(): Promise<{
+        myTournaments: any;
+        availableTournaments: any[];
+        invitations: any[];
+    }> {
+        try {
+            const [myTournamentsResponse, availableResponse, invitationsResponse] = await Promise.allSettled([
+                this.getMyTournaments(),
+                this.getTournaments({ limit: 10, status: APIService.TOURNAMENT_STATUS.OPEN }),
+                this.getMyTournamentInvitations()
+            ]);
+
+            return {
+                myTournaments: myTournamentsResponse.status === 'fulfilled' ? myTournamentsResponse.value : { created: [], participating: [], invited: [] },
+                availableTournaments: availableResponse.status === 'fulfilled' ? availableResponse.value : [],
+                invitations: invitationsResponse.status === 'fulfilled' ? invitationsResponse.value : []
+            };
+        } catch (error) {
+            console.error('Error loading tournament data:', error);
+            return {
+                myTournaments: { created: [], participating: [], invited: [] },
+                availableTournaments: [],
+                invitations: []
+            };
+        }
+    }
+
     // Generate notifications from loaded data
     private generateNotifications(data: PreloadedData, currentUserId: number): any {
         const notifications: {
             friendRequests: any[];
             messages: any[];
             achievements: any[];
+            tournaments: any[];
         } = {
             friendRequests: [],
             messages: [],
-            achievements: []
+            achievements: [],
+            tournaments: []
         };
 
         // Friend request notifications
@@ -346,6 +425,38 @@ class APIService {
                 data: { achievement }
             }));
 
+        // Tournament notifications
+        notifications.tournaments = [
+            // Tournament invitations
+            ...data.tournaments.invitations.map(invitation => ({
+                id: `tournament_invitation_${invitation.id}`,
+                type: 'tournament_invitation',
+                title: 'Tournament Invitation',
+                message: `${invitation.inviter_username} invited you to "${invitation.tournament_name}"`,
+                time: this.formatTimestamp(invitation.invited_at),
+                read: false,
+                data: { invitation }
+            })),
+            // Tournament starting soon (for participating tournaments)
+            ...data.tournaments.myTournaments.participating
+                .filter((tournament: any) => {
+                    if (!tournament.tournament_start) return false;
+                    const startTime = new Date(tournament.tournament_start);
+                    const now = new Date();
+                    const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    return hoursUntilStart > 0 && hoursUntilStart <= 24; // Starting within 24 hours
+                })
+                .map((tournament: any) => ({
+                    id: `tournament_starting_${tournament.id}`,
+                    type: 'tournament_starting',
+                    title: 'Tournament Starting Soon',
+                    message: `"${tournament.name}" starts soon!`,
+                    time: this.formatTimestamp(tournament.tournament_start),
+                    read: false,
+                    data: { tournament }
+                }))
+        ].slice(0, 10); // Limit to 10 tournament notifications
+
         return notifications;
     }
 
@@ -408,11 +519,12 @@ class APIService {
         }
 
         try {
-            // Load all data in parallel
-            const [userData, friendsData, achievements] = await Promise.all([
+            // Load all data in parallel including tournaments
+            const [userData, friendsData, achievements, tournamentData] = await Promise.all([
                 this.loadUserData(),
                 this.loadFriendsData(currentUserId),
-                this.loadAchievements()
+                this.loadAchievements(),
+                this.loadTournamentData()
             ]);
 
             this.preloadedData = {
@@ -423,10 +535,12 @@ class APIService {
                 },
                 friends: friendsData,
                 achievements,
+                tournaments: tournamentData,
                 notifications: {
                     friendRequests: [],
                     messages: [],
-                    achievements: []
+                    achievements: [],
+                    tournaments: []
                 },
                 lastUpdated: Date.now()
             };
@@ -441,10 +555,16 @@ class APIService {
                 pendingRequests: this.preloadedData.friends.pendingRequests.length,
                 conversations: this.preloadedData.friends.conversations.size,
                 achievements: this.preloadedData.achievements.length,
+                tournaments: {
+                    myTournaments: this.preloadedData.tournaments.myTournaments,
+                    available: this.preloadedData.tournaments.availableTournaments.length,
+                    invitations: this.preloadedData.tournaments.invitations.length
+                },
                 notifications: {
                     friendRequests: this.preloadedData.notifications.friendRequests.length,
                     messages: this.preloadedData.notifications.messages.length,
-                    achievements: this.preloadedData.notifications.achievements.length
+                    achievements: this.preloadedData.notifications.achievements.length,
+                    tournaments: this.preloadedData.notifications.tournaments.length
                 }
             });
 
@@ -453,6 +573,170 @@ class APIService {
             throw error;
         }
     }
+
+    // ========== TOURNAMENT API METHODS ==========
+
+    // Get all tournaments with optional filters
+    public async getTournaments(params?: {
+        status?: string;
+        tournament_type?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<any[]> {
+        const url = new URL(`${this.TOURNAMENTS_API}/`);
+        if (params) {
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    url.searchParams.append(key, String(value));
+                }
+            });
+        }
+        return this.makeRequest(url.toString());
+    }
+
+    // Get tournament details by ID
+    public async getTournamentDetails(tournamentId: number): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/${tournamentId}`);
+    }
+
+    // Create a new tournament
+    public async createTournament(tournamentData: {
+        name: string;
+        description?: string;
+        max_players: number;
+        tournament_type?: string;
+        bracket_type?: string;
+        prize_config: {
+            has_prizes?: boolean;
+            first_place_prize?: string;
+            second_place_prize?: string;
+            third_place_prize?: string;
+            prize_type?: string;
+        };
+        question_config: {
+            total_questions?: number;
+            time_limit_minutes?: number;
+            difficulty_level?: string;
+            subject_category?: string;
+            custom_topics?: string[];
+        };
+        registration_end?: string;
+        tournament_start?: string;
+        invited_users?: number[];
+    }): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/create`, {
+            method: 'POST',
+            body: JSON.stringify(tournamentData)
+        });
+    }
+
+    // Join a tournament
+    public async joinTournament(tournamentId: number): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/${tournamentId}/join`, {
+            method: 'POST'
+        });
+    }
+
+    // Start a tournament (creator only)
+    public async startTournament(tournamentId: number): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/${tournamentId}/start`, {
+            method: 'POST'
+        });
+    }
+
+    // Get tournament bracket
+    public async getTournamentBracket(tournamentId: number): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/${tournamentId}/bracket`);
+    }
+
+    // Get user's tournaments (created, participating, invited)
+    public async getMyTournaments(): Promise<{
+        created: any[];
+        participating: any[];
+        invited: any[];
+    }> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/user/my-tournaments`);
+    }
+
+    // Invite players to a tournament (creator only)
+    public async invitePlayersToTournament(tournamentId: number, userIds: number[], message?: string): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/${tournamentId}/invite`, {
+            method: 'POST',
+            body: JSON.stringify({
+                user_ids: userIds,
+                message
+            })
+        });
+    }
+
+    // Get user's tournament invitations
+    public async getMyTournamentInvitations(): Promise<any[]> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/invitations/my-invitations`);
+    }
+
+    // Respond to tournament invitation
+    public async respondToTournamentInvitation(invitationId: number, accept: boolean): Promise<any> {
+        return this.makeRequest(`${this.TOURNAMENTS_API}/invitations/${invitationId}/respond?accept=${accept}`, {
+            method: 'POST'
+        });
+    }
+
+    // Utility method to create a tournament with default values
+    public async createQuickTournament(params: {
+        name: string;
+        description?: string;
+        maxPlayers?: number;
+        difficulty?: string;
+        subjects?: string[];
+        timeLimit?: number;
+        totalQuestions?: number;
+        hasPrizes?: boolean;
+        firstPlacePrize?: string;
+    }): Promise<any> {
+        const tournamentData = {
+            name: params.name,
+            description: params.description || '',
+            max_players: params.maxPlayers || 8,
+            tournament_type: APIService.TOURNAMENT_TYPE.PUBLIC,
+            bracket_type: APIService.BRACKET_TYPE.SINGLE_ELIMINATION,
+            prize_config: {
+                has_prizes: params.hasPrizes || false,
+                first_place_prize: params.firstPlacePrize || undefined,
+                second_place_prize: undefined,
+                third_place_prize: undefined,
+                prize_type: 'tokens'
+            },
+            question_config: {
+                total_questions: params.totalQuestions || 20,
+                time_limit_minutes: params.timeLimit || 30,
+                difficulty_level: params.difficulty || APIService.DIFFICULTY_LEVEL.MIXED,
+                subject_category: params.subjects?.[0] || 'general',
+                custom_topics: params.subjects || ['general']
+            }
+        };
+
+        return this.createTournament(tournamentData);
+    }
+
+    // ========== QUESTIONS API METHODS ==========
+
+    /**
+     * Fetch random questions for tournaments or practice.
+     */
+    public async getRandomQuestions(params: {
+        count: number;
+        subject?: string;
+        difficulty_level?: string;
+        topics?: string[]
+    }): Promise<any[]> {
+        const url = new URL(`${this.ACHIEVEMENTS_API}/questions/random/${params.count}`);
+        if (params.subject) url.searchParams.append('subject', params.subject);
+        if (params.difficulty_level) url.searchParams.append('difficulty_level', params.difficulty_level);
+        if (params.topics && params.topics.length) url.searchParams.append('topics', params.topics.join(','));
+        return this.makeRequest(url.toString());
+    }
+
+    // ========== GETTER METHODS ==========
 
     // Getter methods for components to access preloaded data
     public getPreloadedData(): PreloadedData | null {
@@ -465,79 +749,296 @@ class APIService {
 
     public getUserProgress(): UserProgress | null {
         return this.preloadedData?.user.progress || null;
-    }
-
-    public getUserStats(): UserStats | null {
-        return this.preloadedData?.user.stats || null;
-    }
-
+    }    /**
+     * Get friends from preloaded data (alias for getFriendsList for backward compatibility)
+     */
     public getFriends(): User[] {
         return this.preloadedData?.friends.list || [];
     }
 
+    /**
+     * Get pending friend requests from preloaded data (synchronous)
+     */
     public getPendingFriendRequests(): FriendRequest[] {
         return this.preloadedData?.friends.pendingRequests || [];
     }
 
-    public getConversation(friendUsername: string): Message[] {
-        return this.preloadedData?.friends.conversations.get(friendUsername) || [];
+    /**
+     * Get user stats from preloaded data
+     */
+    public getUserStats(): UserStats | null {
+        return this.preloadedData?.user.stats || null;
     }
 
+    /**
+     * Get achievements from preloaded data
+     */
     public getAchievements(): Achievement[] {
         return this.preloadedData?.achievements || [];
     }
 
+    /**
+     * Get notifications from preloaded data
+     */
     public getNotifications(): any {
-        return this.preloadedData?.notifications || { friendRequests: [], messages: [], achievements: [] };
+        return this.preloadedData?.notifications || {
+            friendRequests: [],
+            messages: [],
+            achievements: [],
+            tournaments: []
+        };
     }
 
-    // Refresh specific data
-    public async refreshData(type?: 'user' | 'friends' | 'achievements' | 'all'): Promise<void> {
-        if (!this.preloadedData) return;
+    /**
+     * Get tournament data from preloaded data
+     */
+    public getTournamentData(): any {
+        return this.preloadedData?.tournaments || {
+            myTournaments: { created: [], participating: [], invited: [] },
+            availableTournaments: [],
+            invitations: []
+        };
+    }
 
-        const token = this.getValidToken();
-        const currentUserId = this.getUserIdFromToken(token!);
-        if (!token || !currentUserId) return;
+    // ========== FRIENDS API METHODS ==========
 
+    /**
+     * Get user's friends list
+     */
+    public async getFriendsList(): Promise<User[]> {
         try {
-            if (!type || type === 'all') {
-                await this.performPreload();
-                return;
+            // First try to get from preloaded data if available
+            if (this.preloadedData?.friends.list) {
+                return this.preloadedData.friends.list;
             }
 
-            switch (type) {
-                case 'user':
-                    const userData = await this.loadUserData();
-                    this.preloadedData.user.progress = userData.progress;
-                    this.preloadedData.user.stats = userData.stats;
-                    break;
+            // If not available in preloaded data, fetch directly
+            const token = this.getValidToken();
+            if (!token) throw new Error('No access token available');
 
-                case 'friends':
-                    const friendsData = await this.loadFriendsData(currentUserId);
-                    this.preloadedData.friends = friendsData;
-                    break;
+            const currentUserId = this.getUserIdFromToken(token);
+            if (!currentUserId) throw new Error('Unable to extract user ID from token');
 
-                case 'achievements':
-                    const achievements = await this.loadAchievements();
-                    this.preloadedData.achievements = achievements;
-                    break;
+            const response = await this.makeRequest(`${this.FRIENDS_API}/list/${currentUserId}`);
+
+            // Handle different response formats
+            if (Array.isArray(response)) {
+                return response;
+            } else if (response.friends && Array.isArray(response.friends)) {
+                return response.friends;
+            } else if (response.data && Array.isArray(response.data)) {
+                return response.data;
             }
 
-            // Regenerate notifications
-            this.preloadedData.notifications = this.generateNotifications(this.preloadedData, currentUserId);
-            this.preloadedData.lastUpdated = Date.now();
-
+            return [];
         } catch (error) {
-            console.error(`Error refreshing ${type} data:`, error);
+            console.error('Error fetching friends list:', error);
+            return [];
         }
     }
 
-    // Clear cached data (for logout)
-    public clearData(): void {
-        this.preloadedData = null;
-        this.isLoading = false;
-        this.loadingPromise = null;
+    /**
+     * Get friend requests (pending)
+     */
+    public async getFriendRequests(): Promise<FriendRequest[]> {
+        try {
+            // First try to get from preloaded data if available
+            if (this.preloadedData?.friends.pendingRequests) {
+                return this.preloadedData.friends.pendingRequests;
+            }
+
+            // If not available in preloaded data, fetch directly
+            const token = this.getValidToken();
+            if (!token) throw new Error('No access token available');
+
+            const currentUserId = this.getUserIdFromToken(token);
+            if (!currentUserId) throw new Error('Unable to extract user ID from token');
+
+            return await this.makeRequest(`${this.FRIENDS_API}/requests/pending/${currentUserId}`);
+        } catch (error) {
+            console.error('Error fetching friend requests:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Send friend request
+     */
+    public async sendFriendRequest(username: string): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/request`, {
+            method: 'POST',
+            body: JSON.stringify({ username })
+        });
+    }
+
+    /**
+     * Accept friend request
+     */
+    public async acceptFriendRequest(requestId: number): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/accept/${requestId}`, {
+            method: 'POST'
+        });
+    }
+
+    /**
+     * Decline friend request
+     */
+    public async declineFriendRequest(requestId: number): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/decline/${requestId}`, {
+            method: 'POST'
+        });
+    }
+
+    /**
+     * Remove friend
+     */
+    public async removeFriend(friendId: number): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/remove/${friendId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    /**
+     * Search for users to add as friends
+     */
+    public async searchUsers(query: string): Promise<User[]> {
+        try {
+            const response = await this.makeRequest(`${this.FRIENDS_API}/search?q=${encodeURIComponent(query)}`);
+            return Array.isArray(response) ? response : response.users || [];
+        } catch (error) {
+            console.error('Error searching users:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get conversation with a friend
+     */
+    public async getConversation(friendUsername: string, page: number = 1, pageSize: number = 20): Promise<any> {
+        try {
+            const token = this.getValidToken();
+            if (!token) throw new Error('No access token available');
+
+            const currentUserId = this.getUserIdFromToken(token);
+            if (!currentUserId) throw new Error('Unable to extract user ID from token');
+
+            return await this.makeRequest(
+                `${this.FRIENDS_API}/conversation/${currentUserId}/${friendUsername}?page=${page}&page_size=${pageSize}`
+            );
+        } catch (error) {
+            console.error('Error fetching conversation:', error);
+            return { messages: [], total: 0 };
+        }
+    }
+
+    /**
+     * Send message to friend
+     */
+    public async sendMessage(receiverUsername: string, content: string, messageType: string = 'text'): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/send-message`, {
+            method: 'POST',
+            body: JSON.stringify({
+                receiver_username: receiverUsername,
+                content,
+                message_type: messageType
+            })
+        });
+    }
+
+    /**
+     * Mark messages as read
+     */
+    public async markMessagesAsRead(messageIds: number[]): Promise<any> {
+        return this.makeRequest(`${this.FRIENDS_API}/mark-read`, {
+            method: 'POST',
+            body: JSON.stringify({ message_ids: messageIds })
+        });
+    }
+
+    /**
+     * Force refresh friends data (clears cache and reloads)
+     */
+    public async refreshFriendsData(): Promise<User[]> {
+        try {
+            const token = this.getValidToken();
+            if (!token) throw new Error('No access token available');
+
+            const currentUserId = this.getUserIdFromToken(token);
+            if (!currentUserId) throw new Error('Unable to extract user ID from token');
+
+            console.log('🔄 Refreshing friends data for user:', currentUserId);
+
+            const response = await this.makeRequest(`${this.FRIENDS_API}/list/${currentUserId}`);
+
+            let friends: User[] = [];
+            if (Array.isArray(response)) {
+                friends = response;
+            } else if (response.friends && Array.isArray(response.friends)) {
+                friends = response.friends;
+            } else if (response.data && Array.isArray(response.data)) {
+                friends = response.data;
+            }
+
+            console.log('👥 Fresh friends data:', friends);
+
+            // Update the preloaded data if it exists
+            if (this.preloadedData) {
+                this.preloadedData.friends.list = friends;
+            }
+
+            return friends;
+        } catch (error) {
+            console.error('❌ Error refreshing friends data:', error);            return [];
+        }
+    }
+
+    /**
+     * Refresh specific data in the cache
+     */
+    public async refreshData(dataType: 'friends' | 'achievements' | 'tournaments' | 'all' = 'all'): Promise<void> {
+        try {
+            if (dataType === 'all') {
+                await this.preloadAllData();
+                return;
+            }
+
+            const token = this.getValidToken();
+            if (!token) return;
+
+            const currentUserId = this.getUserIdFromToken(token);
+            if (!currentUserId) return;
+
+            switch (dataType) {
+                case 'friends':
+                    if (this.preloadedData) {
+                        const friendsData = await this.loadFriendsData(currentUserId);
+                        this.preloadedData.friends = friendsData;
+                        this.preloadedData.lastUpdated = Date.now();
+                    }
+                    break;
+                case 'achievements':
+                    if (this.preloadedData) {
+                        const achievements = await this.loadAchievements();
+                        this.preloadedData.achievements = achievements;
+                        this.preloadedData.lastUpdated = Date.now();
+                    }
+                    break;
+                case 'tournaments':
+                    if (this.preloadedData) {
+                        const tournaments = await this.loadTournamentData();
+                        this.preloadedData.tournaments = tournaments;
+                        this.preloadedData.lastUpdated = Date.now();
+                    }
+                    break;
+            }
+        } catch (error) {
+            console.error(`Error refreshing ${dataType} data:`, error);
+        }
     }
 }
 
+// Add this export at the bottom of the file
 export const apiService = APIService.getInstance();
+
+// Keep the default export for backward compatibility
+export default APIService;
