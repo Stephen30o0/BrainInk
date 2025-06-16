@@ -3,7 +3,7 @@ import AvatarDisplay from './shared/AvatarDisplay';
 
 export const TeamSection = () => {
   const team = [{
-    name: 'Eseosa Kay-Uwagboe',
+    name: 'Branis Sumba',
     title: 'Code Architect & Unity Mage',
     avatar: '👨‍💻',
     bio: 'Full-stack developer with a passion for educational technology and game design.',
@@ -13,7 +13,7 @@ export const TeamSection = () => {
       twitter: '#'
     }
   }, {
-    name: 'Kibogora Nsora',
+    name: 'Seynabou Mbow',
     title: 'AI Sorcerer & NLP Alchemist',
     avatar: '🧙‍♂️',
     bio: 'AI specialist focused on natural language processing and educational applications.',
@@ -23,7 +23,7 @@ export const TeamSection = () => {
       twitter: '#'
     }
   }, {
-    name: 'Stephen Olurinola',
+    name: 'Fatma Ben Azouz',
     title: 'Backend Blacksmith & Unity Warrior',
     avatar: '🛡️',
     bio: 'Backend developer with expertise in blockchain technology and game mechanics.',
