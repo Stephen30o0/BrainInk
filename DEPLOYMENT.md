@@ -27,17 +27,17 @@ PORT=10000
 ```
 
 ### Step 3: Note Your Render URL
-Your backend will be deployed at: `https://your-app-name.onrender.com`
+Your backend will be deployed at: `https://kana-backend-app.onrender.com`
 
 ## 🌐 Frontend Deployment (Vercel)
 
 ### Step 1: Update vercel.json
-Replace `https://your-kana-backend.onrender.com` in `vercel.json` with your actual Render URL.
+Replace `https://kana-backend-app.onrender.com` in `vercel.json` with your actual Render URL.
 
 ### Step 2: Set Environment Variables in Vercel
 Add these in Vercel dashboard:
 ```
-VITE_KANA_API_BASE_URL=https://your-render-app.onrender.com/api/kana
+VITE_KANA_API_BASE_URL=https://kana-backend-app.onrender.com/api/kana
 BASE_PRIVATE_KEY=your_base_sepolia_private_key
 ```
 
@@ -68,9 +68,9 @@ After deployment:
 3. **Environment variables**: Double-check all keys are set correctly
 
 ### Health Check URLs:
-- Backend: `https://your-render-app.onrender.com/`
-- Study Materials API: `https://your-render-app.onrender.com/api/study-materials`
-- Quiz Generation: `https://your-render-app.onrender.com/api/kana/generate-quiz`
+- Backend: `https://kana-backend-app.onrender.com/`
+- Study Materials API: `https://kana-backend-app.onrender.com/api/study-materials`
+- Quiz Generation: `https://kana-backend-app.onrender.com/api/kana/generate-quiz`
 
 ## 📱 Mobile Compatibility
 The app is fully responsive and works on mobile browsers with MetaMask mobile app.

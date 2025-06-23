@@ -133,7 +133,7 @@ contract DailyQuizAutomation is FunctionsClient, AutomationCompatibleInterface, 
      */
     function generateDailyQuiz(uint256 day) public onlyOwner {
         string[] memory args = new string[](3);
-        args[0] = "https://your-kana-backend-url.com"; // Replace with your Kana backend URL
+        args[0] = "https://kana-backend-app.onrender.com"; // Replace with your Kana backend URL
         args[1] = getDailyTopic(day);
         args[2] = "medium";
 
