@@ -123,26 +123,230 @@
     "doi": "10.1145/3170427.3170625"
   },
   {
-    "id": "c6c33d2e-d32a-4038-b057-d2cdf65a9f20",
-    "title": "Virtual and Hands-on Laboratory Environments in the Science Classroom: The Effect of Prior Science Achievement",
-    "originalFilename": "Virtual_and_Hands_on_Laboratory_Environments_in_the_Science_Classroom__The_Effect_of_Prior_Science_Achievement.corelink",
-    "storedFilename": null,
-    "filePath": null,
-    "mimetype": "application/external-link",
-    "topic": "Research Papers",
-    "uploadTimestamp": "2025-06-09T18:24:50.026Z",
-    "size": 0,
-    "isExternal": true,
-    "sourceApi": "CORE",
-    "authors": [
-      {
-        "name": "Marino, Michael A., Ed.D."
-      }
-    ],
-    "abstract": "A study was conducted to investigate the extent to which previous science achievement affected student performance in traditional hands-on and virtual laboratory environments. A sample of 70 first-year college students was employed in a counterbalanced A-B-A-B experimental design. The study spanned four instructional weeks of laboratory experimentation alternating traditional and virtual learning environments. For each of the four labs, students were given a pre-test designed to measure content knowledge, administered the intervention of virtual labs, and this was followed by an identical post-test. Prior science achievement was assessed using a general chemistry assessment exam. T-tests revealed that student performance did not differ between the hands-on and virtual environments. Results of a MANOVA showed that virtual labs were more effective than hands-on labs for high-achieving students, whereas there was no difference for low-achieving students. Results of a second MANOVA revealed that high-achieving students outperformed low-achieving students on hands-on lab 3, virtual lab 3, and hands-on lab 4. Findings suggest that the use of virtual labs does not harm science achievement and may conserve resources, but may expand the gap between high- and low-achieving students in the science laboratory.   A study was conducted to investigate the extent to which previous science achievement affected student performance in traditional hands-on and virtual laboratory environments. A sample of 70 first-year college students was employed in a counterbalanced A-B-A-B experimental design. The study spanned four instructional weeks of laboratory experimentation alternating traditional and virtual learning environments. For each of the four labs, students were given a pre-test designed to measure content knowledge, administered the intervention of virtual labs, and this was followed by an identical post-test. Prior science achievement was assessed using a general chemistry assessment exam. T-tests revealed that student performance did not differ between the hands-on and virtual environments. Results of a MANOVA showed that virtual labs were more effective than hands-on labs for high-achieving students, whereas there was no difference for low-achieving students. Results of a second MANOVA revealed that high-achieving students outperformed low-achieving students on hands-on lab 3, virtual lab 3, and hands-on lab 4. Findings suggest that the use of virtual labs does not harm science achievement and may conserve resources, but may expand the gap between high- and low-achieving students in the science laboratory",
-    "yearPublished": 2018,
-    "publisher": "DigitalCommons@Molloy",
-    "externalUrl": "https://core.ac.uk/download/617868133.pdf",
-    "doi": null
+    "id": "f3ac6a26-b7a7-4487-9ac9-d1bda7ed775e",
+    "originalFilename": "Editorial: Beyond Pythagoras.pdf",
+    "storedFilename": "studyMaterial-1750704806323-474945040.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750704806323-474945040.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T18:53:26.326Z",
+    "size": 84848,
+    "metadata": {
+      "title": "Editorial: Beyond Pythagoras",
+      "authors": [
+        {
+          "name": "Adkins, Monty"
+        }
+      ],
+      "doi": "10.5920/divp.2015.41",
+      "abstract": "This fourth journal issue of Divergence Press is a selection of papers given at the Beyond Pythagoras Symposium held at the University of Huddersfield’s Centre for Research in New Music, 21-23 March 2014. The symposium sought to explore new trends in the sonic arts and experimental electronic music particularly new tuning systems, post-acousmatic and post-digital aesthetics, as well as the re-embodiment of sound production and listening",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "ed905378-8358-40f2-b6bf-7979182580f8",
+    "originalFilename": "AR/VR technologies in management and education.pdf",
+    "storedFilename": "studyMaterial-1750704944595-749925756.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750704944595-749925756.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T18:55:44.601Z",
+    "size": 855017,
+    "metadata": {
+      "title": "AR/VR technologies in management and education",
+      "authors": [
+        {
+          "name": "A. I. Sosnilo"
+        },
+        {
+          "name": "M. Y. Kreer"
+        },
+        {
+          "name": "V. V. Petrova"
+        }
+      ],
+      "doi": "10.26425/2309-3633-2021-9-2-114-124",
+      "abstract": "The potential of some technological innovations for a long period of time remains either not fully explored or underestimated. The article gives a brief description of the AR and VR technologies, shows the possibilities of their use in various sectors and industries of the modern world economy. The paper provides an overview of the positive aspects and competitive advantages that AR and VR technologies can bring to companies engaged in the development and production of devices and instruments that allow using these technologies. This is a growth in sales of products and services, a reduction in operating costs, an increase in customer satisfaction, an improvement in the quality of product, services and service. The study also considers the limitations of using AR and VR technologies in educational environments. According to the authors, there are more industries and areas where AR and VR technologies can be applied.The paper analyses the volume of investments in the field of VR / AR, gives the forecasts of possible improvements of VR and AR devices, leading to creating of wider opportunities for their utilization in industrial, financial and educational spheres. The article presents the most successful examples of the implementation of AR and VR technologies in 2012-2021 in foreign and Russian companies. For statistical confirmation of the obtained results the authors performed a correlation analysis of the forecast estimates of the development of AR and VR technologies in 2021–2023. The paper makes the forecast of sales of technologies and devices in some sectors of the economy by 2024. Based on the analysis, the study concludes that there is a significant relationship between the electronics market as a whole and the VR/AR market",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "198886f0-37d5-4be3-8e9d-365338bb6721",
+    "originalFilename": "On Pythagoras' theorem for products of spectral triples.pdf",
+    "storedFilename": "studyMaterial-1750705542484-621358755.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750705542484-621358755.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T19:05:42.487Z",
+    "size": 47556,
+    "metadata": {
+      "title": "On Pythagoras' theorem for products of spectral triples",
+      "authors": [
+        {
+          "name": "A. Connes"
+        },
+        {
+          "name": "A. Connes"
+        },
+        {
+          "name": "A. Connes"
+        },
+        {
+          "name": "A. Connes"
+        },
+        {
+          "name": "A. Grothendieck"
+        },
+        {
+          "name": "A.H. Chamseddine"
+        },
+        {
+          "name": "B. Iochum"
+        },
+        {
+          "name": "C. Villani"
+        },
+        {
+          "name": "F. D’Andrea"
+        },
+        {
+          "name": "F. D’Andrea"
+        },
+        {
+          "name": "F.-J. Vanhecke"
+        },
+        {
+          "name": "Francesco D’Andrea"
+        },
+        {
+          "name": "G.H. Golub"
+        },
+        {
+          "name": "J.M. Gracia-Bondía"
+        },
+        {
+          "name": "L. Dabrowski"
+        },
+        {
+          "name": "M.A. Rieffel"
+        },
+        {
+          "name": "N. Higson"
+        },
+        {
+          "name": "P. Martinetti"
+        },
+        {
+          "name": "P. Martinetti"
+        },
+        {
+          "name": "P. Martinetti"
+        },
+        {
+          "name": "Pierre Martinetti"
+        },
+        {
+          "name": "R.V. Kadison"
+        },
+        {
+          "name": "S. Baaj"
+        }
+      ],
+      "doi": "10.1007/s11005-012-0598-x",
+      "abstract": "We discuss a version of Pythagoras theorem in noncommutative geometry. Usual\nPythagoras theorem can be formulated in terms of Connes' distance, between pure\nstates, in the product of commutative spectral triples. We investigate the\ngeneralization to both non pure states and arbitrary spectral triples. We show\nthat Pythagoras theorem is replaced by some Pythagoras inequalities, that we\nprove for the product of arbitrary (i.e. non-necessarily commutative) spectral\ntriples, assuming only some unitality condition. We show that these\ninequalities are optimal, and provide non-unital counter-examples inspired by\nK-homology.Comment: Paper slightly shortened to match the published version; Lett. Math.\n  Phys. 201",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "f8128c89-0294-470f-8534-1cc46279629e",
+    "originalFilename": "Pythagoras and Plato.pdf",
+    "storedFilename": "studyMaterial-1750705602604-823066114.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750705602604-823066114.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T19:06:42.609Z",
+    "size": 316487,
+    "metadata": {
+      "title": "Pythagoras and Plato",
+      "authors": [
+        {
+          "name": "Gregory, A"
+        }
+      ],
+      "doi": null,
+      "abstract": "The chapter studies the natural philosophy of Pythagoras and Plato, carefully delineating similarities and contrasts. The sources on Pythagoras are all much later than his life, and often unreliable or hagiographical; whereas for Plato we have a large corpus of his own writings—which nevertheless are not simple to interpret. Plato and Aristotle regard Pythagoras as primarily a religious figure, not a mathematician or natural philosopher. A sharp distinction between Pythagoras as religious figure and Pythagoras as natural philosopher and mathematician may not be the best interpretation. Plato’s cosmology constructs a highly ordered cosmos, in which mathematical forms (circles, regular solids, and simple ratios) play a decisive role. Several thinkers influenced by the work of Pythagoras or Plato are also treated: Archytas, Eudoxus, and Philolaus",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "c59e3477-2cae-4b11-9655-1ceeb2fbd760",
+    "originalFilename": "Ethical Considerations for LabScope (1).pdf",
+    "storedFilename": "studyMaterial-1750705934814-64225389.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750705934814-64225389.pdf",
+    "mimetype": "application/pdf",
+    "topic": "General",
+    "uploadTimestamp": "2025-06-23T19:12:14.826Z",
+    "size": 344288
+  },
+  {
+    "id": "1d4d095f-ea07-4a6c-9e23-ba228674e088",
+    "originalFilename": "Review essay: Disentangling feminisms from the cold war.pdf",
+    "storedFilename": "studyMaterial-1750706084182-819091685.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750706084182-819091685.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T19:14:44.186Z",
+    "size": 166040,
+    "metadata": {
+      "title": "Review essay: Disentangling feminisms from the cold war",
+      "authors": [
+        {
+          "name": "Bellows-Blakely, Sarah"
+        }
+      ],
+      "doi": "10.17169/refubium-26862",
+      "abstract": "Feminist thinkers have long argued for the centrality of sexuality, gender and women to the Cold War. They have critiqued the sexual language of ‘deep penetration’ and ‘orgasmic whumps’ used to describe nuclear arms race technology and argued that sexuality and gender were central to high‐level political decision‐making and everyday experiences of the conflict.1 Scholars have also begun to question the inverse relationship: they have used the politics of the Cold War as a lens into the history of feminist knowledge production itself. Kelly Coogan‐Gehr's 2011 monograph, for example, challenges conventional genealogies tracing feminist scholarship in the ‘West’ back to the ‘new social movements’ of the 1960s and to women's movements, in particular.2 She argues Cold War pressures have privileged certain ideologies (neoliberal capitalism) and knowledge producers (white women) at the expense of others (socialism, communism and black feminist thinkers) in the preeminent feminist journal, Signs, since its inception in 1975",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "4a79f31b-dab1-45d1-837f-444b22c0f8d0",
+    "originalFilename": "Look Into My Eyes.pdf",
+    "storedFilename": "studyMaterial-1750709263645-989217757.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750709263645-989217757.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-23T20:07:43.656Z",
+    "size": 4177173,
+    "metadata": {
+      "title": "Look Into My Eyes",
+      "authors": [
+        {
+          "name": "John, Cathy"
+        },
+        {
+          "name": "Melville-Brown, Toby"
+        },
+        {
+          "name": "Robson, Paul"
+        },
+        {
+          "name": "Yauner, Freddie"
+        }
+      ],
+      "doi": null,
+      "abstract": "Freddie Yauner, a lecturer in Design for Industry, believes that design can engage, inform and make complex concepts accessible. Through thought provoking projects and installations which have exhibited in New York, Paris and London, Freddie uses critical design to challenge convention and encourage debate.\n\n \n\nUtilising this approach, Freddie, teamed up with typographer and graphic designer Paul Robson, also from our school and Cathy John, a freelance writer to create their unique publication - Look into my Eyes.\n\n \n\nThrough combined expertise Look into my Eyes was created, a book that explores the labyrinth of decisions facing MS patients from day one of their diagnosis and examines the impact each of these decisions could have on their day to day lives.\n\n \n\nLook into my Eyes was created as part of a wider programme of initiatives that use real life experiences and interaction design to place audiences firmly in the shoes of an MSer, with the aim of increasing understanding and acceptance of MS for patients, carers and health professionals alike",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "b7554c7b-117e-46c9-99e1-a7d5d7a53820",
+    "originalFilename": "Policy and Procedure for Research Ethics.pdf",
+    "storedFilename": "studyMaterial-1750709477915-509843550.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750709477915-509843550.pdf",
+    "mimetype": "application/pdf",
+    "topic": "General",
+    "uploadTimestamp": "2025-06-23T20:11:17.922Z",
+    "size": 503339
   }
 ]

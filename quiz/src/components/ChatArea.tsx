@@ -18,8 +18,10 @@ import QuizSession from './quiz/QuizSession';
 import QuizReview from './quiz/QuizReview';
 import PDFPreview from './PDFPreview';
 
-const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:10000/api/kana';
+const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
 console.log('KANA_API_BASE_URL (Vite):', KANA_API_BASE_URL);
+console.log('BACKEND_BASE_URL:', BACKEND_BASE_URL);
 // import MessageItem from './MessageItem'; // Temporarily commented out
 
 interface ChatAreaProps {
@@ -253,7 +255,7 @@ const ChatArea = ({
       }
 
       try {
-        const response = await fetch(`${KANA_API_BASE_URL}/api/analyze-image`, {
+        const response = await fetch(`${BACKEND_BASE_URL}/api/analyze-image`, {
           method: 'POST',
           body: formData,
         });
@@ -318,10 +320,8 @@ const ChatArea = ({
           isImageGenerationRequest = true;
           break;
         }
-      }
-
-      if (isImageGenerationRequest) {
-        fetch(`${KANA_API_BASE_URL}/generate-and-explain`, {
+      }      if (isImageGenerationRequest) {
+        fetch(`${BACKEND_BASE_URL}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: currentInput, subject, conversationId, title }),
@@ -367,7 +367,7 @@ const ChatArea = ({
           };
         }
 
-        fetch(`${KANA_API_BASE_URL}/api/chat`, { // Ensure this is your correct chat endpoint
+        fetch(`${BACKEND_BASE_URL}/api/chat`, { // Ensure this is your correct chat endpoint
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -376,7 +376,7 @@ const ChatArea = ({
         .then(data => {
                     console.log("DEBUG: Received data from backend:", data);
           if (data.type === "mathematical_graph" && data.generatedImageUrl && data.kanaResponse) {
-            const fullImageUrl = `${KANA_API_BASE_URL}${data.generatedImageUrl}`;
+            const fullImageUrl = `${BACKEND_BASE_URL}${data.generatedImageUrl}`;
             addMessage({
               id: uuidv4(), 
               sender: 'kana', 
@@ -443,7 +443,7 @@ const ChatArea = ({
     formData.append('conversationId', conversationId);
 
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/upload-study-material`, {
         method: 'POST',
         body: formData,
       });
@@ -529,7 +529,7 @@ const ChatArea = ({
     const subject = activeChat?.subject || 'General';
     const title = activeChat?.title || 'System Message';
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/clear-note-context`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/clear-note-context`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

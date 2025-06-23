@@ -72,9 +72,9 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
   const [coreSearchQuery, setCoreSearchQuery] = useState('');
   const [isCoreSearching, setIsCoreSearching] = useState(false);
   const [, setCoreSearchError] = useState('');
-  
-  // API base URL from environment variables
-  const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
+    // API base URL from environment variables
+  const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:10000/api/kana';
+  const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
   
   // Drag and drop state
   // Drag state is managed directly in the JSX
@@ -102,7 +102,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
   const fetchLibraryItems = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`);
+      const response = await fetch(`${BACKEND_BASE_URL}/api/study-materials`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch library items: ${response.statusText}`);
@@ -165,7 +165,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
       const formData = new FormData();
       formData.append('file', selectedFileForUpload);
       
-      const response = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/upload-study-material`, {
         method: 'POST',
         body: formData,
       });
@@ -201,7 +201,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
     
     try {
       const response = await fetch(
-        `${KANA_API_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`
+        `${BACKEND_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`
       );
       
       if (!response.ok) {
@@ -226,7 +226,7 @@ const StudyMaterialsPanel: React.FC<StudyMaterialsPanelProps> = ({
     setIsSavingCorePaper(true);
     
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/study-materials`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
