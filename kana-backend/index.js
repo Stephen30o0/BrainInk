@@ -771,3 +771,174 @@ const startServer = async () => {
 };
 
 startServer();
+
+// New endpoint for Chainlink Functions - Daily Quiz Generation
+app.post('/api/kana/generate-daily-quiz', async (req, res) => {
+  const { topic, difficulty = 'medium', numQuestions = 1 } = req.body;
+  
+  if (!topic) {
+    return res.status(400).json({ error: 'Topic is required for daily quiz generation.' });
+  }
+
+  try {
+    // Create a more focused prompt for daily challenges
+    const prompt = `Generate a single educational quiz question about ${topic} at ${difficulty} difficulty level. 
+    
+Focus on:
+- Practical knowledge and real-world applications
+- Current trends and developments in ${topic}
+- Fundamental concepts that learners should know
+- Make it engaging and thought-provoking
+
+Format the output as a single JSON object with this exact structure:
+{
+  "quiz": [
+    {
+      "question": "The question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "The exact text of the correct option from the options array"
+    }
+  ]
+}
+
+Topic: ${topic}
+Difficulty: ${difficulty}
+Style: Educational, clear, and engaging`;
+
+    console.log(`Generating daily quiz for topic: ${topic}, difficulty: ${difficulty}`);
+    
+    const result = await geminiModel.generateContent(prompt);
+    const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
+    
+    try {
+      const quizJson = JSON.parse(responseText);
+      
+      // Validate the structure
+      if (!quizJson.quiz || !Array.isArray(quizJson.quiz) || quizJson.quiz.length === 0) {
+        throw new Error('Invalid quiz structure');
+      }
+      
+      const quiz = quizJson.quiz[0];
+      if (!quiz.question || !quiz.options || !Array.isArray(quiz.options) || quiz.options.length !== 4 || !quiz.answer) {
+        throw new Error('Invalid quiz question structure');
+      }
+      
+      // Verify the answer is in the options
+      if (!quiz.options.includes(quiz.answer)) {
+        throw new Error('Answer not found in options');
+      }
+      
+      console.log(`Successfully generated daily quiz for ${topic}`);
+      res.json(quizJson);
+      
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      console.error('Raw response:', responseText);
+      
+      // Return a fallback quiz
+      const fallbackQuiz = {
+        quiz: [{
+          question: `What is a key concept in ${topic}?`,
+          options: [
+            "Centralized control",
+            "Decentralized architecture", 
+            "Single point of failure",
+            "Manual processes"
+          ],
+          answer: "Decentralized architecture"
+        }]
+      };
+      
+      res.json(fallbackQuiz);
+    }
+    
+  } catch (error) {
+    console.error('Error in /generate-daily-quiz:', error);
+    
+    // Return a fallback quiz in case of error
+    const fallbackQuiz = {
+      quiz: [{
+        question: `What is an important aspect of ${topic || 'technology'}?`,
+        options: [
+          "Innovation and progress",
+          "Maintaining status quo",
+          "Avoiding change",
+          "Limiting access"
+        ],
+        answer: "Innovation and progress"
+      }]
+    };
+    
+    res.json(fallbackQuiz);
+  }
+});
+
+// Dynamic quiz generation by topic (without requiring study materials)
+app.post('/api/kana/generate-topic-quiz', async (req, res) => {
+  const { topic, difficulty, numQuestions } = req.body;
+  if (!topic || !difficulty || !numQuestions) {
+    return res.status(400).json({ error: 'topic, difficulty, and numQuestions are required.' });
+  }
+
+  try {
+    const prompt = `Generate a ${difficulty} difficulty quiz about ${topic} with ${numQuestions} multiple choice questions. 
+
+Format the output as a single JSON object with this structure:
+{
+  "quiz": [
+    {
+      "question": "Question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Correct option text"
+    }
+  ]
+}
+
+Make sure:
+- Questions are educational and accurate
+- All options are plausible but only one is correct
+- Questions vary in type (definitions, applications, problem-solving)
+- Difficulty level is appropriate for ${difficulty} learners
+- Content is focused on ${topic}
+
+Topic: ${topic}
+Difficulty: ${difficulty}
+Number of questions: ${numQuestions}`;
+
+    const result = await geminiModel.generateContent(prompt);
+    const responseText = result.response.text().trim();
+    
+    // Clean up the response - remove markdown code blocks if present
+    const cleanedResponse = responseText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    
+    try {
+      const quizJson = JSON.parse(cleanedResponse);
+      
+      // Validate the structure
+      if (!quizJson.quiz || !Array.isArray(quizJson.quiz) || quizJson.quiz.length === 0) {
+        throw new Error('Invalid quiz format received from AI');
+      }
+      
+      // Validate each question
+      for (const question of quizJson.quiz) {
+        if (!question.question || !question.options || !question.answer) {
+          throw new Error('Invalid question format');
+        }
+        if (!Array.isArray(question.options) || question.options.length !== 4) {
+          throw new Error('Each question must have exactly 4 options');
+        }
+      }
+      
+      console.log(`Generated ${difficulty} ${topic} quiz with ${quizJson.quiz.length} questions`);
+      res.json(quizJson);
+      
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', cleanedResponse);
+      throw new Error('Invalid JSON response from AI model');
+    }
+    
+  } catch (error) {
+    console.error('Error in /generate-topic-quiz:', error);
+    res.status(500).json({ error: 'Failed to generate quiz: ' + error.message });
+  }
+});

@@ -54,29 +54,23 @@ export const QuizGame: React.FC<QuizGameProps> = ({
   const { xp, setXp } = useXP();
 
   useEffect(() => {
-    const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'https://kana-backend-app.onrender.com/api/kana';
-
-    const loadQuiz = async () => {
+    const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'https://kana-backend-app.onrender.com/api/kana';    const loadQuiz = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // For now, we'll use the passed 'category' and 'difficulty' props directly.
-        // 'sourceMaterialId' will be hardcoded for this test.
-        // 'numQuestions' can be a default or parsed if included in category/difficulty string later.
         const requestedDifficulty = difficulty || 'medium';
         const numQuestions = 5; // Default number of questions
-        // TODO: Make sourceMaterialId dynamic based on category or user selection
-        const sourceMaterialId = "83701c55-dc53-4220-a9fa-c1a3e52f0b96"; // Hardcoded Starlink PDF ID
+        const topic = category || 'neuroscience'; // Use category as topic
 
-        console.log(`Requesting dynamic quiz. Topic/Category: ${category}, Difficulty: ${requestedDifficulty}, SourceID: ${sourceMaterialId}`);
+        console.log(`Requesting dynamic topic-based quiz. Topic: ${topic}, Difficulty: ${requestedDifficulty}`);
 
-        const response = await fetch(`${KANA_API_BASE_URL}/generate-quiz`, {
+        const response = await fetch(`${KANA_API_BASE_URL}/generate-topic-quiz`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sourceMaterialId: sourceMaterialId,
+            topic: topic,
             difficulty: requestedDifficulty,
             numQuestions: numQuestions,
           }),
@@ -85,17 +79,37 @@ export const QuizGame: React.FC<QuizGameProps> = ({
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response from server.' }));
           throw new Error(`Network response was not ok: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
-        }
+        }        const quizData: any = await response.json();
 
-        const quizData: QuizType = await response.json();
-
-        if (!quizData || !quizData.questions || quizData.questions.length === 0) {
+        // Handle both formats: {quiz: [...]} from backend and {questions: [...]} from static files
+        let questions = [];
+        if (quizData.quiz && Array.isArray(quizData.quiz)) {
+          questions = quizData.quiz;
+        } else if (quizData.questions && Array.isArray(quizData.questions)) {
+          questions = quizData.questions;
+        } else {
           console.error('Received invalid quiz data from backend:', quizData);
           throw new Error('Quiz data from backend is invalid or has no questions.');
         }
-        
-        setCurrentQuiz(quizData); // Contains title, category, difficulty, questions
-        setQuestions(quizData.questions);
+
+        if (questions.length === 0) {
+          throw new Error('Quiz has no questions.');
+        }        // Create standardized quiz object
+        const standardizedQuiz: QuizType = {
+          id: `quiz-${Date.now()}`,
+          title: quizData.title || `${category} Quiz`,
+          subject: category || 'General',
+          difficulty: quizData.difficulty || difficulty,
+          timeLimit: DEFAULT_TIME_PER_QUESTION * questions.length,
+          questions: questions.map((q: any, index: number) => ({
+            id: `q-${index}`,
+            questionText: q.question || q.questionText,
+            options: q.options || [],
+            correctAnswer: q.answer || q.correctAnswer
+          }))
+        };
+          setCurrentQuiz(standardizedQuiz);
+        setQuestions(standardizedQuiz.questions);
         setTimeLeft(DEFAULT_TIME_PER_QUESTION); // Reset timer for the new quiz
         setStartTime(Date.now());
         setIsLoading(false);
@@ -117,21 +131,25 @@ export const QuizGame: React.FC<QuizGameProps> = ({
     const timeTaken = Math.round((endTime - startTime) / 1000);
 
     let finalCorrectAnswers = 0;
-    const processedAnswers: Record<string, string | number> = {};
-
-    questions.forEach((q, idx) => {
+    const processedAnswers: Record<string, string | number> = {};    questions.forEach((q, idx) => {
       const answerKey = q.id || idx.toString();
       const userAnswer = userAnswers[answerKey];
       processedAnswers[answerKey] = userAnswer === undefined ? "skipped" : userAnswer;
       let isCorrect = false;
-      if (userAnswer !== undefined) {
-        if (q.type === 'multiple-choice' && userAnswer === q.correctAnswer) {
-          isCorrect = true;
-        }
-        if (q.type === 'theoretical' && typeof q.correctAnswer === 'string' && typeof userAnswer === 'string') {
-          if (userAnswer.toLowerCase().includes(q.correctAnswer.toLowerCase()) && q.correctAnswer.toLowerCase().includes(userAnswer.toLowerCase())){
-            isCorrect = true;
+      if (userAnswer !== undefined) {        // For multiple choice questions, compare the selected option with the correct answer
+        if (typeof userAnswer === 'number' && q.options && q.options.length > userAnswer) {
+          const selectedOption = q.options[userAnswer];
+          const correctAnswer = q.correctAnswer;
+          // Check if the selected option matches the correct answer text
+          if (typeof selectedOption === 'string' && typeof correctAnswer === 'string') {
+            isCorrect = selectedOption === correctAnswer || 
+                       selectedOption.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
           }
+        }
+        // For text-based answers (theoretical questions)
+        else if (typeof userAnswer === 'string' && typeof q.correctAnswer === 'string') {
+          isCorrect = userAnswer.toLowerCase().includes(q.correctAnswer.toLowerCase()) && 
+                     q.correctAnswer.toLowerCase().includes(userAnswer.toLowerCase());
         }
       }
       if (isCorrect) {

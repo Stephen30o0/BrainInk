@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@chainlink/contracts/src/v0.8/functions/v1_3_0/FunctionsClient.sol";
+import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./XPToken.sol";
+import "./BadgeNFT.sol";
+
+/**
+ * @title BrainInkChainlinkHub
+ * @dev Integrates Chainlink Functions, Automation, and VRF for Brain Ink platform
+ */
+contract BrainInkChainlinkHub is 
+    FunctionsClient, 
+    AutomationCompatibleInterface, 
+    VRFConsumerBaseV2, 
+    Ownable 
+{
+    // Chainlink VRF
+    VRFCoordinatorV2Interface COORDINATOR;
+    uint64 s_subscriptionId;
+    bytes32 keyHash;
+    uint32 callbackGasLimit = 100000;
+    uint16 requestConfirmations = 3;
+    uint32 numWords = 1;
+    
+    // Contract references
+    XPToken public xpToken;
+    BadgeNFT public badgeNFT;
+    
+    // Daily challenge system
+    uint256 public lastChallengeDay;
+    mapping(uint256 => bytes32) public dailyFunctionsRequests;
+    mapping(bytes32 => uint256) public vrfRequestToChallenge;
+    
+    // Events
+    event DailyChallengeGenerated(uint256 indexed day, bytes32 requestId);
+    event RandomnessRequested(bytes32 indexed requestId, uint256 challengeType);
+    event QuizValidated(address indexed user, bool passed, uint256 xpAwarded);
+    
+    constructor(
+        address _functionsRouter,
+        address _vrfCoordinator,
+        bytes32 _keyHash,
+        uint64 _subscriptionId,
+        address _xpToken,
+        address _badgeNFT
+    ) 
+        FunctionsClient(_functionsRouter)
+        VRFConsumerBaseV2(_vrfCoordinator)
+        Ownable(msg.sender)
+    {
+        COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
+        keyHash = _keyHash;
+        s_subscriptionId = _subscriptionId;
+        xpToken = XPToken(_xpToken);
+        badgeNFT = BadgeNFT(_badgeNFT);
+    }
+    
+    /**
+     * @dev Chainlink Automation - called daily to generate new challenges
+     */
+    function checkUpkeep(bytes calldata)
+        external
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        uint256 currentDay = block.timestamp / 86400;
+        upkeepNeeded = currentDay > lastChallengeDay;
+        performData = abi.encode(currentDay);
+    }
+    
+    function performUpkeep(bytes calldata performData) external override {
+        uint256 currentDay = abi.decode(performData, (uint256));
+        
+        if (currentDay > lastChallengeDay) {
+            lastChallengeDay = currentDay;
+            
+            // Request VRF for challenge type selection
+            bytes32 requestId = COORDINATOR.requestRandomWords(
+                keyHash,
+                s_subscriptionId,
+                requestConfirmations,
+                callbackGasLimit,
+                numWords
+            );
+            
+            vrfRequestToChallenge[requestId] = currentDay;
+            emit RandomnessRequested(requestId, currentDay);
+        }
+    }
+    
+    /**
+     * @dev VRF callback - generates challenge based on randomness
+     */
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] memory randomWords
+    ) internal override {
+        uint256 challengeDay = vrfRequestToChallenge[bytes32(requestId)];
+        uint256 challengeType = randomWords[0] % 5; // 5 different challenge types
+        
+        // Use Chainlink Functions to generate quiz content
+        generateDailyQuiz(challengeDay, challengeType);
+    }
+    
+    /**
+     * @dev Chainlink Functions - generate AI quiz content
+     */
+    function generateDailyQuiz(uint256 day, uint256 challengeType) internal {
+        // JavaScript source code for Functions
+        string memory source = 
+            "const prompt = `Generate a ${args[1]} difficulty quiz question about ${args[0]}. Return JSON with question, options, correct_answer, explanation`;"
+            "const response = await Functions.makeHttpRequest({"
+            "url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',"
+            "method: 'POST',"
+            "headers: { 'Content-Type': 'application/json' },"
+            "data: { contents: [{ parts: [{ text: prompt }] }] }"
+            "});"
+            "return Functions.encodeString(JSON.stringify(response.data));";
+        
+        string[] memory args = new string[](2);
+        args[0] = getChallengeSubject(challengeType);
+        args[1] = "medium";
+        
+        bytes32 requestId = _sendRequest(
+            source,
+            args,
+            new bytes[](0),
+            s_subscriptionId,
+            300000 // gas limit
+        );
+        
+        dailyFunctionsRequests[day] = requestId;
+        emit DailyChallengeGenerated(day, requestId);
+    }
+    
+    /**
+     * @dev Functions callback - process quiz content
+     */
+    function fulfillRequest(
+        bytes32 requestId,
+        bytes memory response,
+        bytes memory err
+    ) internal override {
+        if (err.length > 0) {
+            // Handle error
+            return;
+        }
+        
+        // Store quiz content and make available to frontend
+        // Implementation would parse JSON and store quiz data
+    }
+    
+    /**
+     * @dev Validate quiz answer using Chainlink Functions
+     */
+    function validateQuizAnswer(
+        address user,
+        string memory answer,
+        uint256 quizId
+    ) external {
+        // Use Functions to call external academic API for answer validation
+        string memory source = 
+            "const validation = await validateAnswer(args[0], args[1]);"
+            "return Functions.encodeUint256(validation.score);";
+            
+        string[] memory args = new string[](2);
+        args[0] = answer;
+        args[1] = Strings.toString(quizId);
+        
+        // Send validation request
+        _sendRequest(source, args, new bytes[](0), s_subscriptionId, 300000);
+    }
+    
+    /**
+     * @dev Get challenge subject based on type
+     */
+    function getChallengeSubject(uint256 challengeType) internal pure returns (string memory) {
+        if (challengeType == 0) return "Mathematics";
+        if (challengeType == 1) return "Science";
+        if (challengeType == 2) return "History";
+        if (challengeType == 3) return "Literature";
+        return "General Knowledge";
+    }
+}

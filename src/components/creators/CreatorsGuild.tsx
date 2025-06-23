@@ -96,56 +96,54 @@ export const CreatorsGuild: React.FC<CreatorsGuildProps> = ({
   };
 
   // Mock data for creators guild
-  const mockCourses: Course[] = [
-    {
+  const mockCourses: Course[] = [    {
       id: 1,
-      title: 'Introduction to Blockchain',
-      description: 'Learn the fundamentals of blockchain and cryptocurrency',
+      title: 'Ancient History Mysteries',
+      description: 'Explore fascinating civilizations and their lasting impact',
       modules: 5,
       published: true,
       views: 1245,
-      category: 'technology',
+      category: 'history',
       difficulty: 'intermediate'
     },
     {
       id: 2,
-      title: 'Neural Networks Fundamentals',
-      description: 'Master the basics of neural networks and deep learning',
+      title: 'Calculus Made Simple',
+      description: 'Master the fundamentals of differential and integral calculus',
       modules: 8,
       published: false,
-      category: 'technology',
+      category: 'mathematics',
       difficulty: 'advanced'
     },
     {
       id: 3,
-      title: 'Quantum Computing Basics',
-      description: 'Explore the principles of quantum computing and its applications',
+      title: 'Biology: Cell Structure',
+      description: 'Discover the building blocks of life and cellular processes',
       modules: 6,
       published: true,
       views: 892,
-      category: 'technology',
+      category: 'science',
       difficulty: 'beginner'
     }
   ];
-
   const mockPublications = [
     {
       id: 1,
-      title: 'The Future of AI in Education',
+      title: 'The Beauty of Mathematics in Nature',
       type: 'article',
       views: 2458,
       comments: 47
     },
     {
       id: 2,
-      title: 'Understanding Cryptography',
+      title: 'World War II: Untold Stories',
       type: 'tutorial',
       views: 1237,
       comments: 23
     },
     {
       id: 3,
-      title: 'Data Structures Explained',
+      title: 'Chemistry Lab Experiments',
       type: 'course',
       views: 3754,
       comments: 128
@@ -158,18 +156,17 @@ export const CreatorsGuild: React.FC<CreatorsGuildProps> = ({
       id: 1,
       name: 'DataScientist42',
       specialty: 'Machine Learning',
-      followers: 1245
-    },
+      followers: 1245    },
     {
       id: 2,
-      name: 'CryptoEducator',
-      specialty: 'Blockchain',
+      name: 'HistoryHunter',
+      specialty: 'Ancient Civilizations',
       followers: 876
     },
     {
       id: 3,
-      name: 'CodeMaster',
-      specialty: 'Programming',
+      name: 'ScienceWiz',
+      specialty: 'Biology & Chemistry',
       followers: 2356
     }
   ];
@@ -253,7 +250,7 @@ export const CreatorsGuild: React.FC<CreatorsGuildProps> = ({
               <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center mr-3">
                 <Star size={14} className="text-green-400" />
               </div>
-              <span className="text-gray-300">Your course "Introduction to Blockchain" received a 5-star rating</span>
+              <span className="text-gray-300">Your course "Ancient History Mysteries" received a 5-star rating</span>
               <span className="ml-auto text-gray-500 text-xs">2h ago</span>
             </div>
             <div className="flex items-center text-sm">

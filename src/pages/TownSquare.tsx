@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, BookOpen, Trophy, Users, Search, Bell, Mail, Menu, User, Sparkles, Wallet, Edit3 } from 'lucide-react'; // Added Edit3 for quiz link
+import { Brain, BookOpen, Trophy, Users, Search, Bell, Mail, Menu, User, Sparkles, Wallet, Edit3, Calendar } from 'lucide-react'; // Added Edit3 for quiz link, Calendar for daily challengesenges, ArrowLeftRight for network switcher
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel';
 import { MessagesPanel } from '../components/dashboard/MessagesPanel';
 import { GameHUD } from '../components/dashboard/GameHUD';
@@ -11,10 +11,11 @@ import { InventoryPanel } from '../components/dashboard/panels/InventoryPanel';
 import { AchievementsPanel } from '../components/dashboard/panels/AchievementsPanel';
 import { FriendsPanel } from '../components/dashboard/panels/FriendsPanel';
 import { WalletPanel } from '../components/wallet/WalletPanel';
+import { ChainlinkAutomation } from '../components/dashboard/ChainlinkAutomation';
 import { useWallet } from '../components/shared/WalletContext';
 import { useNavigate } from 'react-router-dom';
 
-type Section = 'arena' | 'echo' | 'vault' | 'guild' | 'lab' | 'messages' | 'profile' | 'quests' | 'inventory' | 'achievements' | 'friends' | 'quiz';
+type Section = 'arena' | 'echo' | 'vault' | 'guild' | 'lab' | 'messages' | 'profile' | 'quests' | 'inventory' | 'achievements' | 'friends' | 'quiz' | 'daily-challenges';
 
 interface NavItem {
   id: Section;
@@ -47,8 +48,7 @@ export const TownSquare = () => {
     icon: <Sparkles size={24} />,
     color: '#4db6ac',
     gradientFrom: 'from-teal-500',
-    gradientTo: 'to-emerald-500'
-  }, {
+    gradientTo: 'to-emerald-500'  }, {
     id: 'inventory',
     label: 'Inventory',
     icon: <BookOpen size={24} />,
@@ -62,6 +62,13 @@ export const TownSquare = () => {
     color: '#f59e0b', // amber-500
     gradientFrom: 'from-amber-500',
     gradientTo: 'to-yellow-500'
+  }, {
+    id: 'daily-challenges',
+    label: 'Daily Challenge',
+    icon: <Calendar size={24} />,
+    color: '#f97316', // orange-500
+    gradientFrom: 'from-orange-500',
+    gradientTo: 'to-red-500'
   }, {
     id: 'achievements',
     label: 'Achievements',
@@ -210,10 +217,14 @@ export const TownSquare = () => {
           >
             {activeSidePanel === 'profile' && <ProfilePanel />}
             {activeSidePanel === 'quests' && <QuestLogPanel />}
-            {activeSidePanel === 'inventory' && <InventoryPanel />}
-            {activeSidePanel === 'achievements' && <AchievementsPanel />}
+            {activeSidePanel === 'inventory' && <InventoryPanel />}            {activeSidePanel === 'achievements' && <AchievementsPanel />}
             {activeSidePanel === 'friends' && <FriendsPanel />}
-            {activeSidePanel === 'messages' && <MessagesPanel isOpen={true} onClose={() => setActiveSidePanel(null)} />}
+            {activeSidePanel === 'messages' && <MessagesPanel isOpen={true} onClose={() => setActiveSidePanel(null)} />}            {activeSidePanel === 'daily-challenges' && (
+              <div className="p-6">
+                <h2 className="text-primary font-pixel text-lg mb-4">Daily Challenge</h2>
+                <ChainlinkAutomation onChallengeComplete={(xp: number) => console.log(`Earned ${xp} XP!`)} />
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useWallet } from '../shared/WalletContext'; // Added for Ink token payments
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ShoppingCart, DollarSign, BookOpen, Users, BarChart2, Search, Plus, X } from 'lucide-react'; // Added X icon
+import { ChainlinkPriceFeeds } from './ChainlinkPriceFeeds';
 
 interface MarketplaceProps {
   onExit: () => void;

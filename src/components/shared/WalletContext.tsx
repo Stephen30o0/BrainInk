@@ -2,8 +2,35 @@ import React, { useEffect, useState, createContext, useContext, useCallback } fr
 import toast, { Toaster } from 'react-hot-toast';
 import { ethers, Contract, BrowserProvider, Signer, formatUnits, parseUnits } from 'ethers';
 
-// Define constants for the InkToken contract
-const INK_TOKEN_ADDRESS = '0xe3CAF39D7BdeCd039EA5a42A328335115dd05153'; // Sepolia Deployed Address
+// Define constants for multi-network support
+const NETWORKS = {
+  SEPOLIA: {
+    chainId: 11155111,
+    name: 'Ethereum Sepolia',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+    blockExplorer: 'https://sepolia.etherscan.io',
+    inkTokenAddress: '0xe3CAF39D7BdeCd039EA5a42A328335115dd05153', // Your current INK token
+    nativeCurrency: {
+      name: 'Sepolia ETH',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },  BASE_SEPOLIA: {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    rpcUrl: 'https://sepolia.base.org',
+    blockExplorer: 'https://sepolia.basescan.org',
+    inkTokenAddress: '0x3400d455aC4d50dF70E581b96f980516Af63Fa1c', // Original INK Token on Base Sepolia
+    nativeCurrency: {
+      name: 'Sepolia ETH',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  }
+};
+
+const DEFAULT_NETWORK = NETWORKS.SEPOLIA; // Start with Sepolia as default
+
 const INK_TOKEN_ABI = [
   "constructor(uint256 initialSupply)",
   "event Approval(address indexed owner, address indexed spender, uint256 value)",
@@ -31,37 +58,41 @@ interface Transaction {
   txHash?: string; // Optional transaction hash
 }
 
-interface WalletContextType {
-  balance: number;
+interface WalletContextType {  balance: number;
   address: string | null;
   isConnected: boolean;
+  isLoading: boolean;
   transactions: Transaction[];
   provider: BrowserProvider | null;
   signer: Signer | null;
   inkTokenContract: Contract | null;
+  currentNetwork: typeof NETWORKS.SEPOLIA | typeof NETWORKS.BASE_SEPOLIA;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   sendTokens: (toAddress: string, amount: number) => Promise<void>;
-  addTokens: (amount: number, description?: string) => void; // Kept as mock for now
+  addTokens: (amount: number, description?: string) => void;
+  switchNetwork: (network: 'SEPOLIA' | 'BASE_SEPOLIA') => Promise<void>;
+  addNetworkToMetaMask: (network: typeof NETWORKS.SEPOLIA | typeof NETWORKS.BASE_SEPOLIA) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [balance, setBalance] = useState<number>(0);
+export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {  const [balance, setBalance] = useState<number>(0);
   const [address, setAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<Signer | null>(null);
   const [inkTokenContract, setInkTokenContract] = useState<Contract | null>(null);
+  const [currentNetwork, setCurrentNetwork] = useState<typeof NETWORKS.SEPOLIA | typeof NETWORKS.BASE_SEPOLIA>(NETWORKS.BASE_SEPOLIA);
   const [tokenDecimals, setTokenDecimals] = useState<number | undefined>(undefined); // Default to 18, fetch dynamically
-
   // Memoized disconnect function to prevent re-renders
   const disconnectWallet = useCallback(() => {
     setAddress(null);
     setBalance(0);
     setIsConnected(false);
+    setIsLoading(false);
     setProvider(null);
     setSigner(null);
     toast.success('Wallet disconnected.');
@@ -69,40 +100,84 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setTokenDecimals(undefined); // Reset decimals
     setTransactions([]); // Clear transactions on disconnect
     console.log('Wallet disconnected');
-  }, []);
-
-  const connectWallet = useCallback(async () => {
+  }, []);const connectWallet = useCallback(async () => {
     console.log('[ConnectWallet] Attempting to connect...');
-    if (window.ethereum) {
-      try {
-        console.log('[ConnectWallet] MetaMask detected. Creating BrowserProvider...');
-        const newProvider = new ethers.BrowserProvider(window.ethereum);
-        console.log('[ConnectWallet] BrowserProvider created. Setting provider state...');
-        setProvider(newProvider);
-        console.log('[ConnectWallet] Provider state set.');
+    if (!window.ethereum) {
+      console.error('[ConnectWallet] MetaMask is not installed!');
+      toast.error('MetaMask is not installed! Please install it.');
+      return;
+    }
 
-        console.log('[ConnectWallet] Requesting accounts via eth_requestAccounts...');
-        const accounts = await newProvider.send('eth_requestAccounts', []);
-        console.log('[ConnectWallet] Accounts received:', accounts);
-        if (accounts.length === 0) {
-          console.error('[ConnectWallet] No accounts found/selected in MetaMask.');
-          return;
+    try {
+      setIsLoading(true);
+      console.log('[ConnectWallet] MetaMask detected. Creating BrowserProvider...');
+      const newProvider = new ethers.BrowserProvider(window.ethereum);
+      console.log('[ConnectWallet] BrowserProvider created. Setting provider state...');
+      setProvider(newProvider);
+      console.log('[ConnectWallet] Provider state set.');
+
+      // Check current network
+      const network = await newProvider.getNetwork();
+      const currentChainId = Number(network.chainId);
+      console.log('[ConnectWallet] Current network chain ID:', currentChainId);      // Auto-detect network based on chain ID
+      let detectedNetwork = NETWORKS.BASE_SEPOLIA; // Default to Base Sepolia
+      if (currentChainId === NETWORKS.BASE_SEPOLIA.chainId) {
+        detectedNetwork = NETWORKS.BASE_SEPOLIA;
+        toast.success('Connected to Base Sepolia');
+      } else if (currentChainId === NETWORKS.SEPOLIA.chainId) {
+        detectedNetwork = NETWORKS.SEPOLIA;
+        toast.success('Connected to Ethereum Sepolia');      } else {
+        console.warn(`[ConnectWallet] Unsupported network (${currentChainId}), defaulting to Base Sepolia`);
+        toast.error(`Unsupported network. Switching to Base Sepolia...`);
+        
+        // Try to switch to Base Sepolia
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${NETWORKS.BASE_SEPOLIA.chainId.toString(16)}` }]
+          });
+          console.log('[ConnectWallet] Successfully switched to Base Sepolia');
+          toast.success('Switched to Base Sepolia testnet');
+          detectedNetwork = NETWORKS.BASE_SEPOLIA;
+        } catch (switchError: any) {
+          console.error('[ConnectWallet] Failed to switch network:', switchError);
+          if (switchError.code === 4902) {
+            // Network not added to MetaMask, try to add it
+            await addNetworkToMetaMask(NETWORKS.BASE_SEPOLIA);
+            detectedNetwork = NETWORKS.BASE_SEPOLIA;
+          } else {
+            toast.error('Failed to switch to supported network. Some features may not work.');
+          }
         }
-        const currentAddress = accounts[0];
-        console.log('[ConnectWallet] Current address:', currentAddress);
-        console.log('[ConnectWallet] Setting address and isConnected state...');
-        setAddress(currentAddress);
-        setIsConnected(true);
-        console.log('[ConnectWallet] Address and isConnected state set.');
+      }
 
-        console.log('[ConnectWallet] Getting signer...');
-        const newSigner = await newProvider.getSigner();
-        console.log('[ConnectWallet] Signer obtained. Setting signer state...');
-        setSigner(newSigner);
-        console.log('[ConnectWallet] Signer state set.');
+      setCurrentNetwork(detectedNetwork);
 
+      console.log('[ConnectWallet] Requesting accounts via eth_requestAccounts...');
+      const accounts = await newProvider.send('eth_requestAccounts', []);
+      console.log('[ConnectWallet] Accounts received:', accounts.length);
+      
+      if (accounts.length === 0) {
+        console.error('[ConnectWallet] No accounts found/selected in MetaMask.');
+        toast.error('No accounts found. Please check MetaMask.');
+        return;
+      }
+      
+      const currentAddress = accounts[0];
+      console.log('[ConnectWallet] Current address:', currentAddress);
+      console.log('[ConnectWallet] Setting address and isConnected state...');
+      setAddress(currentAddress);
+      setIsConnected(true);
+      console.log('[ConnectWallet] Address and isConnected state set.');
+
+      console.log('[ConnectWallet] Getting signer...');
+      const newSigner = await newProvider.getSigner();
+      console.log('[ConnectWallet] Signer obtained. Setting signer state...');
+      setSigner(newSigner);
+      console.log('[ConnectWallet] Signer state set.');      // Create contract for supported networks
+      if (currentChainId === NETWORKS.SEPOLIA.chainId || currentChainId === NETWORKS.BASE_SEPOLIA.chainId) {
         console.log('[ConnectWallet] Creating contract instance...');
-        const contract = new ethers.Contract(INK_TOKEN_ADDRESS, INK_TOKEN_ABI, newSigner);
+        const contract = new ethers.Contract(detectedNetwork.inkTokenAddress, INK_TOKEN_ABI, newSigner);
         console.log('[ConnectWallet] Contract instance created. Setting contract state...');
         setInkTokenContract(contract);
         console.log('[ConnectWallet] Contract state set.');
@@ -121,22 +196,34 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setBalance(parseFloat(formatUnits(rawBalance, Number(decimals))));
         console.log('[ConnectWallet] Balance state set.');
         
-        console.log('[ConnectWallet] Wallet connection successful. Final state logged above.');
-      toast.success(`Wallet connected: ${currentAddress.substring(0, 6)}...${currentAddress.substring(currentAddress.length - 4)}`);
+        toast.success(`Wallet connected: ${currentAddress.substring(0, 6)}...${currentAddress.substring(currentAddress.length - 4)}`);
         console.log('Wallet connected:', currentAddress);
         console.log('Token Decimals:', Number(decimals));
         console.log('Balance fetched:', parseFloat(formatUnits(rawBalance, Number(decimals))));
-
-      } catch (error) {
-        console.error('[ConnectWallet] Failed during connection process:', error);
-      toast.error('Failed to connect wallet.');
-        disconnectWallet();
+      } else {
+        console.log('[ConnectWallet] Not on Sepolia, skipping contract initialization');
+        setBalance(0);
+        setInkTokenContract(null);
+        setTokenDecimals(undefined);
+        toast.success(`Wallet connected: ${currentAddress.substring(0, 6)}...${currentAddress.substring(currentAddress.length - 4)} (Switch to Sepolia for INK tokens)`);
       }
-    } else {
-      console.error('[ConnectWallet] MetaMask is not installed!');
-      toast.error('MetaMask is not installed! Please install it.');
+
+    } catch (error: any) {
+      console.error('[ConnectWallet] Failed during connection process:', error);
+      
+      // More specific error messages
+      if (error.code === 4001) {
+        toast.error('Connection rejected by user.');
+      } else if (error.code === -32002) {
+        toast.error('Connection request pending. Check MetaMask.');      } else {
+        toast.error(`Failed to connect wallet: ${error.message || 'Unknown error'}`);
+      }
+      
+      disconnectWallet();
+    } finally {
+      setIsLoading(false);
     }
-  }, [disconnectWallet]); // Added disconnectWallet to dependency array as it's called in catch
+  }, [disconnectWallet]);
 
   // Load wallet state from localStorage (address only, balance/txns re-fetched or managed by events)
   useEffect(() => {
@@ -273,23 +360,90 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setTransactions(prev => [newTransaction, ...prev]);
     console.warn('addTokens is a mock function. No actual tokens were minted or transferred on the blockchain.');
   }, []);
+  // Helper function to add network to MetaMask
+  const addNetworkToMetaMask = async (network: typeof NETWORKS.SEPOLIA | typeof NETWORKS.BASE_SEPOLIA) => {
+    if (!window.ethereum) {
+      toast.error('MetaMask not found');
+      return;
+    }
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: `0x${network.chainId.toString(16)}`,
+          chainName: network.name,
+          rpcUrls: [network.rpcUrl],
+          blockExplorerUrls: [network.blockExplorer],
+          nativeCurrency: network.nativeCurrency
+        }]
+      });
+      toast.success(`${network.name} added to MetaMask`);
+    } catch (error) {
+      console.error('Failed to add network:', error);
+      toast.error(`Failed to add ${network.name} to MetaMask`);
+    }
+  };
 
+  // Function to switch networks
+  const switchNetwork = useCallback(async (networkKey: 'SEPOLIA' | 'BASE_SEPOLIA') => {
+    if (!window.ethereum) {
+      toast.error('MetaMask not found');
+      return;
+    }
+    
+    const network = NETWORKS[networkKey];
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${network.chainId.toString(16)}` }]
+      });
+      
+      setCurrentNetwork(network);
+      toast.success(`Switched to ${network.name}`);
+      
+      // Reconnect to update contracts and balances
+      if (isConnected) {
+        await connectWallet();
+      }
+    } catch (error: any) {
+      if (error.code === 4902) {
+        // Network not added, try to add it
+        await addNetworkToMetaMask(network);
+        // Try switching again after adding
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${network.chainId.toString(16)}` }]
+          });
+          setCurrentNetwork(network);
+          toast.success(`Switched to ${network.name}`);
+        } catch (secondError) {
+          toast.error(`Failed to switch to ${network.name}`);
+        }
+      } else {
+        toast.error(`Failed to switch to ${network.name}`);
+      }
+    }
+  }, [isConnected, connectWallet]);
   return (
     <WalletContext.Provider value={{
-      // Toaster needs to be rendered, typically at the root of your app or here
-      // However, to ensure it's available, we'll add it here. 
-      // Consider moving <Toaster /> to your App.tsx or main layout for global availability if preferred.
       balance,
       address,
       isConnected,
+      isLoading,
       transactions,
       provider,
       signer,
       inkTokenContract,
+      currentNetwork,
       connectWallet,
       disconnectWallet,
       sendTokens,
-      addTokens
+      addTokens,
+      switchNetwork,
+      addNetworkToMetaMask
     }}>
       {children}
       <Toaster position="bottom-right" reverseOrder={false} />

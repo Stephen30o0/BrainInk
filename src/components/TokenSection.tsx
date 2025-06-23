@@ -1,4 +1,3 @@
-import React from 'react';
 import { PixelButton } from './shared/PixelButton';
 import { CoinsIcon, TrendingUpIcon, ShieldIcon, ZapIcon } from 'lucide-react';
 export const TokenSection = () => {
@@ -33,13 +32,12 @@ export const TokenSection = () => {
           </div>)}
       </div>
       <div className="container mx-auto px-4 py-16 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="font-pixel text-3xl md:text-4xl mb-4 text-primary">
-            <span className="text-yellow-400">INK TOKENS</span> & BLOCKCHAIN
-            MAGIC
+        <div className="text-center mb-16">          <h2 className="font-pixel text-3xl md:text-4xl mb-4 text-primary">
+            <span className="text-yellow-400">INK TOKENS</span> & SMART
+            REWARDS
           </h2>
           <p className="text-gray-300 font-pixel text-sm max-w-2xl mx-auto">
-            Learn to Earn: The Future of Education Is On-Chain
+            Learn to Earn: Rewarding Education with Blockchain Technology
           </p>
         </div>
         <div className="flex flex-col md:flex-row gap-8">

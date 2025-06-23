@@ -27,11 +27,14 @@ import { Notifications } from './pages/Notifications';
 import { Friends } from './pages/Friends';
 import { QuizInterface } from './components/quiz/QuizInterface';
 import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedLayout';
+import { ChainlinkGrandPrizeDemo } from './components/demo/ChainlinkGrandPrizeDemo';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [showChainlinkDemo, setShowChainlinkDemo] = useState(false);
+  
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
@@ -107,6 +110,23 @@ export function App() {
       </AudioProvider>
     </SoundProvider>
     <ProfileCustomizationModal />
-  </ProfileCustomizationModalProvider>
+    
+    {/* Chainlink Grand Prize Demo - Floating Button */}
+    <button
+      onClick={() => setShowChainlinkDemo(true)}
+      className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+      title="Chainlink Grand Prize Demo"
+    >
+      <div className="flex items-center space-x-2">
+        <span className="text-2xl">🔗</span>
+        <span className="hidden sm:block font-semibold">Grand Prize Demo</span>
+      </div>
+    </button>
+
+    {/* Chainlink Grand Prize Demo Modal */}
+    {showChainlinkDemo && (
+      <ChainlinkGrandPrizeDemo onClose={() => setShowChainlinkDemo(false)} />
+    )}
+    </ProfileCustomizationModalProvider>
   );
 }

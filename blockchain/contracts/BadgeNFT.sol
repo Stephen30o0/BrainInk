@@ -55,12 +55,22 @@ contract BadgeNFT is ERC721, Ownable {
 
     /**
      * @dev Mint a badge to a user
-     */
-    function mintBadge(
+     */    function mintBadge(
         address to,
         BadgeType badgeType,
         string memory customData
     ) external onlyOwner returns (uint256) {
+        return _mintBadge(to, badgeType, customData);
+    }
+
+    /**
+     * @dev Internal function to mint a badge
+     */
+    function _mintBadge(
+        address to,
+        BadgeType badgeType,
+        string memory customData
+    ) internal returns (uint256) {
         require(!hasBadge[to][badgeType], "User already has this badge");
         
         uint256 tokenId = _tokenIdCounter++;
@@ -102,31 +112,30 @@ contract BadgeNFT is ERC721, Ownable {
 
     /**
      * @dev Check and award badges based on user progress
-     */
-    function _checkBadgeEligibility(address user) internal {
+     */    function _checkBadgeEligibility(address user) internal {
         // Streak Master - 7+ day streak
         if (userStreaks[user] >= 7 && !hasBadge[user][BadgeType.STREAK_MASTER]) {
-            mintBadge(user, BadgeType.STREAK_MASTER, "Maintained a 7-day study streak");
+            _mintBadge(user, BadgeType.STREAK_MASTER, "Maintained a 7-day study streak");
         }
         
         // Quiz Champion - 50+ quizzes
         if (quizzesCompleted[user] >= 50 && !hasBadge[user][BadgeType.QUIZ_CHAMPION]) {
-            mintBadge(user, BadgeType.QUIZ_CHAMPION, "Completed 50 quizzes");
+            _mintBadge(user, BadgeType.QUIZ_CHAMPION, "Completed 50 quizzes");
         }
         
         // Knowledge Seeker - 100+ questions
         if (questionsAnswered[user] >= 100 && !hasBadge[user][BadgeType.KNOWLEDGE_SEEKER]) {
-            mintBadge(user, BadgeType.KNOWLEDGE_SEEKER, "Answered 100 questions");
+            _mintBadge(user, BadgeType.KNOWLEDGE_SEEKER, "Answered 100 questions");
         }
         
         // Study Warrior - 30+ active days
         if (activeDays[user] >= 30 && !hasBadge[user][BadgeType.STUDY_WARRIOR]) {
-            mintBadge(user, BadgeType.STUDY_WARRIOR, "30 days of active studying");
+            _mintBadge(user, BadgeType.STUDY_WARRIOR, "30 days of active studying");
         }
         
         // Perfect Score - 10+ perfect scores
         if (perfectScores[user] >= 10 && !hasBadge[user][BadgeType.PERFECT_SCORE]) {
-            mintBadge(user, BadgeType.PERFECT_SCORE, "Achieved 10 perfect quiz scores");
+            _mintBadge(user, BadgeType.PERFECT_SCORE, "Achieved 10 perfect quiz scores");
         }
     }
 
@@ -145,9 +154,8 @@ contract BadgeNFT is ERC721, Ownable {
             badgeType == BadgeType.MENTOR ||
             badgeType == BadgeType.ACHIEVEMENT_HUNTER,
             "Invalid special badge type"
-        );
-        
-        mintBadge(user, badgeType, customData);
+        );        
+        _mintBadge(user, badgeType, customData);
     }
 
     /**

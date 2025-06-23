@@ -1,3 +1,5 @@
+import { chainlinkTestnetService } from '../../src/services/chainlinkTestnetService';
+
 interface AIMessage {
   id: string;
   agent: 'kana';
@@ -73,6 +75,19 @@ class AIAgentService {
       
       if (message.toLowerCase().includes('challenge') || message.toLowerCase().includes('bounty')) {
         return await this.suggestChallenges();
+      }
+
+      // NEW: Chainlink Grand Prize features
+      if (message.toLowerCase().includes('daily quiz') || message.toLowerCase().includes('today\'s challenge')) {
+        return await this.getTodaysChainlinkQuiz();
+      }
+
+      if (message.toLowerCase().includes('tournament') || message.toLowerCase().includes('compete')) {
+        return await this.suggestTournaments();
+      }
+
+      if (message.toLowerCase().includes('eth price') || message.toLowerCase().includes('market')) {
+        return await this.getETHPriceUpdate();
       }
 
       return {
@@ -568,6 +583,90 @@ class AIAgentService {
       return payload.user_id || payload.sub || payload.id || null;
     } catch (error) {
       return null;
+    }
+  }
+
+  // NEW: Chainlink Grand Prize integration methods
+  async getTodaysChainlinkQuiz(): Promise<AIMessage> {
+    try {
+      const todaysQuiz = await chainlinkTestnetService.getTodaysQuiz();
+      
+      return {
+        id: `kana_chainlink_quiz_${Date.now()}`,
+        agent: 'kana',
+        content: `🧠 **Today's Chainlink-Powered Quiz Challenge!**\n\n**${todaysQuiz.question}**\n\n${todaysQuiz.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`).join('\n')}\n\n💰 Reward: ${todaysQuiz.xpReward} XP\n\n*This quiz is generated using Chainlink Functions with real-time data!*`,
+        type: 'quiz',
+        timestamp: new Date().toISOString(),
+        metadata: { 
+          todaysQuiz,
+          chainlinkPowered: true,
+          feature: 'chainlink-functions'
+        }
+      };
+    } catch (error) {
+      return {
+        id: `kana_chainlink_error_${Date.now()}`,
+        agent: 'kana',
+        content: `🔗 I'm having trouble connecting to the Chainlink oracle network right now. The daily quiz will be available once the connection is restored!`,
+        type: 'text',
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  async suggestTournaments(): Promise<AIMessage> {
+    try {
+      const ethPrice = await chainlinkTestnetService.getCurrentETHPrice();
+      const entryFee = await chainlinkTestnetService.calculateDynamicEntryFee();
+      
+      return {
+        id: `kana_tournament_${Date.now()}`,
+        agent: 'kana',
+        content: `🏆 **Ready to compete in a tournament?**\n\n🔥 **Current Tournament Features:**\n• Dynamic entry fee: ${entryFee} INK (based on real ETH price: $${ethPrice})\n• Winner selected using Chainlink VRF (truly random!)\n• Automated prize distribution\n\n*Tournament entry fees automatically adjust based on current ETH market price via Chainlink Price Feeds!*\n\nWould you like me to create a new tournament for you?`,
+        type: 'suggestion',
+        timestamp: new Date().toISOString(),
+        metadata: { 
+          ethPrice,
+          entryFee,
+          chainlinkPowered: true,
+          features: ['chainlink-vrf', 'chainlink-price-feeds']
+        }
+      };
+    } catch (error) {
+      return {
+        id: `kana_tournament_error_${Date.now()}`,
+        agent: 'kana',
+        content: `🏆 I can help you create tournaments! The entry fees are dynamically calculated using Chainlink Price Feeds. Let me know when you'd like to compete!`,
+        type: 'suggestion',
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  async getETHPriceUpdate(): Promise<AIMessage> {
+    try {
+      const ethPrice = await chainlinkTestnetService.getCurrentETHPrice();
+      
+      return {
+        id: `kana_eth_price_${Date.now()}`,
+        agent: 'kana',
+        content: `📈 **Live ETH Price Update**\n\n💰 Current ETH Price: **$${ethPrice}**\n\n*Price data powered by Chainlink Price Feeds - the most reliable decentralized oracle network!*\n\nThis real-time price affects tournament entry fees and reward calculations across the Brain Ink platform.`,
+        type: 'text',
+        timestamp: new Date().toISOString(),
+        metadata: { 
+          ethPrice,
+          chainlinkPowered: true,
+          feature: 'chainlink-price-feeds'
+        }
+      };
+    } catch (error) {
+      return {
+        id: `kana_price_error_${Date.now()}`,
+        agent: 'kana',
+        content: `📈 I can provide live ETH price updates powered by Chainlink Price Feeds! The price data helps determine dynamic tournament fees and rewards.`,
+        type: 'text',
+        timestamp: new Date().toISOString()
+      };
     }
   }
 }

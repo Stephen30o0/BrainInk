@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || '';
+const KANA_API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:10000/api/kana';
+const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000'; // For non-kana routes
 import { motion } from 'framer-motion';
-import { Book, FileText, Film, Gamepad, Archive, ArrowLeft, Search, Clock, UploadCloud, Link, X } from 'lucide-react';
+import { Book, FileText, Film, Gamepad, Archive, ArrowLeft, Search, Clock, UploadCloud, Link, X, Zap } from 'lucide-react';
 import { TextbookViewer } from './TextbookViewer';
 import { ResearchPapers } from './ResearchPapers';
 import { VideoLectures } from './VideoLectures';
 import { InteractiveSimulations } from './InteractiveSimulations';
+import { ChainlinkQuizGenerator } from './ChainlinkQuizGenerator';
 
 interface LibraryHubProps {
   onExit: () => void;
@@ -14,7 +16,7 @@ interface LibraryHubProps {
   subFeatureId?: string;
 }
 
-type LibraryScreen = 'hub' | 'textbooks' | 'research-papers' | 'video-lectures' | 'simulations' | 'archives';
+type LibraryScreen = 'hub' | 'textbooks' | 'research-papers' | 'video-lectures' | 'simulations' | 'archives' | 'chainlink-quiz';
 
 interface BackendStudyMaterial {
   id: string;
@@ -130,7 +132,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     }
 
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials/${itemId}`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/study-materials/${itemId}`, {
         method: 'DELETE',
       });
 
@@ -256,7 +258,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/study-materials`);
+      const response = await fetch(`${BACKEND_BASE_URL}/api/study-materials`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -298,7 +300,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     formData.append('topic', topic || 'General');
 
     try {
-      const res = await fetch(`${KANA_API_BASE_URL}/api/upload-study-material`, {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/upload-study-material`, {
         method: 'POST',
         body: formData,
       });
@@ -332,7 +334,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     setCoreSearchError(null);
     setCoreSearchResults([]);
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`);
+      const response = await fetch(`${BACKEND_BASE_URL}/api/core-search?q=${encodeURIComponent(coreSearchQuery)}`);
       const data = await response.json();
       if (response.ok) {
         // The backend now returns the array of results directly on success.
@@ -385,7 +387,7 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     };
 
     try {
-      const response = await fetch(`${KANA_API_BASE_URL}/api/save-external-item`, {
+      const response = await fetch(`${BACKEND_BASE_URL}/api/save-external-item`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -597,13 +599,13 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
     </div>
   );
 
-  const renderLibraryHub = () => {
-    const categories = [
+  const renderLibraryHub = () => {    const categories = [
       { title: 'Textbooks', screen: 'textbooks', icon: <Book size={30} />, color: 'blue', description: 'Academic textbooks and guides' },
       { title: 'Research Papers', screen: 'research-papers', icon: <FileText size={30} />, color: 'green', description: 'Scholarly articles and papers' },
       { title: 'Video Lectures', screen: 'video-lectures', icon: <Film size={30} />, color: 'purple', description: 'Educational video content' },
       { title: 'Simulations', screen: 'simulations', icon: <Gamepad size={30} />, color: 'yellow', description: 'Interactive learning simulations' },
       { title: 'Archives', screen: 'archives', icon: <Archive size={30} />, color: 'gray', description: 'General documents and resources' },
+      { title: 'AI Quiz Generator', screen: 'chainlink-quiz', icon: <Zap size={30} />, color: 'purple', description: 'Generate dynamic quizzes with Chainlink Functions' },
     ];
 
     return (
@@ -734,10 +736,12 @@ export const LibraryHub: React.FC<LibraryHubProps> = ({
             </div>
           );
       }
+    }    if (currentScreen === 'hub') {
+      return renderLibraryHub();
     }
 
-    if (currentScreen === 'hub') {
-      return renderLibraryHub();
+    if (currentScreen === 'chainlink-quiz') {
+      return <ChainlinkQuizGenerator onBack={() => setCurrentScreen('hub')} />;
     }
 
     // Category view (listing items)

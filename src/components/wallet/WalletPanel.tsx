@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useWallet } from '../shared/WalletContext';
-import { Wallet, Send, LogOut, X } from 'lucide-react';
+import { Wallet, Send, LogOut, X, Settings } from 'lucide-react';
+import { WalletDiagnostics } from './WalletDiagnostics';
+import { QuickNetworkSwitcher } from '../shared/QuickNetworkSwitcher';
 
 interface WalletPanelProps {
   isOpen: boolean;
@@ -14,14 +16,15 @@ export const WalletPanel = ({
     balance,
     address,
     isConnected,
+    isLoading,
     transactions,
     connectWallet,
     disconnectWallet,
-    sendTokens // Added missing function
+    sendTokens
   } = useWallet();
-  const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'history'>('overview');
-  const [sendAmount, setSendAmount] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'send' | 'history' | 'network'>('overview');  const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const handleSendTokens = () => {
     const amountNum = parseFloat(sendAmount);
@@ -54,18 +57,36 @@ export const WalletPanel = ({
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={20} />
           </button>
-        </div>
-        {!isConnected ? <div className="p-8 text-center">
+        </div>        {!isConnected ? <div className="p-8 text-center">
             <Wallet className="text-primary/50 w-16 h-16 mx-auto mb-4" />
             <h3 className="font-pixel text-primary mb-2">Connect Wallet</h3>
             <p className="text-gray-400 text-sm mb-6">
               Connect your wallet to access INK features
             </p>
-            <button onClick={connectWallet} className="px-6 py-2 bg-primary/20 text-primary border border-primary/30 rounded-lg hover:bg-primary/30 transition-colors">
-              Connect Now
-            </button>
-          </div> : <>
-            {/* Tabs */}
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mb-4 space-y-1">
+              <div>MetaMask: {window.ethereum ? '✓ Detected' : '✗ Not Found'}</div>
+              <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
+              <div>Address: {address || 'None'}</div>
+              <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+            </div>
+            <div className="space-y-3">
+              <button 
+                onClick={connectWallet} 
+                disabled={isLoading}
+                className="w-full px-6 py-2 bg-primary/20 text-primary border border-primary/30 rounded-lg hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Connecting...' : 'Connect Now'}
+              </button>
+              <button 
+                onClick={() => setShowDiagnostics(true)} 
+                className="w-full px-6 py-2 bg-dark/60 border border-gray-600 text-gray-400 rounded-lg hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-2"
+              >
+                <Settings size={16} />
+                Troubleshoot Connection
+              </button>
+            </div>
+          </div>: <>            {/* Tabs */}
             <div className="flex border-b border-primary/20">
               <button className={`flex-1 px-4 py-3 text-xs font-pixel tracking-wider ${activeTab === 'overview' ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-primary/80'}`} onClick={() => setActiveTab('overview')}>
                 OVERVIEW
@@ -75,6 +96,9 @@ export const WalletPanel = ({
               </button>
               <button className={`flex-1 px-4 py-3 text-xs font-pixel tracking-wider ${activeTab === 'history' ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-primary/80'}`} onClick={() => setActiveTab('history')}>
                 HISTORY
+              </button>
+              <button className={`flex-1 px-4 py-3 text-xs font-pixel tracking-wider ${activeTab === 'network' ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-primary/80'}`} onClick={() => setActiveTab('network')}>
+                NETWORK
               </button>
             </div>
 
@@ -95,14 +119,22 @@ export const WalletPanel = ({
                       className="text-xs text-primary/70 hover:text-primary mt-1"
                     >
                       Copy Address
+                    </button>                  </div>
+                  <div className="space-y-3">
+                    <button 
+                      onClick={disconnectWallet} 
+                      className="w-full px-4 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors flex items-center justify-center text-sm">
+                      <LogOut size={16} className="mr-2" />
+                      Disconnect Wallet
+                    </button>
+                    <button 
+                      onClick={() => setShowDiagnostics(true)} 
+                      className="w-full px-4 py-3 bg-dark/60 border border-gray-600 text-gray-400 rounded-lg hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center text-sm gap-2"
+                    >
+                      <Settings size={16} />
+                      Wallet Diagnostics
                     </button>
                   </div>
-                  <button 
-                    onClick={disconnectWallet} 
-                    className="w-full mt-4 px-4 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors flex items-center justify-center text-sm">
-                    <LogOut size={16} className="mr-2" />
-                    Disconnect Wallet
-                  </button>
                 </div>
               )}
 
@@ -160,11 +192,41 @@ export const WalletPanel = ({
                         {tx.type === 'earn' || tx.type === 'receive' ? '+' : '-'}{Math.abs(tx.amount)} INK
                       </div>
                     </div>
-                  ))}
+                  ))}                </div>
+              )}
+
+              {activeTab === 'network' && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="font-pixel text-primary text-sm mb-2">Network Switcher</h3>
+                    <p className="text-gray-400 text-xs mb-4">
+                      Switch between networks to access different features
+                    </p>
+                  </div>
+                  <QuickNetworkSwitcher />
+                  <hr className="border-primary/20" />
+                  <div className="text-center">
+                    <h3 className="font-pixel text-primary text-sm mb-2">Wallet Diagnostics</h3>
+                    <p className="text-gray-400 text-xs mb-4">
+                      Troubleshoot connection issues
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setShowDiagnostics(true)} 
+                    className="w-full px-4 py-2 bg-dark/60 border border-gray-600 text-gray-400 rounded-lg hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Settings size={16} />
+                    Run Diagnostics
+                  </button>
                 </div>
               )}
             </div>
           </>}
       </div>
+      
+      {/* Wallet Diagnostics Modal */}
+      {showDiagnostics && (
+        <WalletDiagnostics onClose={() => setShowDiagnostics(false)} />
+      )}
     </div>;
 };

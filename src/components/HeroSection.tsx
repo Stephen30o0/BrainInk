@@ -374,10 +374,10 @@ export const HeroSection = () => {
               <span className="text-green-400 inline-block mt-2 text-4xl md:text-6xl">
                 INKVERSE
               </span>
-            </h1>
-            <p className="text-gray-300 mb-8 text-sm leading-relaxed">
-              Study. Battle. Learn. Earn. <br />
-              All in one world.
+            </h1>            <p className="text-gray-300 mb-8 text-sm leading-relaxed">
+              Master any subject. Challenge yourself. <br />
+              Learn anything. Earn rewards. <br />
+              All in one immersive educational universe.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <PixelButton primary onClick={() => navigate('/signup')}>

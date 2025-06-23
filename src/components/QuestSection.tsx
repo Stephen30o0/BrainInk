@@ -1,7 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PixelButton } from './shared/PixelButton';
+import { chainlinkTestnetService } from '../services/chainlinkTestnetService';
+
 export const QuestSection = () => {
   const [selectedRank, setSelectedRank] = useState('gold');
+  const [todaysQuiz, setTodaysQuiz] = useState<any>(null);
+  const [ethPrice, setEthPrice] = useState<number>(0);
+  const [loadingChainlink, setLoadingChainlink] = useState(false);
+
+  // Load Chainlink data
+  useEffect(() => {
+    loadChainlinkData();
+  }, []);
+
+  const loadChainlinkData = async () => {
+    try {
+      setLoadingChainlink(true);
+      
+      // Set contract addresses
+      chainlinkTestnetService.setContractAddresses({
+        chainlinkIntegration: '0xA50de864EaFD91d472106F568cdB000F25C65EA8',
+        xpToken: '0x8273A230b80C9621e767bC2154455b297CEC5BD6',
+        badgeNFT: '0xd5fddF56bcacD54D15083989DC7b9Dd88dE78df3'
+      });
+
+      // Load today's Chainlink-powered quiz
+      const quiz = await chainlinkTestnetService.getTodaysQuiz();
+      setTodaysQuiz(quiz);
+
+      // Load current ETH price for dynamic rewards
+      const price = await chainlinkTestnetService.getCurrentETHPrice();
+      setEthPrice(price);
+    } catch (error) {
+      console.log('Chainlink data will load when wallet is connected');
+    } finally {
+      setLoadingChainlink(false);
+    }
+  };
+
+  const startChainlinkQuiz = async () => {
+    try {
+      if (!todaysQuiz) {
+        // Generate a new quiz using Chainlink Functions
+        setLoadingChainlink(true);
+        await chainlinkTestnetService.generateTestQuiz();
+        await loadChainlinkData();
+      } else {
+        // Navigate to quiz interface with Chainlink data
+        window.location.href = '/quiz/chainlink';
+      }
+    } catch (error) {
+      console.error('Error starting Chainlink quiz:', error);
+      alert('Please connect your wallet to access Chainlink-powered quizzes!');
+    }
+  };
+
   const ranks = [{
     id: 'bronze',
     name: 'Bronze Scholar',
@@ -155,7 +208,9 @@ export const QuestSection = () => {
           </div>
         </div>
         <div className="text-center mt-12">
-          <PixelButton primary>View All Quests</PixelButton>
+          <PixelButton primary onClick={startChainlinkQuiz} disabled={loadingChainlink}>
+            {loadingChainlink ? 'Loading Quiz...' : 'View All Quests'}
+          </PixelButton>
         </div>
       </div>
     </section>;
