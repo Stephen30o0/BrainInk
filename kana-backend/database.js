@@ -12,12 +12,25 @@ const pool = new Pool({
 // Test database connection
 async function testConnection() {
     try {
+        console.log('🔍 Testing database connection...');
+        console.log('DATABASE_URL configured:', process.env.DATABASE_URL ? 'Yes' : 'No');
+
         const client = await pool.connect();
         console.log('✅ Database connected successfully');
+
+        // Test a simple query
+        const result = await client.query('SELECT NOW()');
+        console.log('✅ Database query test successful:', result.rows[0]);
+
         client.release();
         return true;
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);
+        console.error('❌ Error details:', {
+            code: error.code,
+            severity: error.severity,
+            detail: error.detail
+        });
         return false;
     }
 }

@@ -160,16 +160,27 @@ const extractTextFromFile = async (mimetype, buffer) => {
 // --- DATABASE INITIALIZATION ---
 async function initializeDatabase() {
   console.log('🔌 Initializing database connection...');
+  console.log('📋 Environment check:');
+  console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configured' : '❌ Missing');
+  console.log('  - NODE_ENV:', process.env.NODE_ENV || 'development');
+
   const connected = await testConnection();
   if (connected) {
     const tablesCreated = await initializeTables();
     if (tablesCreated) {
       console.log('✅ Tournament database ready');
+      return true;
     } else {
       console.log('⚠️ Database tables initialization failed');
+      return false;
     }
   } else {
     console.log('⚠️ Database connection failed - using fallback mode');
+    console.log('📝 To fix this:');
+    console.log('   1. Set DATABASE_URL environment variable in Render dashboard');
+    console.log('   2. Use your Supabase connection string');
+    console.log('   3. Redeploy the service');
+    return false;
   }
 }
 
@@ -951,4 +962,31 @@ Style: Educational, clear, and engaging`;
 
     res.json(fallbackQuiz);
   }
+});
+
+// --- HEALTH CHECK ENDPOINT ---
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: 'disconnected',
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ? 'configured' : 'missing',
+      DATABASE_URL: process.env.DATABASE_URL ? 'configured' : 'missing'
+    }
+  };
+
+  try {
+    const dbConnected = await testConnection();
+    health.database = dbConnected ? 'connected' : 'disconnected';
+  } catch (error) {
+    health.database = 'error';
+    health.databaseError = error.message;
+  }
+
+  const statusCode = health.database === 'connected' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
