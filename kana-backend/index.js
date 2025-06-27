@@ -845,8 +845,8 @@ const startServer = async () => {
     }
   });
 
-  app.listen(port, () => {
-    console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`K.A.N.A. Backend listening on port ${port}`);
   });
 };
 
