@@ -2,7 +2,9 @@
 import { chainlinkTestnetService } from './chainlinkTestnetService';
 import { ethers, Contract, formatUnits, parseUnits } from 'ethers';
 
-const API_BASE_URL = 'http://localhost:10000/api/tournaments';
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+    ? 'https://kana-backend-app.onrender.com/api/tournaments'
+    : 'http://localhost:10000/api/tournaments';
 
 // INK Token Contract ABI for frontend interactions
 const INK_TOKEN_ABI = [
@@ -147,7 +149,7 @@ export class BackendTournamentService {
                         if (error.name === 'AbortError') {
                             throw new Error('Request timeout. Please check your connection and try again.');
                         } else if (error.message.includes('ERR_CONNECTION_REFUSED')) {
-                            throw new Error('Tournament backend is not available. Please ensure the server is running at localhost:10000');
+                            throw new Error('Tournament backend is not available. Please check your connection and try again.');
                         } else if (error.message.includes('ERR_NETWORK_CHANGED')) {
                             throw new Error('Network connection changed. Please try again.');
                         }
