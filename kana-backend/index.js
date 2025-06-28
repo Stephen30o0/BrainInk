@@ -833,3 +833,693 @@ const startServer = async () => {
 startServer();
 
 // Note: All endpoints have been moved before startServer() for proper registration
+
+// New endpoint for Chainlink Functions - Daily Quiz Generation
+app.post('/api/kana/generate-daily-quiz', async (req, res) => {
+  const { topic, difficulty = 'medium', numQuestions = 1 } = req.body;
+
+  if (!topic) {
+    return res.status(400).json({ error: 'Topic is required for daily quiz generation.' });
+  }
+
+  try {
+    // Create a more focused prompt for daily challenges
+    const prompt = `Generate a single educational quiz question about ${topic} at ${difficulty} difficulty level. 
+    
+Focus on:
+- Practical knowledge and real-world applications
+- Current trends and developments in ${topic}
+- Fundamental concepts that learners should know
+- Make it engaging and thought-provoking
+
+Format the output as a single JSON object with this exact structure:
+{
+  "quiz": [
+    {
+      "question": "The question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "The exact text of the correct option from the options array"
+    }
+  ]
+}
+
+Topic: ${topic}
+Difficulty: ${difficulty}
+Style: Educational, clear, and engaging`;
+
+    console.log(`Generating daily quiz for topic: ${topic}, difficulty: ${difficulty}`);
+
+    const result = await geminiModel.generateContent(prompt);
+    const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
+
+    try {
+      const quizJson = JSON.parse(responseText);
+
+      // Validate the structure
+      if (!quizJson.quiz || !Array.isArray(quizJson.quiz) || quizJson.quiz.length === 0) {
+        throw new Error('Invalid quiz structure');
+      }
+
+      const quiz = quizJson.quiz[0];
+      if (!quiz.question || !quiz.options || !Array.isArray(quiz.options) || quiz.options.length !== 4 || !quiz.answer) {
+        throw new Error('Invalid quiz question structure');
+      }
+
+      // Verify the answer is in the options
+      if (!quiz.options.includes(quiz.answer)) {
+        throw new Error('Answer not found in options');
+      }
+
+      console.log(`Successfully generated daily quiz for ${topic}`);
+      res.json(quizJson);
+
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      console.error('Raw response:', responseText);
+
+      // Return a fallback quiz
+      const fallbackQuiz = {
+        quiz: [{
+          question: `What is a key concept in ${topic}?`,
+          options: [
+            "Centralized control",
+            "Decentralized architecture",
+            "Single point of failure",
+            "Manual processes"
+          ],
+          answer: "Decentralized architecture"
+        }]
+      };
+
+      res.json(fallbackQuiz);
+    }
+
+  } catch (error) {
+    console.error('Error in /generate-daily-quiz:', error);
+
+    // Return a fallback quiz in case of error
+    const fallbackQuiz = {
+      quiz: [{
+        question: `What is an important aspect of ${topic || 'technology'}?`,
+        options: [
+          "Innovation and progress",
+          "Maintaining status quo",
+          "Avoiding change",
+          "Limiting access"
+        ],
+        answer: "Innovation and progress"
+      }]
+    };
+
+    res.json(fallbackQuiz);
+  }
+});
+
+// === KANA-DIRECT ENDPOINT (for dashboard compatibility) ===
+console.log('DEBUG: Registering /kana-direct endpoint...');
+app.post('/kana-direct', async (req, res) => {
+  console.log('DEBUG: /kana-direct endpoint called from dashboard!');
+  console.log('DEBUG: Request headers:', req.headers);
+  console.log('DEBUG: Request body type:', typeof req.body);
+  console.log('DEBUG: Request body:', req.body ? JSON.stringify(req.body) : 'undefined/null');
+  try {
+    const { 
+      image_data, 
+      image_analysis, 
+      pdf_data, 
+      pdf_analysis, 
+      context, 
+      image_filename,
+      grading_mode,
+      assignment_type,
+      max_points,
+      grading_rubric,
+      student_context,
+      analysis_type
+    } = req.body || {};
+    
+    console.log(`DEBUG: Received dashboard request - image_analysis: ${image_analysis}, pdf_analysis: ${pdf_analysis}, grading_mode: ${grading_mode}`);
+    
+    // Handle PDF analysis first
+    if (pdf_analysis && pdf_data) {
+      console.log('DEBUG: Processing dashboard PDF analysis...');
+      
+      try {
+        // Convert base64 PDF to buffer and extract text
+        const pdfBuffer = Buffer.from(pdf_data, 'base64');
+        console.log(`DEBUG: PDF buffer size: ${pdfBuffer.length} bytes`);
+        
+        const pdfData = await pdf(pdfBuffer);
+        const extractedText = pdfData.text;
+        console.log(`DEBUG: Extracted text length: ${extractedText.length} characters`);
+        
+        if (!extractedText || extractedText.trim().length === 0) {
+          return res.status(400).json({
+            error: 'No text found in PDF',
+            analysis: 'The PDF appears to be empty or contains only images',
+            knowledge_gaps: ['PDF processing issue'],
+            recommendations: ['Try uploading a PDF with text content or convert images to text first'],
+            confidence: 0.0,
+            extracted_text: 'No text extracted from PDF'
+          });
+        }
+        
+        if (!geminiModel) {
+          console.error('Gemini model not initialized');
+          return res.status(500).json({
+            error: 'AI model not available',
+            analysis: 'AI analysis service unavailable',
+            knowledge_gaps: ['Service configuration issue'],
+            recommendations: ['Check AI service configuration'],
+            confidence: 0.0,
+            extracted_text: extractedText
+          });
+        }
+        
+        // Create analysis prompt based on grading mode
+        let analysisPrompt;
+        if (grading_mode) {
+          analysisPrompt = `You are an expert teacher grading a student assignment. Please analyze and grade this student work.
+
+**ASSIGNMENT DETAILS:**
+- Assignment Type: ${assignment_type || 'General Assignment'}
+- Maximum Points: ${max_points || 100}
+- Grading Rubric: ${grading_rubric || 'Standard academic grading criteria'}
+- Student Context: ${student_context || 'Student assignment'}
+
+**STUDENT WORK TEXT:**
+${extractedText}
+
+Please provide a comprehensive grading analysis in the following format:
+
+**GRADE:** [Numerical score out of ${max_points || 100}]
+
+**TEXT EXTRACTION:**
+[Confirm the text was properly extracted]
+
+**GRADING BREAKDOWN:**
+• Content Understanding: [Score/Points] - [Feedback]
+• Technical Accuracy: [Score/Points] - [Feedback]  
+• Organization & Structure: [Score/Points] - [Feedback]
+• Critical Thinking: [Score/Points] - [Feedback]
+
+**OVERALL FEEDBACK:**
+[Comprehensive feedback on the assignment]
+
+**STUDENT STRENGTHS:**
+• [Strength 1 - what the student did well]
+• [Strength 2 - another positive aspect]
+• [Strength 3 - additional accomplishment]
+
+**AREAS FOR IMPROVEMENT:**
+• [Area 1 - specific improvement needed]
+• [Area 2 - concept requiring work]
+• [Area 3 - skill to develop]
+
+**RECOMMENDATIONS:**
+• [Recommendation 1 - specific next step]
+• [Recommendation 2 - study suggestion]
+• [Recommendation 3 - practice area]
+
+Provide detailed, constructive feedback that will help the student improve.`;
+        } else {
+          analysisPrompt = `You are an expert educational AI analyzing student work from a PDF document. Please provide a comprehensive analysis.
+
+**STUDENT WORK TEXT:**
+${extractedText}
+
+Please analyze this student work and provide structured feedback in the following format:
+
+**TEXT EXTRACTION:**
+[Confirm all visible text was properly extracted]
+
+**SUBJECT ANALYSIS:**
+[Identify the subject and specific topics covered]
+
+**STUDENT STRENGTHS:**
+• [Strength 1 - what the student demonstrates well]
+• [Strength 2 - another area of competence]
+• [Strength 3 - additional positive observations]
+
+**KNOWLEDGE GAPS:**
+• [Gap 1 - specific area needing improvement]
+• [Gap 2 - concept requiring reinforcement]
+• [Gap 3 - skill to develop further]
+
+**LEARNING LEVEL:**
+[Academic level assessment]
+
+**TEACHING RECOMMENDATIONS:**
+• [Recommendation 1 - specific teaching strategy]
+• [Recommendation 2 - targeted intervention]
+• [Recommendation 3 - additional support needed]
+
+**NEXT LEARNING STEPS:**
+• [Step 1 - immediate next practice area]
+• [Step 2 - follow-up skill development]
+• [Step 3 - advanced concept to introduce]
+
+Context: ${student_context || 'teacher_dashboard_pdf_analysis'}
+Analysis Type: ${analysis_type || 'pdf_student_work'}
+
+Provide detailed, actionable insights that will help teachers understand and support this student's learning.`;
+        }
+        
+        console.log('DEBUG: Sending PDF text to Gemini for analysis...');
+        const result = await geminiModel.generateContent(analysisPrompt);
+        const analysisText = result.response.text();
+        console.log(`DEBUG: Gemini PDF analysis response - length: ${analysisText.length}`);
+        
+        // Parse the structured analysis
+        const parsedAnalysis = parseStructuredAnalysis(analysisText);
+        
+        // Extract grade if in grading mode
+        let grade = null;
+        let gradingCriteria = [];
+        let overallFeedback = '';
+        let improvementAreas = [];
+        let strengths = [];
+        
+        if (grading_mode) {
+          // Extract grade from analysis
+          const gradeMatch = analysisText.match(/\*\*GRADE:\*\*\s*(\d+(?:\.\d+)?)/i);
+          if (gradeMatch) {
+            grade = parseFloat(gradeMatch[1]);
+          }
+          
+          // Extract grading breakdown
+          const breakdownMatch = analysisText.match(/\*\*GRADING BREAKDOWN:\*\*(.*?)(?=\*\*|$)/s);
+          if (breakdownMatch) {
+            const breakdown = breakdownMatch[1];
+            const criteriaMatches = breakdown.match(/•\s*([^:]+):\s*(\d+(?:\.\d+)?)[\/\s]*(\d+(?:\.\d+)?)\s*-\s*(.+?)(?=\n•|\n\*\*|$)/gs);
+            if (criteriaMatches) {
+              gradingCriteria = criteriaMatches.map(match => {
+                const parts = match.match(/•\s*([^:]+):\s*(\d+(?:\.\d+)?)[\/\s]*(\d+(?:\.\d+)?)\s*-\s*(.+)/s);
+                if (parts) {
+                  return {
+                    category: parts[1].trim(),
+                    score: parseFloat(parts[2]),
+                    maxScore: parseFloat(parts[3]),
+                    feedback: parts[4].trim()
+                  };
+                }
+                return null;
+              }).filter(Boolean);
+            }
+          }
+          
+          // Extract overall feedback
+          const feedbackMatch = analysisText.match(/\*\*OVERALL FEEDBACK:\*\*(.*?)(?=\*\*|$)/s);
+          if (feedbackMatch) {
+            overallFeedback = feedbackMatch[1].trim();
+          }
+          
+          // Extract strengths
+          const strengthsMatch = analysisText.match(/\*\*STUDENT STRENGTHS:\*\*(.*?)(?=\*\*|$)/s);
+          if (strengthsMatch) {
+            strengths = strengthsMatch[1].match(/•\s*([^\n]+)/g)?.map(s => s.replace(/•\s*/, '').trim()) || [];
+          }
+          
+          // Extract improvement areas
+          const improvementMatch = analysisText.match(/\*\*AREAS FOR IMPROVEMENT:\*\*(.*?)(?=\*\*|$)/s);
+          if (improvementMatch) {
+            improvementAreas = improvementMatch[1].match(/•\s*([^\n]+)/g)?.map(s => s.replace(/•\s*/, '').trim()) || [];
+          }
+        }
+        
+        const analysis = {
+          analysis: analysisText,
+          extracted_text: extractedText,
+          subject_matter: parsedAnalysis.subject_matter,
+          student_strengths: strengths.length > 0 ? strengths : parsedAnalysis.student_strengths,
+          knowledge_gaps: parsedAnalysis.knowledge_gaps,
+          learning_level: parsedAnalysis.learning_level,
+          teaching_suggestions: parsedAnalysis.teaching_suggestions,
+          next_steps: parsedAnalysis.next_steps,
+          confidence: parsedAnalysis.confidence,
+          method: 'dashboard_pdf_analysis',
+          // Legacy fields for backward compatibility
+          recommendations: parsedAnalysis.teaching_suggestions,
+          // Grading-specific fields
+          ...(grading_mode && {
+            grade,
+            maxPoints: max_points,
+            grading_criteria: gradingCriteria,
+            overall_feedback: overallFeedback,
+            improvement_areas: improvementAreas,
+            strengths
+          })
+        };
+
+        console.log('✅ Dashboard PDF Analysis completed successfully');
+        console.log(`📝 PDF extracted text: ${extractedText.substring(0, 100)}...`);
+        console.log(`📊 Grade: ${grade || 'N/A'}/${max_points || 100}`);
+        return res.json(analysis);
+
+      } catch (pdfError) {
+        console.error('Dashboard PDF analysis error:', pdfError);
+        return res.status(500).json({
+          error: 'PDF analysis failed',
+          analysis: `PDF analysis error: ${pdfError.message}`,
+          knowledge_gaps: ['PDF processing error'],
+          recommendations: ['Try uploading a different PDF or check file format'],
+          confidence: 0.0,
+          extracted_text: 'PDF analysis failed'
+        });
+      }
+    }
+    
+    // Handle direct image analysis
+    if (image_analysis && image_data) {
+      console.log('DEBUG: Processing dashboard image analysis...');
+      
+      if (!geminiModel) {
+        console.error('Gemini model not initialized');
+        return res.status(500).json({
+          error: 'AI model not available',
+          analysis: 'AI vision analysis service unavailable',
+          knowledge_gaps: ['Service configuration issue'],
+          recommendations: ['Check AI service configuration'],
+          confidence: 0.0,
+          extracted_text: 'Service Unavailable'
+        });
+      }
+
+      try {
+        // Convert base64 to image part for Gemini
+        const imageBuffer = Buffer.from(image_data, 'base64');
+        
+        // Detect image type from base64 header or default to JPEG
+        let mimeType = 'image/jpeg';
+        if (image_data.startsWith('/9j/')) mimeType = 'image/jpeg';
+        else if (image_data.startsWith('iVBORw0KGgo')) mimeType = 'image/png';
+        else if (image_data.startsWith('R0lGOD')) mimeType = 'image/gif';
+        else if (image_data.startsWith('UklGR')) mimeType = 'image/webp';
+        
+        console.log(`DEBUG: Dashboard image - type: ${mimeType}, data length: ${image_data.length}`);
+        
+        const imagePart = {
+          inlineData: {
+            data: image_data,
+            mimeType: mimeType
+          }
+        };
+
+        // Use the vision model specifically
+        const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        // Create analysis prompt based on grading mode
+        let visionPrompt;
+        if (grading_mode) {
+          visionPrompt = `You are an expert teacher grading a student assignment from an image. Please analyze and grade this student work.
+
+**ASSIGNMENT DETAILS:**
+- Assignment Type: ${assignment_type || 'General Assignment'}
+- Maximum Points: ${max_points || 100}
+- Grading Rubric: ${grading_rubric || 'Standard academic grading criteria'}
+- Student Context: ${student_context || 'Student assignment'}
+
+Please provide a comprehensive grading analysis in the following format:
+
+**GRADE:** [Numerical score out of ${max_points || 100}]
+
+**TEXT EXTRACTION:**
+[Extract all visible text exactly as written]
+
+**GRADING BREAKDOWN:**
+• Content Understanding: [Score/Points] - [Feedback]
+• Technical Accuracy: [Score/Points] - [Feedback]  
+• Organization & Structure: [Score/Points] - [Feedback]
+• Critical Thinking: [Score/Points] - [Feedback]
+
+**OVERALL FEEDBACK:**
+[Comprehensive feedback on the assignment]
+
+**STUDENT STRENGTHS:**
+• [Strength 1 - what the student did well]
+• [Strength 2 - another positive aspect]
+• [Strength 3 - additional accomplishment]
+
+**AREAS FOR IMPROVEMENT:**
+• [Area 1 - specific improvement needed]
+• [Area 2 - concept requiring work]
+• [Area 3 - skill to develop]
+
+**RECOMMENDATIONS:**
+• [Recommendation 1 - specific next step]
+• [Recommendation 2 - study suggestion]
+• [Recommendation 3 - practice area]
+
+Context: ${student_context || 'teacher_dashboard_grading'}
+Analysis Type: ${analysis_type || 'assignment_grading'}
+
+Provide detailed, constructive feedback that will help the student improve.`;
+        } else {
+          visionPrompt = `You are an expert educational AI analyzing student work. Please provide a comprehensive analysis of this student work image.
+
+Please analyze this student work and provide structured feedback in the following format:
+
+**TEXT EXTRACTION:**
+[Extract all visible text exactly as written]
+
+**SUBJECT ANALYSIS:**
+[Identify the subject and specific topics]
+
+**STUDENT STRENGTHS:**
+• [Strength 1 - what the student demonstrates well]
+• [Strength 2 - another area of competence]
+• [Strength 3 - additional positive observations]
+
+**KNOWLEDGE GAPS:**
+• [Gap 1 - specific area needing improvement]
+• [Gap 2 - concept requiring reinforcement]
+• [Gap 3 - skill to develop further]
+
+**LEARNING LEVEL:**
+[Academic level assessment]
+
+**TEACHING RECOMMENDATIONS:**
+• [Recommendation 1 - specific teaching strategy]
+• [Recommendation 2 - targeted intervention]
+• [Recommendation 3 - additional support needed]
+
+**NEXT LEARNING STEPS:**
+• [Step 1 - immediate next practice area]
+• [Step 2 - follow-up skill development]
+• [Step 3 - advanced concept to introduce]
+
+Context: ${student_context || context || 'teacher_dashboard_direct_image'}
+Image file: ${image_filename || 'uploaded_image'}
+
+Provide detailed, actionable insights that will help teachers understand and support this student's learning. Use bullet points (•) for lists to ensure clear parsing.`;
+        }
+
+        console.log('DEBUG: Sending dashboard image to Gemini vision model...');
+        const result = await visionModel.generateContent([visionPrompt, imagePart]);
+        const analysisText = result.response.text();
+        console.log(`DEBUG: Gemini response for dashboard - length: ${analysisText.length}`);
+        
+        // Parse structured analysis from the response
+        const parsedAnalysis = parseStructuredAnalysis(analysisText);
+        
+        // Extract grade if in grading mode
+        let grade = null;
+        let gradingCriteria = [];
+        let overallFeedback = '';
+        let improvementAreas = [];
+        let strengths = [];
+        
+        if (grading_mode) {
+          // Extract grade from analysis
+          const gradeMatch = analysisText.match(/\*\*GRADE:\*\*\s*(\d+(?:\.\d+)?)/i);
+          if (gradeMatch) {
+            grade = parseFloat(gradeMatch[1]);
+          }
+          
+          // Extract grading breakdown
+          const breakdownMatch = analysisText.match(/\*\*GRADING BREAKDOWN:\*\*(.*?)(?=\*\*|$)/s);
+          if (breakdownMatch) {
+            const breakdown = breakdownMatch[1];
+            const criteriaMatches = breakdown.match(/•\s*([^:]+):\s*(\d+(?:\.\d+)?)[\/\s]*(\d+(?:\.\d+)?)\s*-\s*(.+?)(?=\n•|\n\*\*|$)/gs);
+            if (criteriaMatches) {
+              gradingCriteria = criteriaMatches.map(match => {
+                const parts = match.match(/•\s*([^:]+):\s*(\d+(?:\.\d+)?)[\/\s]*(\d+(?:\.\d+)?)\s*-\s*(.+)/s);
+                if (parts) {
+                  return {
+                    category: parts[1].trim(),
+                    score: parseFloat(parts[2]),
+                    maxScore: parseFloat(parts[3]),
+                    feedback: parts[4].trim()
+                  };
+                }
+                return null;
+              }).filter(Boolean);
+            }
+          }
+          
+          // Extract overall feedback
+          const feedbackMatch = analysisText.match(/\*\*OVERALL FEEDBACK:\*\*(.*?)(?=\*\*|$)/s);
+          if (feedbackMatch) {
+            overallFeedback = feedbackMatch[1].trim();
+          }
+          
+          // Extract strengths
+          const strengthsMatch = analysisText.match(/\*\*STUDENT STRENGTHS:\*\*(.*?)(?=\*\*|$)/s);
+          if (strengthsMatch) {
+            strengths = strengthsMatch[1].match(/•\s*([^\n]+)/g)?.map(s => s.replace(/•\s*/, '').trim()) || [];
+          }
+          
+          // Extract improvement areas
+          const improvementMatch = analysisText.match(/\*\*AREAS FOR IMPROVEMENT:\*\*(.*?)(?=\*\*|$)/s);
+          if (improvementMatch) {
+            improvementAreas = improvementMatch[1].match(/•\s*([^\n]+)/g)?.map(s => s.replace(/•\s*/, '').trim()) || [];
+          }
+        }
+        
+        const analysis = {
+          analysis: analysisText,
+          extracted_text: parsedAnalysis.extracted_text,
+          subject_matter: parsedAnalysis.subject_matter,
+          student_strengths: strengths.length > 0 ? strengths : parsedAnalysis.student_strengths,
+          knowledge_gaps: parsedAnalysis.knowledge_gaps,
+          learning_level: parsedAnalysis.learning_level,
+          teaching_suggestions: parsedAnalysis.teaching_suggestions,
+          next_steps: parsedAnalysis.next_steps,
+          confidence: parsedAnalysis.confidence,
+          method: 'dashboard_direct_vision_analysis',
+          // Legacy fields for backward compatibility
+          recommendations: parsedAnalysis.teaching_suggestions,
+          // Grading-specific fields
+          ...(grading_mode && {
+            grade,
+            maxPoints: max_points,
+            grading_criteria: gradingCriteria,
+            overall_feedback: overallFeedback,
+            improvement_areas: improvementAreas,
+            strengths
+          })
+        };
+
+        console.log('✅ Dashboard K.A.N.A. Analysis completed successfully');
+        console.log(`📝 Dashboard extracted text: ${parsedAnalysis.extracted_text.substring(0, 50)}...`);
+        console.log(`📚 Dashboard subject: ${parsedAnalysis.subject_matter}`);
+        return res.json(analysis);
+
+      } catch (visionError) {
+        console.error('Dashboard vision analysis error:', visionError);
+        return res.status(500).json({
+          error: 'Vision analysis failed',
+          analysis: `Vision analysis error: ${visionError.message}`,
+          knowledge_gaps: ['Vision processing error'],
+          recommendations: ['Try uploading a clearer image'],
+          confidence: 0.0,
+          extracted_text: 'Vision analysis failed'
+        });
+      }
+    }
+    
+    // Handle other types of analysis if needed
+    return res.status(400).json({
+      error: 'Invalid request',
+      analysis: 'Please provide image_data and set image_analysis to true',
+      knowledge_gaps: ['Invalid request format'],
+      recommendations: ['Check request parameters'],
+      confidence: 0.0,
+      extracted_text: 'Invalid request'
+    });
+
+  } catch (error) {
+    console.error('Dashboard K.A.N.A. Analysis error:', error);
+    res.status(500).json({
+      error: 'Analysis failed',
+      analysis: `Dashboard analysis error: ${error.message}`,
+      knowledge_gaps: ['Analysis processing error'],
+      recommendations: ['Try again with different content'],
+      confidence: 0.0,
+      extracted_text: 'Analysis failed'
+    });
+  }
+});
+
+// Helper functions for parsing analysis
+function parseStructuredAnalysis(analysisText) {
+  // Parse structured analysis from K.A.N.A. response
+  const sections = {
+    extracted_text: '',
+    subject_matter: '',
+    student_strengths: [],
+    knowledge_gaps: [],
+    learning_level: '',
+    teaching_suggestions: [],
+    next_steps: [],
+    confidence: 0.9
+  };
+
+  try {
+    // Extract text content - Gemini uses "TEXT EXTRACTION:"
+    const extractedTextMatch = analysisText.match(/\*\*TEXT EXTRACTION:\*\*\s*([\s\S]*?)(?=\*\*[A-Z ]+:\*\*|$)/i);
+    if (extractedTextMatch) {
+      sections.extracted_text = extractedTextMatch[1].trim();
+    }
+
+    // Extract subject matter - Gemini uses "SUBJECT ANALYSIS:"
+    const subjectMatch = analysisText.match(/\*\*SUBJECT ANALYSIS:\*\*\s*([\s\S]*?)(?=\*\*[A-Z ]+:\*\*|$)/i);
+    if (subjectMatch) {
+      sections.subject_matter = subjectMatch[1].trim();
+    }
+
+    // Extract student strengths
+    const strengthsMatch = analysisText.match(/\*\*STUDENT STRENGTHS:\*\*\s*([\s\S]*?)(?=\*\*KNOWLEDGE GAPS:\*\*|\*\*LEARNING LEVEL:\*\*|\*\*TEACHING RECOMMENDATIONS:\*\*|$)/i);
+    if (strengthsMatch) {
+      const strengthsText = strengthsMatch[1].trim();
+      const strengthItems = strengthsText.split(/\n/).filter(line => line.trim().match(/^[*•\-]\s+/)).map(line => line.trim().replace(/^[*•\-]\s*/, ''));
+      sections.student_strengths = strengthItems.slice(0, 8);
+    }
+
+    // Extract knowledge gaps
+    const gapsMatch = analysisText.match(/\*\*KNOWLEDGE GAPS:\*\*\s*([\s\S]*?)(?=\*\*LEARNING LEVEL:\*\*|\*\*TEACHING RECOMMENDATIONS:\*\*|$)/i);
+    if (gapsMatch) {
+      const gapsText = gapsMatch[1].trim();
+      const gapItems = gapsText.split(/\n/).filter(line => line.trim().match(/^[*•\-]\s+/)).map(line => line.trim().replace(/^[*•\-]\s*/, ''));
+      sections.knowledge_gaps = gapItems.slice(0, 8);
+    }
+
+    // Extract learning level
+    const levelMatch = analysisText.match(/\*\*LEARNING LEVEL:\*\*\s*([\s\S]*?)(?=\*\*TEACHING RECOMMENDATIONS:\*\*|\*\*NEXT LEARNING STEPS:\*\*|$)/i);
+    if (levelMatch) {
+      sections.learning_level = levelMatch[1].trim();
+    }
+
+    // Extract teaching suggestions
+    const suggestionsMatch = analysisText.match(/\*\*TEACHING RECOMMENDATIONS:\*\*\s*([\s\S]*?)(?=\*\*NEXT LEARNING STEPS:\*\*|\*\*CONFIDENCE_SCORE:\*\*|$)/i);
+    if (suggestionsMatch) {
+      const suggestionsText = suggestionsMatch[1].trim();
+      const suggestionItems = suggestionsText.split(/\n/).filter(line => line.trim().match(/^[*•\-]\s+/)).map(line => line.trim().replace(/^[*•\-]\s*/, ''));
+      sections.teaching_suggestions = suggestionItems.slice(0, 8);
+    }
+
+    // Extract next steps
+    const nextStepsMatch = analysisText.match(/\*\*NEXT LEARNING STEPS:\*\*\s*([\s\S]*?)(?=\*\*CONFIDENCE_SCORE:\*\*|$)/i);
+    if (nextStepsMatch) {
+      const nextStepsText = nextStepsMatch[1].trim();
+      const nextStepItems = nextStepsText.split(/\n/).filter(line => line.trim().match(/^[*•\-]\s+/)).map(line => line.trim().replace(/^[*•\-]\s*/, ''));
+      sections.next_steps = nextStepItems.slice(0, 8);
+    }
+
+    // Extract confidence score
+    const confidenceMatch = analysisText.match(/\*\*CONFIDENCE_SCORE:\*\*\s*([\d.]+)/i);
+    if (confidenceMatch) {
+      sections.confidence = parseFloat(confidenceMatch[1]);
+    }
+    
+  } catch (error) {
+    console.error('Error parsing structured analysis:', error);
+    // Fallback to basic extraction
+    sections.extracted_text = analysisText.substring(0, 200) + '...';
+    sections.subject_matter = 'Analysis parsing error';
+    sections.knowledge_gaps = ['Unable to parse detailed analysis'];
+    sections.teaching_suggestions = ['Review content and try again'];
+  }
+
+  return sections;
+}
