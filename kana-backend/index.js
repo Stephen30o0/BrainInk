@@ -21,8 +21,13 @@ const port = process.env.PORT || 10000;
 
 // --- CONFIGURATION & INITIALIZATION ---
 
-console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
-console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
+console.log('🔧 Environment Configuration:');
+console.log(`  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`  PORT: ${port}`);
+console.log(`  Render URL: ${process.env.RENDER_EXTERNAL_URL || 'Not on Render'}`);
+console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded ✅' : 'Key NOT Loaded ❌');
+console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded ✅' : 'Key NOT Loaded ❌');
+console.log('DEBUG: Database URL configured:', process.env.DATABASE_URL ? 'Yes ✅' : 'No ❌');
 
 const conversationContexts = {};
 
@@ -47,20 +52,37 @@ Interaction Guidelines:
 
 // --- MIDDLEWARE ---
 
+// Dynamic CORS origins based on environment
 const allowedOrigins = [
   'https://brain-ink.vercel.app',
+  'https://brainink.vercel.app', // in case of different subdomain
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://localhost:5174', // alternative Vite dev port
   'https://mozilla.github.io'
 ];
+
+// Add custom origin from environment if specified
+if (process.env.CORS_ORIGIN) {
+  allowedOrigins.push(process.env.CORS_ORIGIN);
+}
+
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`❌ CORS blocked request from origin: ${origin}`);
+      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
     }
-  }
+  },
+  credentials: true, // Allow cookies/credentials
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json({ limit: '50mb' }));
 
@@ -2401,8 +2423,39 @@ app.get('/health', async (req, res) => {
 });
 
 // === START SERVER ===
-app.listen(port, () => {
-  console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`K.A.N.A. Backend listening at http://0.0.0.0:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Available at: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`}`);
+});
+
+// Handle server errors
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${port} is already in use. Please choose a different port.`);
+    console.error('💡 Try setting a different PORT environment variable.');
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🔄 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🔄 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 // Load database
