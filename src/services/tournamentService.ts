@@ -1,4 +1,5 @@
 import { ethers, Contract, formatUnits, parseUnits } from 'ethers';
+import { backendTournamentService } from './backendTournamentService';
 
 interface TournamentData {
   id: number;
@@ -14,6 +15,11 @@ interface TournamentData {
   isCompleted: boolean;
   participants: string[];
   winner: string;
+}
+
+interface HybridTournamentConfig {
+  useBlockchain: boolean; // If true, use blockchain tournaments; if false, use backend API
+  useBackendForQuestions: boolean; // Always use backend for AI question generation
 }
 
 interface ParticipantData {
@@ -97,7 +103,7 @@ export class TournamentService {
     try {
       const decimals = await this.inkTokenContract.decimals();
       const amountInWei = parseUnits(amount, decimals);
-      
+
       const tx = await this.inkTokenContract.approve(this.TOURNAMENT_CONTRACT_ADDRESS, amountInWei);
       await tx.wait();
     } catch (error) {
@@ -143,7 +149,7 @@ export class TournamentService {
       if (event) {
         return Number(event.args[0]); // Tournament ID is the first argument
       }
-      
+
       throw new Error("Tournament creation event not found");
     } catch (error) {
       console.error("Error creating tournament:", error);

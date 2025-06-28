@@ -10,14 +10,11 @@ const fs = require('fs');
 const crypto = require('crypto');
 const fsPromises = fs.promises;
 
-const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
-const { Chart } = require('chart.js');
+// Import tournament routes
+const tournamentRoutes = require('./routes/tournaments');
 
-// Setup for chart generation
-const width = 800; // px
-const height = 600; // px
-const backgroundColour = 'white';
-const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour });
+// Import and initialize database
+const { testConnection, initializeTables } = require('./database');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -30,7 +27,8 @@ console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loade
 const conversationContexts = {};
 
 const systemInstruction = {
-  parts: [{ text: `You are K.A.N.A., an advanced academic AI assistant. Your primary goal is to help users.
+  parts: [{
+    text: `You are K.A.N.A., an advanced academic AI assistant. Your primary goal is to help users.
 
 Key characteristics:
 - Knowledgeable & Context-Aware: Provide accurate, in-depth information. Use context from uploads when available.
@@ -102,6 +100,10 @@ app.use('/api/kana/images', express.static(IMAGES_DIR));
 console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files and /api/kana/study_material_files`);
 console.log(`DEBUG: Serving static files from ${IMAGES_DIR} at /images and /api/kana/images`);
 
+// Tournament routes
+app.use('/api/tournaments', tournamentRoutes);
+console.log('DEBUG: Tournament routes enabled');
+
 // --- API CLIENTS ---
 
 let genAI, geminiModel;
@@ -118,17 +120,17 @@ if (process.env.GOOGLE_API_KEY) {
 const DB_PATH = path.join(__dirname, 'study_materials.json');
 let studyMaterialsDb = [];
 const loadDb = async () => {
-    try {
-        const data = await fsPromises.readFile(DB_PATH, 'utf8');
-        studyMaterialsDb = JSON.parse(data);
-        console.log('DEBUG: study_materials.json loaded successfully.');
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            console.log('DEBUG: study_materials.json not found, will be created on first save.');
-        } else {
-            console.error('ERROR loading study_materials.json:', error);
-        }
+  try {
+    const data = await fsPromises.readFile(DB_PATH, 'utf8');
+    studyMaterialsDb = JSON.parse(data);
+    console.log('DEBUG: study_materials.json loaded successfully.');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log('DEBUG: study_materials.json not found, will be created on first save.');
+    } else {
+      console.error('ERROR loading study_materials.json:', error);
     }
+  }
 };
 const saveDb = () => fsPromises.writeFile(DB_PATH, JSON.stringify(studyMaterialsDb, null, 2), 'utf8');
 
@@ -146,14 +148,41 @@ const getOrCreateConversation = (conversationId) => {
 };
 
 const extractTextFromFile = async (mimetype, buffer) => {
-    if (mimetype === 'application/pdf') {
-        const data = await pdf(buffer);
-        return data.text;
-    } else if (mimetype.startsWith('text/')) {
-        return buffer.toString('utf8');
-    }
-    return ''; // Return empty for unsupported types
+  if (mimetype === 'application/pdf') {
+    const data = await pdf(buffer);
+    return data.text;
+  } else if (mimetype.startsWith('text/')) {
+    return buffer.toString('utf8');
+  }
+  return ''; // Return empty for unsupported types
 };
+
+// --- DATABASE INITIALIZATION ---
+async function initializeDatabase() {
+  console.log('🔌 Initializing database connection...');
+  console.log('📋 Environment check:');
+  console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configured' : '❌ Missing');
+  console.log('  - NODE_ENV:', process.env.NODE_ENV || 'development');
+
+  const connected = await testConnection();
+  if (connected) {
+    const tablesCreated = await initializeTables();
+    if (tablesCreated) {
+      console.log('✅ Tournament database ready');
+      return true;
+    } else {
+      console.log('⚠️ Database tables initialization failed');
+      return false;
+    }
+  } else {
+    console.log('⚠️ Database connection failed - using fallback mode');
+    console.log('📝 To fix this:');
+    console.log('   1. Set DATABASE_URL environment variable in Render dashboard');
+    console.log('   2. Use your Supabase connection string');
+    console.log('   3. Redeploy the service');
+    return false;
+  }
+}
 
 // --- API ENDPOINTS ---
 
@@ -222,232 +251,232 @@ app.post('/api/upload-study-material', uploadStudyFile.single('studyMaterial'), 
 
     const fileBuffer = await fsPromises.readFile(newMaterial.filePath);
     const fileTextContent = await extractTextFromFile(newMaterial.mimetype, fileBuffer);
-    
+
     // If a conversationId is provided, add the file's text content to that conversation's context.
     if (conversationId && fileTextContent) {
-        const conversation = getOrCreateConversation(conversationId);
-        conversation.contextParts.push({
-            text: `--- START OF FILE: ${newMaterial.originalFilename} ---\n${fileTextContent}\n--- END OF FILE: ${newMaterial.originalFilename} ---`
-        });
-        console.log(`DEBUG: Added content of ${newMaterial.originalFilename} to context for conversation ${conversationId}.`);
+      const conversation = getOrCreateConversation(conversationId);
+      conversation.contextParts.push({
+        text: `--- START OF FILE: ${newMaterial.originalFilename} ---\n${fileTextContent}\n--- END OF FILE: ${newMaterial.originalFilename} ---`
+      });
+      console.log(`DEBUG: Added content of ${newMaterial.originalFilename} to context for conversation ${conversationId}.`);
     }
 
     res.status(201).json({ message: 'File uploaded successfully!', file: newMaterial });
   } catch (error) {
     console.error(`ERROR processing uploaded file: ${error.message}`);
-    if(req.file && req.file.path) {
-        await fsPromises.unlink(req.file.path).catch(err => console.error("Error cleaning up file:", err));
+    if (req.file && req.file.path) {
+      await fsPromises.unlink(req.file.path).catch(err => console.error("Error cleaning up file:", err));
     }
     res.status(500).json({ error: 'Failed to save or process file.' });
   }
 });
 
 app.get('/pdf-proxy', async (req, res) => {
-    const { file, url } = req.query;
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+  const { file, url } = req.query;
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
 
-    if (!file && !url) {
-        return res.status(400).json({ error: 'Missing "file" or "url" query parameter.' });
+  if (!file && !url) {
+    return res.status(400).json({ error: 'Missing "file" or "url" query parameter.' });
+  }
+
+  try {
+    if (file) {
+      const sanitizedFile = path.basename(file);
+      const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
+
+      if (fs.existsSync(filePath)) {
+        res.setHeader('Content-Type', 'application/pdf');
+        return fs.createReadStream(filePath).pipe(res);
+      } else {
+        return res.status(404).json({ error: 'Local file not found.' });
+      }
+    } else { // url
+      new URL(url); // Validate URL format
+      const response = await axios({ method: 'get', url: url, responseType: 'stream' });
+      res.setHeader('Content-Type', 'application/pdf');
+      return response.data.pipe(res);
     }
-
-    try {
-        if (file) {
-            const sanitizedFile = path.basename(file);
-            const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
-
-            if (fs.existsSync(filePath)) {
-                res.setHeader('Content-Type', 'application/pdf');
-                return fs.createReadStream(filePath).pipe(res);
-            } else {
-                return res.status(404).json({ error: 'Local file not found.' });
-            }
-        } else { // url
-            new URL(url); // Validate URL format
-            const response = await axios({ method: 'get', url: url, responseType: 'stream' });
-            res.setHeader('Content-Type', 'application/pdf');
-            return response.data.pipe(res);
-        }
-    } catch (error) {
-        console.error('PDF Proxy Error:', error.message);
-        if (error.message.includes('Invalid URL')) {
-            return res.status(400).json({ error: 'Invalid URL format provided.' });
-        }
-        return res.status(500).json({ error: 'Failed to fetch or process URL content.' });
+  } catch (error) {
+    console.error('PDF Proxy Error:', error.message);
+    if (error.message.includes('Invalid URL')) {
+      return res.status(400).json({ error: 'Invalid URL format provided.' });
     }
+    return res.status(500).json({ error: 'Failed to fetch or process URL content.' });
+  }
 });
 
 // Add /api/kana/pdf-proxy route for frontend compatibility
 app.get('/api/kana/pdf-proxy', async (req, res) => {
-    const { file, url } = req.query;
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+  const { file, url } = req.query;
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
 
-    if (!file && !url) {
-        return res.status(400).json({ error: 'Missing "file" or "url" query parameter.' });
+  if (!file && !url) {
+    return res.status(400).json({ error: 'Missing "file" or "url" query parameter.' });
+  }
+
+  try {
+    if (file) {
+      const sanitizedFile = path.basename(file);
+      const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
+
+      if (fs.existsSync(filePath)) {
+        res.setHeader('Content-Type', 'application/pdf');
+        return fs.createReadStream(filePath).pipe(res);
+      } else {
+        return res.status(404).json({ error: 'Local file not found.' });
+      }
+    } else { // url
+      new URL(url); // Validate URL format
+      const response = await axios({ method: 'get', url: url, responseType: 'stream' });
+      res.setHeader('Content-Type', 'application/pdf');
+      return response.data.pipe(res);
     }
-
-    try {
-        if (file) {
-            const sanitizedFile = path.basename(file);
-            const filePath = path.join(STUDY_MATERIALS_DIR, sanitizedFile);
-
-            if (fs.existsSync(filePath)) {
-                res.setHeader('Content-Type', 'application/pdf');
-                return fs.createReadStream(filePath).pipe(res);
-            } else {
-                return res.status(404).json({ error: 'Local file not found.' });
-            }
-        } else { // url
-            new URL(url); // Validate URL format
-            const response = await axios({ method: 'get', url: url, responseType: 'stream' });
-            res.setHeader('Content-Type', 'application/pdf');
-            return response.data.pipe(res);
-        }
-    } catch (error) {
-        console.error('PDF Proxy Error:', error.message);
-        if (error.message.includes('Invalid URL')) {
-            return res.status(400).json({ error: 'Invalid URL format provided.' });
-        }
-        return res.status(500).json({ error: 'Failed to fetch or process URL content.' });
+  } catch (error) {
+    console.error('PDF Proxy Error:', error.message);
+    if (error.message.includes('Invalid URL')) {
+      return res.status(400).json({ error: 'Invalid URL format provided.' });
     }
+    return res.status(500).json({ error: 'Failed to fetch or process URL content.' });
+  }
 });
 
 app.post('/api/fetch-url-content', async (req, res) => {
-    const { url, conversationId } = req.body;
-    if (!url || !conversationId) {
-        return res.status(400).json({ error: 'url and conversationId are required.' });
+  const { url, conversationId } = req.body;
+  if (!url || !conversationId) {
+    return res.status(400).json({ error: 'url and conversationId are required.' });
+  }
+
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer', headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const contentType = response.headers['content-type'];
+    let contentText = '';
+
+    if (contentType && contentType.includes('application/pdf')) {
+      contentText = await extractTextFromFile('application/pdf', response.data);
+    } else {
+      contentText = response.data.toString('utf-8').replace(/<[^>]*>/g, ' ').replace(/\s\s+/g, ' ').trim();
     }
 
-    try {
-        const response = await axios.get(url, { responseType: 'arraybuffer', headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const contentType = response.headers['content-type'];
-        let contentText = '';
-
-        if (contentType && contentType.includes('application/pdf')) {
-            contentText = await extractTextFromFile('application/pdf', response.data);
-        } else {
-            contentText = response.data.toString('utf-8').replace(/<[^>]*>/g, ' ').replace(/\s\s+/g, ' ').trim();
-        }
-
-        if (contentText) {
-            const conversation = getOrCreateConversation(conversationId);
-            conversation.contextParts.push({ text: `--- START OF WEB CONTENT: ${url} ---\n${contentText}\n--- END OF WEB CONTENT: ${url} ---` });
-            console.log(`DEBUG: Added content from ${url} to context for conversation ${conversationId}.`);
-            res.status(200).json({ message: 'URL content fetched and added to context successfully.' });
-        } else {
-            res.status(200).json({ message: 'No text content could be extracted from the URL.' });
-        }
-    } catch (error) {
-        console.error(`ERROR fetching URL content: ${error.message}`);
-        res.status(500).json({ error: `Failed to fetch or process content from URL: ${url}` });
+    if (contentText) {
+      const conversation = getOrCreateConversation(conversationId);
+      conversation.contextParts.push({ text: `--- START OF WEB CONTENT: ${url} ---\n${contentText}\n--- END OF WEB CONTENT: ${url} ---` });
+      console.log(`DEBUG: Added content from ${url} to context for conversation ${conversationId}.`);
+      res.status(200).json({ message: 'URL content fetched and added to context successfully.' });
+    } else {
+      res.status(200).json({ message: 'No text content could be extracted from the URL.' });
     }
+  } catch (error) {
+    console.error(`ERROR fetching URL content: ${error.message}`);
+    res.status(500).json({ error: `Failed to fetch or process content from URL: ${url}` });
+  }
 });
 
 // Helper for exponential backoff
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 app.get('/api/core-search', async (req, res) => {
-    const { q } = req.query;
-    if (!q) {
-        return res.status(400).json({ error: 'Query parameter "q" is required.' });
-    }
-    if (!process.env.CORE_API_KEY) {
-        console.log('CORE_API_KEY is not set. Returning mock data for demo purposes.');
-        // Return mock search results for demo purposes
-        const mockResults = [
-            {
-                coreId: 'mock-1',
-                title: `Sample Research Paper: ${q}`,
-                authors: ['Demo Author', 'Research Team'],
-                abstract: `This is a demonstration abstract for the search term "${q}". In a production environment, this would contain real academic research results from the CORE academic search API.`,
-                year: 2024,
-                downloadUrl: null,
-                doi: `10.1000/mock.${q}`,
-                publisher: 'Demo Publisher'
-            },
-            {
-                coreId: 'mock-2', 
-                title: `Advanced Studies in ${q}`,
-                authors: ['Academic Researcher'],
-                abstract: `An example research paper abstract related to ${q}. This is mock data shown when CORE API key is not configured.`,
-                year: 2023,
-                downloadUrl: null,
-                doi: `10.1000/demo.${q}`,
-                publisher: 'Academic Press'
-            }
-        ];
-        return res.json(mockResults);
-    }
+  const { q } = req.query;
+  if (!q) {
+    return res.status(400).json({ error: 'Query parameter "q" is required.' });
+  }
+  if (!process.env.CORE_API_KEY) {
+    console.log('CORE_API_KEY is not set. Returning mock data for demo purposes.');
+    // Return mock search results for demo purposes
+    const mockResults = [
+      {
+        coreId: 'mock-1',
+        title: `Sample Research Paper: ${q}`,
+        authors: ['Demo Author', 'Research Team'],
+        abstract: `This is a demonstration abstract for the search term "${q}". In a production environment, this would contain real academic research results from the CORE academic search API.`,
+        year: 2024,
+        downloadUrl: null,
+        doi: `10.1000/mock.${q}`,
+        publisher: 'Demo Publisher'
+      },
+      {
+        coreId: 'mock-2',
+        title: `Advanced Studies in ${q}`,
+        authors: ['Academic Researcher'],
+        abstract: `An example research paper abstract related to ${q}. This is mock data shown when CORE API key is not configured.`,
+        year: 2023,
+        downloadUrl: null,
+        doi: `10.1000/demo.${q}`,
+        publisher: 'Academic Press'
+      }
+    ];
+    return res.json(mockResults);
+  }
 
-    const searchUrl = 'https://api.core.ac.uk/v3/search/works';
-    const MAX_RETRIES = 3;
-    let attempt = 0;
+  const searchUrl = 'https://api.core.ac.uk/v3/search/works';
+  const MAX_RETRIES = 3;
+  let attempt = 0;
 
-    while (attempt < MAX_RETRIES) {
-        try {
-            console.log(`CORE Search: Attempt ${attempt + 1} for query \"${q}\"`);
-            const response = await axios.post(searchUrl, 
-                { q: `title:(${q}) OR abstract:(${q})` },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${process.env.CORE_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-            const transformedResults = response.data.results.map(item => ({
-              coreId: item.id, title: item.title, authors: item.authors, abstract: item.abstract,
-              year: item.yearPublished, downloadUrl: item.downloadUrl, doi: item.doi, publisher: item.publisher,
-            }));
-            return res.json(transformedResults);
-        } catch (error) {
-            const isServerBusy = error.response && (error.response.status === 503 || JSON.stringify(error.response.data).includes('rejected execution'));
-            
-            if (isServerBusy && attempt < MAX_RETRIES - 1) {
-                const delay = Math.pow(2, attempt) * 1000; // 1s, 2s
-                console.warn(`CORE API is busy. Retrying in ${delay}ms...`);
-                await sleep(delay);
-                attempt++;
-            } else {
-                console.error('CORE API Search Error:', error.response ? error.response.data : error.message);
-                const status = error.response ? error.response.status : 500;
-                const message = error.response ? error.response.data : 'Failed to fetch from CORE API after multiple retries.';
-                return res.status(status).json({ message });
-            }
+  while (attempt < MAX_RETRIES) {
+    try {
+      console.log(`CORE Search: Attempt ${attempt + 1} for query \"${q}\"`);
+      const response = await axios.post(searchUrl,
+        { q: `title:(${q}) OR abstract:(${q})` },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.CORE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
         }
+      );
+      const transformedResults = response.data.results.map(item => ({
+        coreId: item.id, title: item.title, authors: item.authors, abstract: item.abstract,
+        year: item.yearPublished, downloadUrl: item.downloadUrl, doi: item.doi, publisher: item.publisher,
+      }));
+      return res.json(transformedResults);
+    } catch (error) {
+      const isServerBusy = error.response && (error.response.status === 503 || JSON.stringify(error.response.data).includes('rejected execution'));
+
+      if (isServerBusy && attempt < MAX_RETRIES - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s
+        console.warn(`CORE API is busy. Retrying in ${delay}ms...`);
+        await sleep(delay);
+        attempt++;
+      } else {
+        console.error('CORE API Search Error:', error.response ? error.response.data : error.message);
+        const status = error.response ? error.response.status : 500;
+        const message = error.response ? error.response.data : 'Failed to fetch from CORE API after multiple retries.';
+        return res.status(status).json({ message });
+      }
     }
+  }
 });
 
 app.post('/api/save-external-item', async (req, res) => {
-    const { title, authors, year, doi, downloadUrl, abstract } = req.body;
-    if (!downloadUrl || !title) {
-        return res.status(400).json({ error: 'downloadUrl and title are required.' });
-    }
+  const { title, authors, year, doi, downloadUrl, abstract } = req.body;
+  if (!downloadUrl || !title) {
+    return res.status(400).json({ error: 'downloadUrl and title are required.' });
+  }
 
-    try {
-        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filename = `studyMaterial-${uniqueSuffix}.pdf`;
-        const filePath = path.join(STUDY_MATERIALS_DIR, filename);
-        await fsPromises.writeFile(filePath, response.data);
+  try {
+    const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const filename = `studyMaterial-${uniqueSuffix}.pdf`;
+    const filePath = path.join(STUDY_MATERIALS_DIR, filename);
+    await fsPromises.writeFile(filePath, response.data);
 
-        const newMaterial = {
-            id: crypto.randomUUID(),
-            originalFilename: `${title}.pdf`,
-            storedFilename: filename,
-            filePath: filePath,
-            mimetype: 'application/pdf',
-            topic: 'CORE Import',
-            uploadTimestamp: new Date().toISOString(),
-            size: response.data.length,
-            metadata: { title, authors, year, doi, abstract, source: 'CORE' }
-        };
-        studyMaterialsDb.push(newMaterial);
-        await saveDb();
-        res.status(201).json({ message: 'Successfully saved paper to library.', file: newMaterial });
-    } catch (error) {
-        console.error('Error saving external item:', error.message);
-        res.status(500).json({ error: 'Failed to download or save the paper.' });
-    }
+    const newMaterial = {
+      id: crypto.randomUUID(),
+      originalFilename: `${title}.pdf`,
+      storedFilename: filename,
+      filePath: filePath,
+      mimetype: 'application/pdf',
+      topic: 'CORE Import',
+      uploadTimestamp: new Date().toISOString(),
+      size: response.data.length,
+      metadata: { title, authors, year, doi, abstract, source: 'CORE' }
+    };
+    studyMaterialsDb.push(newMaterial);
+    await saveDb();
+    res.status(201).json({ message: 'Successfully saved paper to library.', file: newMaterial });
+  } catch (error) {
+    console.error('Error saving external item:', error.message);
+    res.status(500).json({ error: 'Failed to download or save the paper.' });
+  }
 });
 
 const tools = [
@@ -473,160 +502,160 @@ const tools = [
 
 // Helper function to generate graph data and handle evaluation errors
 async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
-    console.log(`DEBUG: AI requested graph generation for function: ${functionStr} over [${xMin}, ${xMax}] with step ${step}`);
-    const data = [];
-    try {
-        // WARNING: Using eval() is a security risk in production. This is a simplified example.
-        let expression = functionStr.split('=')[1].trim();
-        // Sanitize the expression to be valid JavaScript
-        expression = expression
-            .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
-            .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication with variables and parentheses (e.g., 2x -> 2 * x, 3(x) -> 3 * (x))
-            .replace(/\)\( /g, ') * ('); // Handle implicit multiplication between parentheses (e.g., (x+1)(x-1) -> (x+1) * (x-1))
+  console.log(`DEBUG: AI requested graph generation for function: ${functionStr} over [${xMin}, ${xMax}] with step ${step}`);
+  const data = [];
+  try {
+    // WARNING: Using eval() is a security risk in production. This is a simplified example.
+    let expression = functionStr.split('=')[1].trim();
+    // Sanitize the expression to be valid JavaScript
+    expression = expression
+      .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
+      .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication with variables and parentheses (e.g., 2x -> 2 * x, 3(x) -> 3 * (x))
+      .replace(/\)\( /g, ') * ('); // Handle implicit multiplication between parentheses (e.g., (x+1)(x-1) -> (x+1) * (x-1))
 
-        const func = new Function('x', `return ${expression};`);
-        for (let x = xMin; x <= xMax; x += step) {
-            data.push({ x: x, y: func(x) });
-        }
-        return data; // Return data on success
-    } catch (evalError) {
-        console.error("Error evaluating math function:", evalError);
-        return null; // Return null on failure
+    const func = new Function('x', `return ${expression};`);
+    for (let x = xMin; x <= xMax; x += step) {
+      data.push({ x: x, y: func(x) });
     }
+    return data; // Return data on success
+  } catch (evalError) {
+    console.error("Error evaluating math function:", evalError);
+    return null; // Return null on failure
+  }
 }
 
 app.post('/api/chat', async (req, res) => {
-    try {
-        const { conversationId, message, history, pdfContextUrl, studyMaterialContext } = req.body;
+  try {
+    const { conversationId, message, history, pdfContextUrl, studyMaterialContext } = req.body;
 
-        if (!conversationId || !message) {
-            return res.status(400).json({ error: 'Missing conversationId or message.' });
-        }
-
-        const conversation = getOrCreateConversation(conversationId);
-        const clientHistory = Array.isArray(history) ? history : [];
-
-        // If there's a specific PDF context URL from a past paper, fetch and add it.
-        if (pdfContextUrl) {
-            try {
-                console.log(`DEBUG: Fetching PDF context from URL: ${pdfContextUrl}`);
-                const response = await axios.get(pdfContextUrl, { responseType: 'arraybuffer' });
-                const pdfText = await extractTextFromFile('application/pdf', response.data);
-                if (pdfText) {
-                    const contextIdentifier = `PAST PAPER CONTEXT: ${pdfContextUrl}`;
-                    // Avoid adding duplicate context by checking for the identifier
-                    if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
-                        conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${pdfText}\n--- END OF ${contextIdentifier} ---` });
-                        console.log(`DEBUG: Added PDF context for conversation ${conversationId}.`);
-                    } else {
-                        console.log(`DEBUG: PDF context for ${pdfContextUrl} already exists.`);
-                    }
-                }
-            } catch (error) {
-                console.error(`ERROR fetching or processing PDF context from ${pdfContextUrl}:`, error.message);
-                // Non-fatal, just log and continue. The chat can proceed without this context.
-            }
-        }
-
-        // If there's a specific study material context, find and add it.
-        if (studyMaterialContext && studyMaterialContext.id) {
-            console.log(`DEBUG: Received request to use study material context with ID: ${studyMaterialContext.id}`);
-            try {
-                const material = studyMaterialsDb.find(m => m.id === studyMaterialContext.id);
-                if (material) {
-                    console.log(`DEBUG: Found study material: ${material.title}`);
-                    let materialText = null;
-
-                    // Case 1: Local file path exists
-                    if (material.filePath) {
-                        const fileBuffer = await fsPromises.readFile(material.filePath);
-                        materialText = await extractTextFromFile(material.mimetype, fileBuffer);
-                    } 
-                    // Case 2: Remote PDF URL exists (and no local path)
-                    else if (material.pdfUrl) {
-                        console.log(`DEBUG: Fetching study material PDF from URL: ${material.pdfUrl}`);
-                        const response = await axios.get(material.pdfUrl, { responseType: 'arraybuffer' });
-                        materialText = await extractTextFromFile('application/pdf', response.data);
-                    }
-
-                    if (materialText) {
-                        const contextIdentifier = `STUDY MATERIAL CONTEXT: ${material.title}`;
-                        if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
-                            conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${materialText}\n--- END OF ${contextIdentifier} ---` });
-                            console.log(`DEBUG: Added study material context for conversation ${conversationId}.`);
-                        } else {
-                            console.log(`DEBUG: Study material context for ${material.title} already exists.`);
-                        }
-                    } else {
-                        console.log(`WARN: Could not extract text from study material '${material.title}'.`);
-                    }
-                } else {
-                    console.log(`WARN: Study material with id ${studyMaterialContext.id} not found.`);
-                }
-            } catch (error) {
-                console.error(`ERROR processing study material context for id ${studyMaterialContext.id}:`, error.message);
-            }
-        }
-
-        // Combine the base system instruction with any document context for this specific conversation.
-        const effectiveSystemInstruction = {
-            parts: [
-                ...systemInstruction.parts,
-                ...conversation.contextParts
-            ]
-        };
-
-        const chat = geminiModel.startChat({
-            history: [...conversation.history, ...clientHistory],
-            tools: tools,
-            systemInstruction: effectiveSystemInstruction,
-            generationConfig: { maxOutputTokens: 8192 }
-        });
-
-        const result = await chat.sendMessage(message);
-        const response = result.response;
-        const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-        const userMessage = Array.isArray(message) ? message.find(p => p.text)?.text || '' : message;
-        const isGraphRequest = /\b(plot|graph)\b/i.test(userMessage);
-
-        if (isGraphRequest && functionCall && functionCall.name === 'generate_graph_data') {
-            const { functionStr, xMin, xMax, step } = functionCall.args;
-            const graphData = await generateGraphData(functionStr, xMin, xMax, step);
-
-            if (graphData) {
-                const imageUrl = await generateGraphImage(graphData, functionStr, 'x', 'y');
-                if (imageUrl) {
-                    const kanaResponseText = `Here is the graph for ${functionStr}.`;
-                    conversation.history.push({ role: 'user', parts: [{ text: message }] });
-                    conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-                    return res.json({
-                        type: 'mathematical_graph',
-                        kanaResponse: kanaResponseText,
-                        generatedImageUrl: imageUrl
-                    });
-                } else {
-                    // This case might happen if canvas fails, but the function was valid
-                    throw new Error("Graph image generation failed after data calculation.");
-                }
-            } else {
-                // This case handles the evaluation error from generateGraphData
-                const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression and ensure it's valid.");
-                const kanaResponseText = fallbackResponse.response.text();
-                conversation.history.push({ role: 'user', parts: [{ text: message }] });
-                conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-                return res.json({ kanaResponse: kanaResponseText });
-            }
-        } else {
-            const kanaResponseText = response.text();
-            console.log(`DEBUG: AI returned no function call. Raw response object:`, JSON.stringify(response, null, 2));
-            conversation.history.push({ role: 'user', parts: [{ text: message }] });
-            conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-            return res.json({ kanaResponse: kanaResponseText });
-        }
-    } catch (error) {
-        console.error('Error in /api/chat:', error);
-        res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
+    if (!conversationId || !message) {
+      return res.status(400).json({ error: 'Missing conversationId or message.' });
     }
+
+    const conversation = getOrCreateConversation(conversationId);
+    const clientHistory = Array.isArray(history) ? history : [];
+
+    // If there's a specific PDF context URL from a past paper, fetch and add it.
+    if (pdfContextUrl) {
+      try {
+        console.log(`DEBUG: Fetching PDF context from URL: ${pdfContextUrl}`);
+        const response = await axios.get(pdfContextUrl, { responseType: 'arraybuffer' });
+        const pdfText = await extractTextFromFile('application/pdf', response.data);
+        if (pdfText) {
+          const contextIdentifier = `PAST PAPER CONTEXT: ${pdfContextUrl}`;
+          // Avoid adding duplicate context by checking for the identifier
+          if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
+            conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${pdfText}\n--- END OF ${contextIdentifier} ---` });
+            console.log(`DEBUG: Added PDF context for conversation ${conversationId}.`);
+          } else {
+            console.log(`DEBUG: PDF context for ${pdfContextUrl} already exists.`);
+          }
+        }
+      } catch (error) {
+        console.error(`ERROR fetching or processing PDF context from ${pdfContextUrl}:`, error.message);
+        // Non-fatal, just log and continue. The chat can proceed without this context.
+      }
+    }
+
+    // If there's a specific study material context, find and add it.
+    if (studyMaterialContext && studyMaterialContext.id) {
+      console.log(`DEBUG: Received request to use study material context with ID: ${studyMaterialContext.id}`);
+      try {
+        const material = studyMaterialsDb.find(m => m.id === studyMaterialContext.id);
+        if (material) {
+          console.log(`DEBUG: Found study material: ${material.title}`);
+          let materialText = null;
+
+          // Case 1: Local file path exists
+          if (material.filePath) {
+            const fileBuffer = await fsPromises.readFile(material.filePath);
+            materialText = await extractTextFromFile(material.mimetype, fileBuffer);
+          }
+          // Case 2: Remote PDF URL exists (and no local path)
+          else if (material.pdfUrl) {
+            console.log(`DEBUG: Fetching study material PDF from URL: ${material.pdfUrl}`);
+            const response = await axios.get(material.pdfUrl, { responseType: 'arraybuffer' });
+            materialText = await extractTextFromFile('application/pdf', response.data);
+          }
+
+          if (materialText) {
+            const contextIdentifier = `STUDY MATERIAL CONTEXT: ${material.title}`;
+            if (!conversation.contextParts.some(p => p.text.includes(contextIdentifier))) {
+              conversation.contextParts.push({ text: `--- START OF ${contextIdentifier} ---\n${materialText}\n--- END OF ${contextIdentifier} ---` });
+              console.log(`DEBUG: Added study material context for conversation ${conversationId}.`);
+            } else {
+              console.log(`DEBUG: Study material context for ${material.title} already exists.`);
+            }
+          } else {
+            console.log(`WARN: Could not extract text from study material '${material.title}'.`);
+          }
+        } else {
+          console.log(`WARN: Study material with id ${studyMaterialContext.id} not found.`);
+        }
+      } catch (error) {
+        console.error(`ERROR processing study material context for id ${studyMaterialContext.id}:`, error.message);
+      }
+    }
+
+    // Combine the base system instruction with any document context for this specific conversation.
+    const effectiveSystemInstruction = {
+      parts: [
+        ...systemInstruction.parts,
+        ...conversation.contextParts
+      ]
+    };
+
+    const chat = geminiModel.startChat({
+      history: [...conversation.history, ...clientHistory],
+      tools: tools,
+      systemInstruction: effectiveSystemInstruction,
+      generationConfig: { maxOutputTokens: 8192 }
+    });
+
+    const result = await chat.sendMessage(message);
+    const response = result.response;
+    const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+    const userMessage = Array.isArray(message) ? message.find(p => p.text)?.text || '' : message;
+    const isGraphRequest = /\b(plot|graph)\b/i.test(userMessage);
+
+    if (isGraphRequest && functionCall && functionCall.name === 'generate_graph_data') {
+      const { functionStr, xMin, xMax, step } = functionCall.args;
+      const graphData = await generateGraphData(functionStr, xMin, xMax, step);
+
+      if (graphData) {
+        const imageUrl = await generateGraphImage(graphData, functionStr, 'x', 'y');
+        if (imageUrl) {
+          const kanaResponseText = `Here is the graph for ${functionStr}.`;
+          conversation.history.push({ role: 'user', parts: [{ text: message }] });
+          conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+          return res.json({
+            type: 'mathematical_graph',
+            kanaResponse: kanaResponseText,
+            generatedImageUrl: imageUrl
+          });
+        } else {
+          // This case might happen if canvas fails, but the function was valid
+          throw new Error("Graph image generation failed after data calculation.");
+        }
+      } else {
+        // This case handles the evaluation error from generateGraphData
+        const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression and ensure it's valid.");
+        const kanaResponseText = fallbackResponse.response.text();
+        conversation.history.push({ role: 'user', parts: [{ text: message }] });
+        conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+        return res.json({ kanaResponse: kanaResponseText });
+      }
+    } else {
+      const kanaResponseText = response.text();
+      console.log(`DEBUG: AI returned no function call. Raw response object:`, JSON.stringify(response, null, 2));
+      conversation.history.push({ role: 'user', parts: [{ text: message }] });
+      conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+      return res.json({ kanaResponse: kanaResponseText });
+    }
+  } catch (error) {
+    console.error('Error in /api/chat:', error);
+    res.status(500).json({ error: 'Failed to get response from K.A.N.A.' });
+  }
 });
 
 app.post('/api/clear-note-context', (req, res) => {
@@ -725,110 +754,111 @@ app.get('/', (req, res) => {
 
 // --- GRAPH GENERATION HELPER ---
 const generateGraphImage = async (data, title, xLabel, yLabel) => {
-    try {
-        console.log("DEBUG: Generating graph with data:", data);
-        const configuration = {
-            type: 'line',
-            data: {
-                labels: data.map(p => p.x),
-                datasets: [{
-                    label: title,
-                    data: data.map(p => p.y),
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: xLabel || 'X Axis'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: yLabel || 'Y Axis'
-                        }
-                    }
-                }
+  try {
+    console.log("DEBUG: Generating graph with data:", data);
+    const configuration = {
+      type: 'line',
+      data: {
+        labels: data.map(p => p.x),
+        datasets: [{
+          label: title,
+          data: data.map(p => p.y),
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1
+        }]
+      },
+      options: {
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: xLabel || 'X Axis'
             }
-        };
+          },
+          y: {
+            title: {
+              display: true,
+              text: yLabel || 'Y Axis'
+            }
+          }
+        }
+      }
+    };
 
-        const imageBuffer = await chartJSNodeCanvas.renderToBuffer(configuration);
-        const filename = `graph-${Date.now()}.png`;
-        const imagePath = path.join(IMAGES_DIR, filename);
-        fs.writeFileSync(imagePath, imageBuffer);
-        console.log(`DEBUG: Saved graph image to ${imagePath}`);
-        return `/images/${filename}`;
-    } catch (error) {
-        console.error("Error generating graph image:", error);
-        return null;
-    }
+    const imageBuffer = await chartJSNodeCanvas.renderToBuffer(configuration);
+    const filename = `graph-${Date.now()}.png`;
+    const imagePath = path.join(IMAGES_DIR, filename);
+    fs.writeFileSync(imagePath, imageBuffer);
+    console.log(`DEBUG: Saved graph image to ${imagePath}`);
+    return `/images/${filename}`;
+  } catch (error) {
+    console.error("Error generating graph image:", error);
+    return null;
+  }
 };
 
 const startServer = async () => {
-    await loadDb();
-    const fileToGenerativePart = (filePath, mimeType) => {
-      return {
-        inlineData: {
-          data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
-          mimeType
-        },
-      };
+  await loadDb();
+  await initializeDatabase();
+  const fileToGenerativePart = (filePath, mimeType) => {
+    return {
+      inlineData: {
+        data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
+        mimeType
+      },
     };
+  };
 
-    app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
-      try {
-        const { conversationId, message } = req.body;
-        const imageFile = req.file;
+  app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
+    try {
+      const { conversationId, message } = req.body;
+      const imageFile = req.file;
 
-        if (!imageFile) {
-          return res.status(400).json({ error: 'No image file uploaded.' });
-        }
-        if (!conversationId) {
-          return res.status(400).json({ error: 'Missing conversationId.' });
-        }
-
-        console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
-
-        const conversation = getOrCreateConversation(conversationId);
-        const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
-        
-        const userMessageText = message || 'Please analyze this image.';
-        conversation.history.push({ role: 'user', parts: [{ text: userMessageText }] });
-
-        const result = await visionModel.generateContent([userMessageText, imagePart]);
-        const kanaResponseText = result.response.text();
-
-        conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-
-        const imageUrl = `/images/${imageFile.filename}`;
-
-        res.json({
-          kanaResponse: kanaResponseText,
-          imageUrl: imageUrl,
-          explanation: kanaResponseText
-        });
-
-      } catch (error) {
-        console.error('Error analyzing image:', error);
-        res.status(500).json({ error: 'Failed to analyze image.' });
-      } finally {
-        if (req.file) {
-          fs.unlink(req.file.path, (err) => {
-            if (err) console.error(`Error deleting temp image file: ${req.file.path}`, err);
-          });
-        }
+      if (!imageFile) {
+        return res.status(400).json({ error: 'No image file uploaded.' });
       }
-    });
+      if (!conversationId) {
+        return res.status(400).json({ error: 'Missing conversationId.' });
+      }
 
-    app.listen(port, () => {
-        console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
-    });
+      console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
+
+      const conversation = getOrCreateConversation(conversationId);
+      const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
+
+      const userMessageText = message || 'Please analyze this image.';
+      conversation.history.push({ role: 'user', parts: [{ text: userMessageText }] });
+
+      const result = await visionModel.generateContent([userMessageText, imagePart]);
+      const kanaResponseText = result.response.text();
+
+      conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+
+      const imageUrl = `/images/${imageFile.filename}`;
+
+      res.json({
+        kanaResponse: kanaResponseText,
+        imageUrl: imageUrl,
+        explanation: kanaResponseText
+      });
+
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      res.status(500).json({ error: 'Failed to analyze image.' });
+    } finally {
+      if (req.file) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error(`Error deleting temp image file: ${req.file.path}`, err);
+        });
+      }
+    }
+  });
+
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`K.A.N.A. Backend listening on port ${port}`);
+  });
 };
 
 startServer();
@@ -836,7 +866,7 @@ startServer();
 // New endpoint for Chainlink Functions - Daily Quiz Generation
 app.post('/api/kana/generate-daily-quiz', async (req, res) => {
   const { topic, difficulty = 'medium', numQuestions = 1 } = req.body;
-  
+
   if (!topic) {
     return res.status(400).json({ error: 'Topic is required for daily quiz generation.' });
   }
@@ -867,55 +897,55 @@ Difficulty: ${difficulty}
 Style: Educational, clear, and engaging`;
 
     console.log(`Generating daily quiz for topic: ${topic}, difficulty: ${difficulty}`);
-    
+
     const result = await geminiModel.generateContent(prompt);
     const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
-    
+
     try {
       const quizJson = JSON.parse(responseText);
-      
+
       // Validate the structure
       if (!quizJson.quiz || !Array.isArray(quizJson.quiz) || quizJson.quiz.length === 0) {
         throw new Error('Invalid quiz structure');
       }
-      
+
       const quiz = quizJson.quiz[0];
       if (!quiz.question || !quiz.options || !Array.isArray(quiz.options) || quiz.options.length !== 4 || !quiz.answer) {
         throw new Error('Invalid quiz question structure');
       }
-      
+
       // Verify the answer is in the options
       if (!quiz.options.includes(quiz.answer)) {
         throw new Error('Answer not found in options');
       }
-      
+
       console.log(`Successfully generated daily quiz for ${topic}`);
       res.json(quizJson);
-      
+
     } catch (parseError) {
       console.error('JSON parsing error:', parseError);
       console.error('Raw response:', responseText);
-      
+
       // Return a fallback quiz
       const fallbackQuiz = {
         quiz: [{
           question: `What is a key concept in ${topic}?`,
           options: [
             "Centralized control",
-            "Decentralized architecture", 
+            "Decentralized architecture",
             "Single point of failure",
             "Manual processes"
           ],
           answer: "Decentralized architecture"
         }]
       };
-      
+
       res.json(fallbackQuiz);
     }
-    
+
   } catch (error) {
     console.error('Error in /generate-daily-quiz:', error);
-    
+
     // Return a fallback quiz in case of error
     const fallbackQuiz = {
       quiz: [{
@@ -929,11 +959,12 @@ Style: Educational, clear, and engaging`;
         answer: "Innovation and progress"
       }]
     };
-    
+
     res.json(fallbackQuiz);
   }
 });
 
+<<<<<<< HEAD
 // === KANA-DIRECT ENDPOINT (for dashboard compatibility) ===
 console.log('DEBUG: Registering /kana-direct endpoint...');
 app.post('/kana-direct', async (req, res) => {
@@ -2341,6 +2372,33 @@ console.log('DEBUG: Registering /api/test endpoint...');
 app.get('/api/test', (req, res) => {
   console.log('DEBUG: /api/test endpoint called!');
   res.json({ message: 'Test endpoint working!', timestamp: new Date().toISOString() });
+});
+
+// --- HEALTH CHECK ENDPOINT ---
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: 'disconnected',
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ? 'configured' : 'missing',
+      DATABASE_URL: process.env.DATABASE_URL ? 'configured' : 'missing'
+    }
+  };
+
+  try {
+    const dbConnected = await testConnection();
+    health.database = dbConnected ? 'connected' : 'disconnected';
+  } catch (error) {
+    health.database = 'error';
+    health.databaseError = error.message;
+  }
+
+  const statusCode = health.database === 'connected' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // === START SERVER ===
