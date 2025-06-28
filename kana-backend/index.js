@@ -964,7 +964,6 @@ Style: Educational, clear, and engaging`;
   }
 });
 
-<<<<<<< HEAD
 // === KANA-DIRECT ENDPOINT (for dashboard compatibility) ===
 console.log('DEBUG: Registering /kana-direct endpoint...');
 app.post('/kana-direct', async (req, res) => {
