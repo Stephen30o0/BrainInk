@@ -1,0 +1,28 @@
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# OCR and Image Processing
+paddleocr
+paddlepaddle
+pillow
+opencv-python
+numpy
+
+# AI and HTTP
+requests==2.31.0
+python-dotenv==1.0.0
+
+# Additional image processing (optional but recommended)
+scikit-image
+matplotlib
+
+# PDF processing (if needed)
+pymupdf
+
+# Async support
+aiofiles==23.2.1
+
+# For better error handling and logging
+structlog==23.2.0

@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { X, ChevronLeft, Users } from 'lucide-react';
 import { ArenaHub } from '../arena/ArenaHub';
 import { EchoChambers } from '../echo/EchoChambers';
-import { CreatorsGuild } from '../creators/CreatorsGuild';
+import { StudyCentre } from '../study/StudyCentre';
 import { LibraryHub } from '../library/LibraryHub';
 import { Marketplace } from '../marketplace/Marketplace';
 import { ChatbotInterface } from '../../pages/ChatbotInterface';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Position {
   top?: string;
@@ -319,6 +320,7 @@ const interiorData: Record<string, Interior> = {
 };
 
 const EnhancedGameEnvironment = () => {
+  const { user } = useAuth(); // Get the current authenticated user
   const [activeBuilding, setActiveBuilding] = useState<string | null>(null);
   const [hoverBuilding, setHoverBuilding] = useState<string | null>(null);
   const [activeStation, setActiveStation] = useState<string | null>(null);
@@ -362,7 +364,7 @@ const EnhancedGameEnvironment = () => {
     // On mobile, organize buildings in a more structured grid layout
     const mobilePositions: Record<string, { top?: string; left?: string; right?: string; bottom?: string }> = {
       arena: { top: '20%', left: '30%' },
-      'guild-hall': { top: '20%', right: '30%' },
+      'study-centre': { top: '20%', right: '30%' },
       'echo-chambers': { top: '50%', right: '30%' },
       'kana-lab': { top: '50%', left: '30%' },
       marketplace: { bottom: '20%', left: '30%' },
@@ -384,9 +386,9 @@ const EnhancedGameEnvironment = () => {
     // Connections depend on screen size
     const connectionPairs = isMobile ?
     // Mobile connections (simplified)
-    [['arena', 'guild-hall'], ['guild-hall', 'echo-chambers'], ['echo-chambers', 'library'], ['library', 'marketplace'], ['marketplace', 'kana-lab'], ['kana-lab', 'arena']] :
+    [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['echo-chambers', 'library'], ['library', 'marketplace'], ['marketplace', 'kana-lab'], ['kana-lab', 'arena']] :
     // Desktop connections
-    [['arena', 'guild-hall'], ['guild-hall', 'echo-chambers'], ['kana-lab', 'library'], ['marketplace', 'kana-lab'], ['library', 'echo-chambers'], ['arena', 'marketplace']];
+    [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['kana-lab', 'library'], ['marketplace', 'kana-lab'], ['library', 'echo-chambers'], ['arena', 'marketplace']];
     connectionPairs.forEach(pair => {
       const buildingA = buildings.find(b => b.id === pair[0]);
       const buildingB = buildings.find(b => b.id === pair[1]);
@@ -496,18 +498,18 @@ const EnhancedGameEnvironment = () => {
     description: 'Trade, purchase or sell valuable learning materials and digital goods.',
     animation: 'bounce'
   }, {
-    id: 'guild-hall',
-    name: 'Guild Hall',
-    icon: '⚔️',
-    color: '#d881f7',
+    id: 'study-centre',
+    name: 'Study Centre',
+    icon: '🧠',
+    color: '#4ade80',
     size: 'medium',
     position: {
       top: '28%',
       left: '55%'
     },
-    description: 'Join specialized study groups and skill guilds. Team up with like-minded learners!',
+    description: 'Your personalized agentic learning hub powered by K.A.N.A. AI. Get assignments tailored to your needs!',
     notification: 3,
-    animation: 'shake'
+    animation: 'glow'
   }];
   const getBuildingSize = (size: 'small' | 'medium' | 'large') => {
     // Smaller on mobile, regular sizes on larger screens
@@ -875,15 +877,14 @@ const EnhancedGameEnvironment = () => {
                       activeSubFeature={activeSubFeature}
                     />
                   </div>
-                ) : activeBuilding === 'guild-hall' ? (
+                ) : activeBuilding === 'study-centre' ? (
                   <div className="h-full">
-                    <CreatorsGuild
-                      onExit={() => {
-                        // Reset sub-feature when exiting the creators guild
+                    <StudyCentre
+                      onNavigate={() => {
+                        // Reset sub-feature when exiting the study centre
                         setActiveSubFeature(null);
                       }}
-                      activeStation={activeStation}
-                      activeSubFeature={activeSubFeature}
+                      currentUser={user}
                     />
                   </div>
                 ) : activeBuilding === 'marketplace' ? (

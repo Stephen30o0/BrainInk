@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fix input visibility issues */
+input, select, textarea {
+  color: #1f2937 !important; /* Ensure text is visible */
+  background-color: white !important; /* Ensure background is visible */
+}
+
+input::placeholder {
+  color: #9ca3af !important; /* Ensure placeholder is visible */
+}
+
+/* Fix selection highlighting */
+::selection {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* Ensure focus states are visible */
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+}
+
 /* Page Transitions */
 .page-enter {
   opacity: 0;

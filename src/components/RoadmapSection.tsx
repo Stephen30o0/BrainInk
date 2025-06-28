@@ -18,13 +18,13 @@ export const RoadmapSection = () => {
     date: 'Q2 2023',
     features: ['Global and regional leaderboards', 'Achievement badge system', 'XP progression framework', 'First tournament structure']
   }, {
-    id: 'guild',
-    name: 'Open the Guild',
-    icon: '🧩',
-    description: 'Release of the creator system for educators to build courses',
+    id: 'study-centre',
+    name: 'Launch Study Centre',
+    icon: '�',
+    description: 'AI-powered personalized learning hub with K.A.N.A. integration',
     status: 'upcoming',
     date: 'Q3 2023',
-    features: ['Course creation tools', 'Verification system for educators', 'Revenue sharing model', 'Interactive content builder']
+    features: ['K.A.N.A. agentic assignments', 'Personalized learning paths', 'AI tutor integration', 'Adaptive curriculum system']
   }, {
     id: 'chain',
     name: 'Unleash the Chain',

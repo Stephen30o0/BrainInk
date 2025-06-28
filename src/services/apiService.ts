@@ -905,9 +905,25 @@ class APIService {
         try {
             const response = await this.makeRequest(`${this.FRIENDS_API}/search?q=${encodeURIComponent(query)}`);
             return Array.isArray(response) ? response : response.users || [];
-        } catch (error) {
-            console.error('Error searching users:', error);
-            return [];
+        } catch (error: any) {
+            // Handle specific error cases
+            if (error.message?.includes('404')) {
+                // Friends API endpoint is not available (404 error)
+                // This is expected when the friends microservice is not deployed
+                // Silently return empty array to avoid console spam
+                return [];
+            } else if (error.message?.includes('401')) {
+                // Authentication failed
+                console.warn('Authentication failed for user search');
+                return [];
+            } else {
+                // Other errors - log once and return empty array
+                if (!sessionStorage.getItem('user-search-api-error')) {
+                    console.warn('User search API temporarily unavailable:', error.message);
+                    sessionStorage.setItem('user-search-api-error', 'true');
+                }
+                return [];
+            }
         }
     }
 

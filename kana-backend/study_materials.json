@@ -348,5 +348,63 @@
     "topic": "General",
     "uploadTimestamp": "2025-06-23T20:11:17.922Z",
     "size": 503339
+  },
+  {
+    "id": "67890c7d-ff01-4139-85ff-a41f2e596002",
+    "originalFilename": "The Scientific Legacy Of WW1.pdf",
+    "storedFilename": "studyMaterial-1750924893056-32809105.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750924893056-32809105.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-26T08:01:33.080Z",
+    "size": 3919293,
+    "metadata": {
+      "title": "The Scientific Legacy Of WW1",
+      "authors": [
+        {
+          "name": "GRAHAM, Fiona"
+        },
+        {
+          "name": "OTTEY, Paul"
+        }
+      ],
+      "doi": null,
+      "abstract": "An exhibition and talk disseminating multi-disciplinary work at Hawthorn crater on the Somme as part of the wider exhibition on the scientific legacy or WW1. The project combines work in the field of chemical analysis, archaeology, anthropology, forensics, heritage preservation, digital scanning, recording and dissemination.\n\n\n\nThe Hawthorn crater is a relatively untouched site and the current investigations are the first time this type of work has been carried out. Our work records the intentions, discoveries and process of both preserving the site, making it accessible to the public and its historical legacy",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "2bc76761-2b5b-4cbc-a7ea-5d3b2875f5f7",
+    "originalFilename": "“An Absurdly Quiet Spot”: The Spatial Justice of WW1 Fraternizations.pdf",
+    "storedFilename": "studyMaterial-1750924939120-420824928.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750924939120-420824928.pdf",
+    "mimetype": "application/pdf",
+    "topic": "CORE Import",
+    "uploadTimestamp": "2025-06-26T08:02:19.124Z",
+    "size": 204977,
+    "metadata": {
+      "title": "“An Absurdly Quiet Spot”: The Spatial Justice of WW1 Fraternizations",
+      "authors": [
+        {
+          "name": "Philippopoulos-Mihalopoulos, Andreas"
+        },
+        {
+          "name": "Philippopoulos-Mihalopoulos, Andreas"
+        }
+      ],
+      "doi": null,
+      "abstract": "Recent research on WW1 shows that incidents of fraternization across enemy lines took place regularly. However, fraternization remains a taboo in many contexts. The fact that the 2005 film Joyeux Noel by Christian Caron, which explicitly deals with the subject, encountered resistance from the authorities, is an indication of the kind of difficulty associated with the issue. I am drawing my inspiration from the way fraternizations are depicted in the film and in the literature in order to explore the concept of spatial justice. I define spatial justice as the question that emerges when a body desires to occupy the same space at the same time as another body. Defined like this, the question of spatial justice opens up in the dread of No Man’s Land and in particular the exchange of affects, objects and narratives that went on during fraternizations. I trace the movement of spatial justice as one of withdrawal from the asphyxiating atmosphere of the war and the propaganda machine. This withdrawal is not one of unpatriotic stance but of a courageous and difficult detachment from the supposed legality of the war that could only function on the basis of hate and demonization. While fraternizations did not end the war, they allowed for the possibility of spatial justice to emerge, as an opportunity to reorient the space and the bodies within",
+      "source": "CORE"
+    }
+  },
+  {
+    "id": "df950337-5b3d-4c6d-9aeb-a4b76dc08b5c",
+    "originalFilename": "Starlink Satellite Internet_ A Technological Solution to Connectivity Issues in Africa (2).pdf",
+    "storedFilename": "studyMaterial-1750925040643-665553187.pdf",
+    "filePath": "C:\\Users\\musev\\BrainInk\\kana-backend\\uploads\\study_materials\\studyMaterial-1750925040643-665553187.pdf",
+    "mimetype": "application/pdf",
+    "topic": "General",
+    "uploadTimestamp": "2025-06-26T08:04:00.652Z",
+    "size": 215842
   }
 ]

@@ -5,7 +5,7 @@ declare global {
     scrollTimer?: NodeJS.Timeout;
   }
 }
-import { BrainIcon, BookOpenIcon, TrophyIcon, WalletIcon, UsersIcon, MapIcon, MessageSquareIcon } from 'lucide-react';
+import { BrainIcon, BookOpenIcon, TrophyIcon, WalletIcon, UsersIcon, MapIcon, MessageSquareIcon, GraduationCapIcon } from 'lucide-react';
 export const HudNavigation = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [xp] = useState(247);
@@ -82,6 +82,12 @@ export const HudNavigation = () => {
     label: 'Creator',
     color: 'from-amber-500 to-yellow-500'
   }, {
+    icon: <GraduationCapIcon size={18} />,
+    label: 'Teacher',
+    color: 'from-purple-500 to-indigo-500',
+    isRoute: true,
+    route: '/teacher-dashboard'
+  }, {
     icon: <UsersIcon size={18} />,
     label: 'Team',
     color: 'from-pink-500 to-rose-500'
@@ -103,9 +109,16 @@ export const HudNavigation = () => {
   }];
 
   // Handle nav item click
-  const handleNavClick = (section: string) => {
-    setActiveSection(section.toLowerCase());
-    if (mobileMenuOpen) setMobileMenuOpen(false);
+  const handleNavClick = (item: any) => {
+    if (item.isRoute && item.route) {
+      // Navigate to a different route
+      window.location.href = item.route;
+    } else {
+      // Scroll to section on current page
+      const section = typeof item === 'string' ? item : item.label;
+      setActiveSection(section.toLowerCase());
+      if (mobileMenuOpen) setMobileMenuOpen(false);
+    }
   };
 
   // Handle logo click to navigate to hero section
@@ -134,7 +147,16 @@ export const HudNavigation = () => {
           <nav className="hidden lg:flex items-center space-x-6 overflow-x-auto py-1">
             {mainNavItems.map((item, index) => {
             const isActive = activeSection === item.label.toLowerCase();
-            return <a key={index} href={`#${item.label.toLowerCase()}`} className="flex flex-col items-center group relative" onClick={() => handleNavClick(item.label)}>
+            const href = item.isRoute ? item.route : `#${item.label.toLowerCase()}`;
+            return <a key={index} href={href} className="flex flex-col items-center group relative" onClick={(e) => {
+                if (item.isRoute) {
+                  // Let the href handle the navigation for routes
+                  return;
+                } else {
+                  e.preventDefault();
+                  handleNavClick(item.label);
+                }
+              }}>
                   <div className={`
                     ${isActive ? 'text-primary' : 'text-gray-400'} 
                     group-hover:text-primary transition-colors duration-300
@@ -160,7 +182,10 @@ export const HudNavigation = () => {
           })}
             
             {/* Token Button */}
-            <a href="#token" className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md font-pixel text-dark text-sm flex items-center space-x-2 hover:brightness-110 transition-all duration-300 shadow-glow" onClick={() => handleNavClick('Token')}>
+            <a href="#token" className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md font-pixel text-dark text-sm flex items-center space-x-2 hover:brightness-110 transition-all duration-300 shadow-glow" onClick={(e) => {
+              e.preventDefault();
+              handleNavClick('Token');
+            }}>
               <WalletIcon size={16} />
               <span>TOKEN</span>
             </a>
@@ -262,7 +287,16 @@ export const HudNavigation = () => {
             {/* Main Navigation Items */}
             {mainNavItems.map((item, index) => {
             const isActive = activeSection === item.label.toLowerCase();
-            return <a key={index} href={`#${item.label.toLowerCase()}`} className="flex items-center space-x-3 py-2" onClick={() => handleNavClick(item.label)}>
+            const href = item.isRoute ? item.route : `#${item.label.toLowerCase()}`;
+            return <a key={index} href={href} className="flex items-center space-x-3 py-2" onClick={(e) => {
+                if (item.isRoute) {
+                  // Let the href handle the navigation for routes
+                  return;
+                } else {
+                  e.preventDefault();
+                  handleNavClick(item.label);
+                }
+              }}>
                   <div className={`
                     p-2 rounded-full bg-gray-800/60 
                     ${isActive ? 'text-primary bg-gray-700/80' : 'text-gray-400'}
@@ -281,7 +315,10 @@ export const HudNavigation = () => {
           })}
             
             {/* Token Button in Mobile */}
-            <a href="#token" className="flex items-center space-x-3 py-2 my-1 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md px-3" onClick={() => handleNavClick('Token')}>
+            <a href="#token" className="flex items-center space-x-3 py-2 my-1 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md px-3" onClick={(e) => {
+              e.preventDefault();
+              handleNavClick('Token');
+            }}>
               <WalletIcon size={18} className="text-dark" />
               <span className="font-pixel text-dark font-bold">TOKEN</span>
             </a>
@@ -290,7 +327,10 @@ export const HudNavigation = () => {
             <div className="pt-2 border-t border-primary/20 mt-1">
               {additionalNavItems.map((item, index) => {
               const isActive = activeSection === item.label.toLowerCase();
-              return <a key={index} href={`#${item.label.toLowerCase()}`} className="flex items-center space-x-3 py-2" onClick={() => handleNavClick(item.label)}>
+              return <a key={index} href={`#${item.label.toLowerCase()}`} className="flex items-center space-x-3 py-2" onClick={(e) => {
+                e.preventDefault();
+                handleNavClick(item.label);
+              }}>
                     <div className={`
                       p-2 rounded-full bg-gray-800/60 
                       ${isActive ? 'text-primary bg-gray-700/80' : 'text-gray-400'}

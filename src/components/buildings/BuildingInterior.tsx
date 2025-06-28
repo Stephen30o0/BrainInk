@@ -3,9 +3,10 @@ import { X, ChevronLeft, Users, Crown, Star } from 'lucide-react';
 import { ArenaHub } from '../arena/ArenaHub';
 import { EchoChambers } from '../echo/EchoChambers';
 import { Library } from '../library/Library';
-import { CreatorsGuild } from '../creators/CreatorsGuild';
+import { StudyCentre } from '../study/StudyCentre';
 import { Marketplace } from '../marketplace/Marketplace';
 import { ChatbotInterface } from '../../pages/ChatbotInterface';
+import { useAuth } from '../../hooks/useAuth';
 
 interface BuildingInteriorProps {
   buildingId: string;
@@ -35,6 +36,7 @@ export const BuildingInterior = ({
   onExit,
   buildings
 }: BuildingInteriorProps) => {
+  const { user } = useAuth(); // Get the current authenticated user
   const [activeStation, setActiveStation] = useState<string | null>(null);
   const [activeSubFeature, setActiveSubFeature] = useState<string | null>(null);
 
@@ -267,29 +269,28 @@ export const BuildingInterior = ({
         }
       ]
     },
-    'guild-hall': {
-      title: 'Creators Guild',
-      description: 'Create and share your knowledge',
-      color: '#9575cd',
+    'study-centre': {
+      title: 'Study Centre',
+      description: 'Your personalized agentic learning hub powered by K.A.N.A.',
+      color: '#4ade80',
       features: [
         {
-          id: 'course-creator',
-          name: 'Course Creator',
-          description: 'Build and publish your own courses',
-          icon: '📚'
+          id: 'assignments',
+          name: 'K.A.N.A. Assignments',
+          description: 'Personalized learning tasks created by AI analysis',
+          icon: '�'
         },
         {
-          id: 'publishing',
-          name: 'Publishing Center',
-          description: 'Manage and monitor your content',
-          icon: '📝'
+          id: 'learning-paths',
+          name: 'Learning Paths',
+          description: 'Adaptive curricula based on your progress',
+          icon: '�️'
         },
         {
-          id: 'community',
-          name: 'Community Hub',
-          description: 'Connect with other creators',
-          icon: '👥',
-          isLocked: true
+          id: 'ai-tutor',
+          name: 'AI Tutor',
+          description: 'One-on-one guidance from K.A.N.A.',
+          icon: '🧠'
         }
       ]
     },
@@ -395,12 +396,11 @@ export const BuildingInterior = ({
             activeSubFeature={activeSubFeature}
           />
         );
-      case 'guild-hall':
+      case 'study-centre':
         return (
-          <CreatorsGuild 
-            onExit={handleExit}
-            activeStation={activeStation}
-            activeSubFeature={activeSubFeature}
+          <StudyCentre 
+            onNavigate={handleExit}
+            currentUser={user}
           />
         );
       case 'library':

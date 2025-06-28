@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Brain, Lock, Mail, User, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
 import { apiService } from '../services/apiService';
 
@@ -29,6 +30,7 @@ declare global {
 }
 
 export const SignUp = () => {
+  const location = useLocation();
   const [isLogin, setIsLogin] = useState(true);
   const [form, setForm] = useState({
     username: '',
@@ -42,7 +44,17 @@ export const SignUp = () => {
   const [isPreloading, setIsPreloading] = useState(false);
   const [error, setError] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
+  const [googleError, setGoogleError] = useState(false);
   const navigate = useNavigate();
+
+  // Get redirect parameter from URL
+  const searchParams = new URLSearchParams(location.search);
+  const redirectTo = searchParams.get('redirect') || '/townsquare';
+
+  // Set login mode based on current route
+  useEffect(() => {
+    setIsLogin(location.pathname === '/login');
+  }, [location.pathname]);
 
   // Import from environment variable with fallback
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '969723698837-9aepndmu033gu0bk3gdrb6o1707mknp6.apps.googleusercontent.com';
@@ -71,12 +83,12 @@ export const SignUp = () => {
         await apiService.preloadAllData();
         console.log('✅ All data preloaded successfully');
         setError('');
-        navigate('/townsquare');
+        navigate(redirectTo);
       } catch (preloadError) {
         console.error('⚠️ Error preloading data:', preloadError);
         // Still navigate even if preload fails - data will load on demand
         setError('');
-        navigate('/townsquare');
+        navigate(redirectTo);
       } finally {
         setIsPreloading(false);
       }
@@ -171,18 +183,20 @@ export const SignUp = () => {
             cancel_on_tap_outside: false
           });
           setGoogleLoaded(true);
+          setGoogleError(false);
           console.log('Google Sign-In initialized successfully with Client ID:', GOOGLE_CLIENT_ID);
-          setError('');
 
           // Immediately render the Google button when ready
           setTimeout(renderGoogleButton, 100);
         } catch (error) {
           console.error('Error initializing Google Sign-In:', error);
-          setError('Failed to initialize Google Sign-In');
+          setGoogleError(true);
+          setGoogleLoaded(false);
         }
       } else {
         console.error('Google or Client ID not available');
-        setError('Google Sign-In not available');
+        setGoogleError(true);
+        setGoogleLoaded(false);
       }
     };
 
@@ -377,12 +391,20 @@ export const SignUp = () => {
             </div>
           </div>
 
-          {/* Replace the old button with Google's native button container */}
-          <div
-            id="google-button-container"
-            className="w-full mb-6"
-            style={{ minHeight: '40px' }}
-          ></div>
+          {/* Google Sign-In Button - Only show if Google is available and no error */}
+          {!googleError ? (
+            <div
+              id="google-button-container"
+              className="w-full mb-6"
+              style={{ minHeight: '40px' }}
+            ></div>
+          ) : (
+            <div className="w-full mb-6 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+              <p className="text-yellow-400 text-sm text-center">
+                Google Sign-In temporarily unavailable. Please use email/password login below.
+              </p>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="flex items-center my-6">

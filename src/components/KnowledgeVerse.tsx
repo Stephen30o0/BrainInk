@@ -21,10 +21,10 @@ export const KnowledgeVerse = () => {
     color: '#ff00aa',
     icon: '🏆'
   }, {
-    id: 'guild',
-    name: "Creator's Guild",
-    description: 'Where verified creators upload courses and share knowledge.',
-    color: '#ffaa00',
+    id: 'study-centre',
+    name: "Study Centre",
+    description: 'Your personalized agentic learning hub powered by K.A.N.A. AI.',
+    color: '#4ade80',
     icon: '🧠'
   }, {
     id: 'chambers',
