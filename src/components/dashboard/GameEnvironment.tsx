@@ -6,8 +6,8 @@ import { EchoChambers } from '../echo/EchoChambers';
 import { StudyCentre } from '../study/StudyCentre';
 import { LibraryHub } from '../library/LibraryHub';
 import { Marketplace } from '../marketplace/Marketplace';
-import { ChatbotInterface } from '../../pages/ChatbotInterface';
 import { useAuth } from '../../hooks/useAuth';
+import ChatArea from '../../../quiz/src/components/ChatArea';
 
 interface Position {
   top?: string;
@@ -190,13 +190,13 @@ const interiorData: Record<string, Interior> = {
         name: 'Ask Questions',
         description: 'Get instant answers to your queries',
         icon: '❓',
-        interaction: () => window.location.href = '/chatbot'
+        interaction: () => window.location.href = '/quiz/math'
       }, {
         id: 'concept-explanation',
         name: 'Learn Concepts',
         description: 'Deep dive into complex topics',
         icon: '📚',
-        interaction: () => window.location.href = '/chatbot'
+        interaction: () => window.location.href = '/quiz/math'
       }]
     }, {
       id: 'study-analysis',
@@ -335,6 +335,10 @@ const EnhancedGameEnvironment = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [interiors] = useState<Record<string, Interior>>(interiorData); // Using const destructuring without the setter
 
+  // ChatArea state variables
+  const [activeChat, setActiveChat] = useState<{ id: number; subject: string; title: string; } | null>(null);
+  const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
+
   // Handle viewport size detection
   useEffect(() => {
     const handleResize = () => {
@@ -385,10 +389,10 @@ const EnhancedGameEnvironment = () => {
     const lines: Connection[] = [];
     // Connections depend on screen size
     const connectionPairs = isMobile ?
-    // Mobile connections (simplified)
-    [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['echo-chambers', 'library'], ['library', 'marketplace'], ['marketplace', 'kana-lab'], ['kana-lab', 'arena']] :
-    // Desktop connections
-    [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['kana-lab', 'library'], ['marketplace', 'kana-lab'], ['library', 'echo-chambers'], ['arena', 'marketplace']];
+      // Mobile connections (simplified)
+      [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['echo-chambers', 'library'], ['library', 'marketplace'], ['marketplace', 'kana-lab'], ['kana-lab', 'arena']] :
+      // Desktop connections
+      [['arena', 'study-centre'], ['study-centre', 'echo-chambers'], ['kana-lab', 'library'], ['marketplace', 'kana-lab'], ['library', 'echo-chambers'], ['arena', 'marketplace']];
     connectionPairs.forEach(pair => {
       const buildingA = buildings.find(b => b.id === pair[0]);
       const buildingB = buildings.find(b => b.id === pair[1]);
@@ -399,8 +403,8 @@ const EnhancedGameEnvironment = () => {
             x: 50,
             y: 50
           }; // Default to center
-          if (pos.top) result.y = parseInt(pos.top);else if (pos.bottom) result.y = 100 - parseInt(pos.bottom);
-          if (pos.left) result.x = parseInt(pos.left);else if (pos.right) result.x = 100 - parseInt(pos.right);
+          if (pos.top) result.y = parseInt(pos.top); else if (pos.bottom) result.y = 100 - parseInt(pos.bottom);
+          if (pos.left) result.x = parseInt(pos.left); else if (pos.right) result.x = 100 - parseInt(pos.right);
           return result;
         };
         // Use mobile adjusted positions if needed
@@ -597,18 +601,32 @@ const EnhancedGameEnvironment = () => {
       subFeature.interaction();
     }
   };
-  return <div className={`relative w-full h-[calc(100vh-4rem)] overflow-hidden ${time === 'day' ? 'bg-gradient-to-b from-blue-900 to-indigo-900' : 'bg-gradient-to-b from-gray-900 to-blue-900'}`}>
-      {/* Mobile mode indicator */}
-      {isMobile && <div className="absolute top-4 left-4 z-50 bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1">
-          <button className="text-xs text-white flex items-center" onClick={() => setIsMobile(!isMobile)} // Toggle for testing
-      >
-            <span className="mr-1">📱</span> Mobile View
-          </button>
-        </div>}
 
-      {/* Stars (only at night) - fewer on mobile */}
-      {time === 'night' && <div className="absolute inset-0 z-0">
-          {Array.from({
+  // ChatArea handlers
+  const handleOpenPDFReader = (pdfUrl: string) => {
+    window.open(pdfUrl, '_blank');
+  };
+
+  const handleToggleHistoryPanel = () => {
+    setIsHistoryPanelOpen(!isHistoryPanelOpen);
+  };
+
+  const handleChatSelect = (chat: { id: number; subject: string; title: string; }) => {
+    setActiveChat(chat);
+  };
+
+  return <div className={`relative w-full h-[calc(100vh-4rem)] overflow-hidden ${time === 'day' ? 'bg-gradient-to-b from-blue-900 to-indigo-900' : 'bg-gradient-to-b from-gray-900 to-blue-900'}`}>
+    {/* Mobile mode indicator */}
+    {isMobile && <div className="absolute top-4 left-4 z-50 bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1">
+      <button className="text-xs text-white flex items-center" onClick={() => setIsMobile(!isMobile)} // Toggle for testing
+      >
+        <span className="mr-1">📱</span> Mobile View
+      </button>
+    </div>}
+
+    {/* Stars (only at night) - fewer on mobile */}
+    {time === 'night' && <div className="absolute inset-0 z-0">
+      {Array.from({
         length: isMobile ? 50 : 100
       }).map((_, i) => <div key={`star-${i}`} className="absolute rounded-full bg-white" style={{
         width: Math.random() * 2 + 1 + 'px',
@@ -618,17 +636,17 @@ const EnhancedGameEnvironment = () => {
         opacity: Math.random() * 0.8 + 0.2,
         animation: `twinkle ${Math.random() * 3 + 2}s infinite ${Math.random() * 2}s`
       }} />)}
-        </div>}
+    </div>}
 
-      {/* Time indicator */}
-      <div className="absolute top-4 right-4 z-10">
-        <div className={`w-8 h-8 rounded-full ${time === 'day' ? 'bg-yellow-300' : 'bg-blue-200'} flex items-center justify-center`}>
-          <span>{time === 'day' ? '☀️' : '🌙'}</span>
-        </div>
+    {/* Time indicator */}
+    <div className="absolute top-4 right-4 z-10">
+      <div className={`w-8 h-8 rounded-full ${time === 'day' ? 'bg-yellow-300' : 'bg-blue-200'} flex items-center justify-center`}>
+        <span>{time === 'day' ? '☀️' : '🌙'}</span>
       </div>
+    </div>
 
-      {/* Background grid */}
-      <div className="absolute inset-0 z-0" style={{
+    {/* Background grid */}
+    <div className="absolute inset-0 z-0" style={{
       backgroundImage: `linear-gradient(to right, ${time === 'day' ? 'rgba(255,255,255,0.1)' : 'rgba(0,144,255,0.1)'} 1px, transparent 1px), 
              linear-gradient(to bottom, ${time === 'day' ? 'rgba(255,255,255,0.1)' : 'rgba(0,144,255,0.1)'} 1px, transparent 1px)`,
       backgroundSize: '80px 80px',
@@ -636,9 +654,9 @@ const EnhancedGameEnvironment = () => {
       transition: 'transform 0.5s ease-out'
     }} />
 
-      {/* Moving fog effect */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
-        {Array.from({
+    {/* Moving fog effect */}
+    <div className="absolute inset-0 z-0 overflow-hidden">
+      {Array.from({
         length: 3
       }).map((_, i) => <div key={`fog-${i}`} className="absolute w-full h-full opacity-30" style={{
         backgroundImage: `radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)`,
@@ -649,10 +667,10 @@ const EnhancedGameEnvironment = () => {
         top: `${i * 10}%`,
         left: `${i * 5}%`
       }} />)}
-      </div>
+    </div>
 
-      {/* Floating particles */}
-      {particles.map(particle => <motion.div key={`particle-${particle.id}`} className="absolute rounded-full z-10" style={{
+    {/* Floating particles */}
+    {particles.map(particle => <motion.div key={`particle-${particle.id}`} className="absolute rounded-full z-10" style={{
       width: `${particle.size}px`,
       height: `${particle.size}px`,
       backgroundColor: particle.color,
@@ -670,70 +688,70 @@ const EnhancedGameEnvironment = () => {
       times: [0, 0.25, 0.5, 0.75, 1]
     }} />)}
 
-      {/* Connection Lines */}
-      <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
-        <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+    {/* Connection Lines */}
+    <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
 
-        {connections.map(line => <g key={line.id}>
-            <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={line.color} strokeWidth="2" strokeDasharray="8,8" filter="url(#glow)">
-              <animate attributeName="stroke-dashoffset" from="0" to="16" dur="1s" repeatCount="indefinite" />
-            </line>
+      {connections.map(line => <g key={line.id}>
+        <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={line.color} strokeWidth="2" strokeDasharray="8,8" filter="url(#glow)">
+          <animate attributeName="stroke-dashoffset" from="0" to="16" dur="1s" repeatCount="indefinite" />
+        </line>
 
-            {/* Traveling dot on the line */}
-            <circle r="4" fill="#fff">
-              <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
-              <animateMotion dur="3s" repeatCount="indefinite" path={`M${line.x1} ${line.y1} L ${line.x2} ${line.y2}`} />
-            </circle>
-          </g>)}
-      </svg>
+        {/* Traveling dot on the line */}
+        <circle r="4" fill="#fff">
+          <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
+          <animateMotion dur="3s" repeatCount="indefinite" path={`M${line.x1} ${line.y1} L ${line.x2} ${line.y2}`} />
+        </circle>
+      </g>)}
+    </svg>
 
-      {/* Buildings */}
-      {buildings.map(building => (
-        <motion.div 
-          key={building.id} 
-          className={`
+    {/* Buildings */}
+    {buildings.map(building => (
+      <motion.div
+        key={building.id}
+        className={`
             absolute ${getBuildingSize(building.size)}
             transform -translate-x-1/2 -translate-y-1/2
             cursor-pointer z-20
           `}
-          style={{
-            ...getAdjustedPositions(building),
-            position: 'absolute',
-            visibility: 'visible'
-          }}
-          initial={{
-            scale: 0.9,
-            opacity: 0
-          }}
-          animate={{
-            scale: hoverBuilding === building.id ? 1.1 : 1,
-            opacity: 1,
-            y: hoverBuilding === building.id ? isMobile ? -5 : -10 : 0
-          }}
-          transition={{
-            type: 'spring',
-            stiffness: 300,
-            damping: 20,
-            delay: Math.random() * 0.5
-          }}
-          onClick={() => handleBuildingClick(building.id)}
-          onMouseEnter={() => setHoverBuilding(building.id)}
-          onMouseLeave={() => setHoverBuilding(null)}
-          whileHover={{
-            scale: 1.1,
-            y: isMobile ? -5 : -10
-          }}
-        >
-          {/* Building structure */}
-          <div className={`
+        style={{
+          ...getAdjustedPositions(building),
+          position: 'absolute',
+          visibility: 'visible'
+        }}
+        initial={{
+          scale: 0.9,
+          opacity: 0
+        }}
+        animate={{
+          scale: hoverBuilding === building.id ? 1.1 : 1,
+          opacity: 1,
+          y: hoverBuilding === building.id ? isMobile ? -5 : -10 : 0
+        }}
+        transition={{
+          type: 'spring',
+          stiffness: 300,
+          damping: 20,
+          delay: Math.random() * 0.5
+        }}
+        onClick={() => handleBuildingClick(building.id)}
+        onMouseEnter={() => setHoverBuilding(building.id)}
+        onMouseLeave={() => setHoverBuilding(null)}
+        whileHover={{
+          scale: 1.1,
+          y: isMobile ? -5 : -10
+        }}
+      >
+        {/* Building structure */}
+        <div className={`
               relative w-full h-full rounded-xl
               ${getAnimationClass(building.animation)}
               backdrop-blur-md
@@ -741,239 +759,244 @@ const EnhancedGameEnvironment = () => {
               flex flex-col items-center justify-center
               ${activeBuilding === building.id ? 'bg-white/20' : hoverBuilding === building.id ? 'bg-white/15' : 'bg-black/40'}
             `} style={{
-        borderColor: building.color,
-        boxShadow: `0 0 ${isMobile ? '10px' : '20px'} ${building.color}${hoverBuilding === building.id ? 'aa' : '60'}`
-      }}>
-            {/* Building icon with glow effect */}
-            <div className="relative mb-1 md:mb-2">
-              <div className="absolute inset-0 rounded-full blur-md" style={{
-            backgroundColor: building.color,
-            opacity: 0.7
-          }}></div>
-              <div className={`text-2xl md:text-4xl z-10 relative ${hoverBuilding === building.id ? 'transform scale-110' : ''}`}>
-                {building.icon}
-              </div>
-            </div>
-
-            <div className="text-center">
-              <h3 className={`font-bold ${isMobile ? 'text-xs' : 'text-xs sm:text-sm'}`} style={{
-            color: building.color,
-            textShadow: `0 0 10px ${building.color}80`
+            borderColor: building.color,
+            boxShadow: `0 0 ${isMobile ? '10px' : '20px'} ${building.color}${hoverBuilding === building.id ? 'aa' : '60'}`
           }}>
-                {isMobile && building.name.length > 10 ? building.name.split(' ')[0] // Show only first word on mobile
-            : building.name}
-              </h3>
+          {/* Building icon with glow effect */}
+          <div className="relative mb-1 md:mb-2">
+            <div className="absolute inset-0 rounded-full blur-md" style={{
+              backgroundColor: building.color,
+              opacity: 0.7
+            }}></div>
+            <div className={`text-2xl md:text-4xl z-10 relative ${hoverBuilding === building.id ? 'transform scale-110' : ''}`}>
+              {building.icon}
             </div>
-
-            {/* Notification badge - smaller on mobile */}
-            {building.notification && <motion.div className={`absolute -top-2 -right-2 ${isMobile ? 'w-5 h-5 text-2xs' : 'w-6 h-6 text-xs'} bg-red-500 rounded-full text-white flex items-center justify-center border-2 border-gray-900 shadow-lg`} animate={{
-          scale: [1, 1.2, 1]
-        }} transition={{
-          repeat: Infinity,
-          duration: 2,
-          repeatType: 'reverse'
-        }}>
-                {building.notification}
-              </motion.div>}
           </div>
 
-          {/* Hover/tap tooltip - positioned differently on mobile */}
-          <motion.div className={`
+          <div className="text-center">
+            <h3 className={`font-bold ${isMobile ? 'text-xs' : 'text-xs sm:text-sm'}`} style={{
+              color: building.color,
+              textShadow: `0 0 10px ${building.color}80`
+            }}>
+              {isMobile && building.name.length > 10 ? building.name.split(' ')[0] // Show only first word on mobile
+                : building.name}
+            </h3>
+          </div>
+
+          {/* Notification badge - smaller on mobile */}
+          {building.notification && <motion.div className={`absolute -top-2 -right-2 ${isMobile ? 'w-5 h-5 text-2xs' : 'w-6 h-6 text-xs'} bg-red-500 rounded-full text-white flex items-center justify-center border-2 border-gray-900 shadow-lg`} animate={{
+            scale: [1, 1.2, 1]
+          }} transition={{
+            repeat: Infinity,
+            duration: 2,
+            repeatType: 'reverse'
+          }}>
+            {building.notification}
+          </motion.div>}
+        </div>
+
+        {/* Hover/tap tooltip - positioned differently on mobile */}
+        <motion.div className={`
               absolute ${isMobile ? 'top-1/2 left-1/2' : 'top-full left-1/2'} transform -translate-x-1/2 ${isMobile ? '-translate-y-1/2' : 'mt-4'}
               bg-gray-900/90 backdrop-blur-md border-2 rounded-lg p-2 md:p-3
               transition-all duration-300 z-30 ${isMobile ? 'w-40' : 'w-48'}
               shadow-lg
             `} style={{
-        borderColor: building.color,
-        boxShadow: `0 4px 20px ${building.color}60`,
-        display: isMobile && hoverBuilding === building.id ? 'block' : 'auto' // Force display on mobile
-      }} initial={{
-        opacity: 0,
-        y: isMobile ? 0 : -10,
-        scale: 0.8
-      }} animate={{
-        opacity: hoverBuilding === building.id ? 1 : 0,
-        y: hoverBuilding === building.id ? 0 : isMobile ? 0 : -10,
-        scale: hoverBuilding === building.id ? 1 : 0.8
-      }} transition={{
-        type: 'spring',
-        stiffness: 300,
-        damping: 20
-      }}>
-            <p className="text-white text-xs">
-              {isMobile ? building.description.substring(0, 60) + (building.description.length > 60 ? '...' : '') : building.description}
-            </p>
-          </motion.div>
+            borderColor: building.color,
+            boxShadow: `0 4px 20px ${building.color}60`,
+            display: isMobile && hoverBuilding === building.id ? 'block' : 'auto' // Force display on mobile
+          }} initial={{
+            opacity: 0,
+            y: isMobile ? 0 : -10,
+            scale: 0.8
+          }} animate={{
+            opacity: hoverBuilding === building.id ? 1 : 0,
+            y: hoverBuilding === building.id ? 0 : isMobile ? 0 : -10,
+            scale: hoverBuilding === building.id ? 1 : 0.8
+          }} transition={{
+            type: 'spring',
+            stiffness: 300,
+            damping: 20
+          }}>
+          <p className="text-white text-xs">
+            {isMobile ? building.description.substring(0, 60) + (building.description.length > 60 ? '...' : '') : building.description}
+          </p>
         </motion.div>
-      ))} {/* Building Interior Modal */}
-      {activeBuilding && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="w-full h-full max-w-7xl bg-dark/95 rounded-lg border-2 border-primary/30 flex flex-col">
-            {/* Header */}
-            <div className="bg-dark/80 border-b border-primary/20 backdrop-blur-md px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button onClick={() => {
+      </motion.div>
+    ))} {/* Building Interior Modal */}
+    {activeBuilding && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+      <div className="w-full h-full max-w-7xl bg-dark/95 rounded-lg border-2 border-primary/30 flex flex-col">
+        {/* Header */}
+        <div className="bg-dark/80 border-b border-primary/20 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => {
               setActiveBuilding(null);
               setActiveStation(null);
               setActiveSubFeature(null);
             }} className="p-2 rounded-lg hover:bg-primary/20 transition-colors">
-                  <ChevronLeft size={24} className="text-primary" />
-                </button>
-                <div>
-                  <h1 className="font-pixel text-xl text-primary">
-                    {interiors[activeBuilding]?.title}
-                  </h1>
-                  <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <Users size={14} />
-                    <span>
-                      {interiors[activeBuilding]?.activeUsers || 0} active
-                    </span>
-                  </div>
-                </div>
+              <ChevronLeft size={24} className="text-primary" />
+            </button>
+            <div>
+              <h1 className="font-pixel text-xl text-primary">
+                {interiors[activeBuilding]?.title}
+              </h1>
+              <div className="flex items-center gap-2 text-gray-400 text-sm">
+                <Users size={14} />
+                <span>
+                  {interiors[activeBuilding]?.activeUsers || 0} active
+                </span>
               </div>
-              <button onClick={() => {
+            </div>
+          </div>
+          <button onClick={() => {
             setActiveBuilding(null);
             setActiveStation(null);
             setActiveSubFeature(null);
           }} className="p-2 rounded-lg hover:bg-primary/20 transition-colors">
-                <X size={24} className="text-primary" />
-              </button>
-            </div>
-            {/* Content */}
-            <div className="flex-1 overflow-hidden">
+            <X size={24} className="text-primary" />
+          </button>
+        </div>
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          {/* Feature Content */}
+          <div className="w-full h-full overflow-y-auto p-6">
+            {activeBuilding === 'arena' ? (
+              <div className="h-full">
+                <ArenaHub
+                  onExit={() => {
+                    // Reset sub-feature when exiting the game
+                    setActiveSubFeature(null);
+                  }}
+                  initialMode={'hub'}
+                  featureId={undefined}
+                  subFeatureId={undefined}
+                />
+              </div>
+            ) : activeBuilding === 'library' ? (
+              <div className="h-full">
+                <LibraryHub
+                  onExit={() => {
+                    // Reset sub-feature when exiting the library
+                    setActiveSubFeature(null);
+                  }}
+                  initialMode="hub"
+                  featureId={undefined}
+                  subFeatureId={undefined}
+                />
+              </div>
+            ) : activeBuilding === 'echo-chambers' ? (
+              <div className="h-full">
+                <EchoChambers
+                  onExit={() => {
+                    // Reset sub-feature when exiting the echo chambers
+                    setActiveSubFeature(null);
+                  }}
+                  activeStation={activeStation}
+                  activeSubFeature={activeSubFeature}
+                />
+              </div>
+            ) : activeBuilding === 'study-centre' ? (
+              <div className="h-full">
+                <StudyCentre
+                  onNavigate={() => {
+                    // Reset sub-feature when exiting the study centre
+                    setActiveSubFeature(null);
+                  }}
+                  currentUser={user}
+                />
+              </div>
+            ) : activeBuilding === 'marketplace' ? (
+              <div className="h-full">
+                <Marketplace
+                  onExit={() => {
+                    // Reset sub-feature when exiting the marketplace
+                    setActiveSubFeature(null);
+                  }}
+                  activeStation={activeStation}
+                  activeSubFeature={activeSubFeature}
+                />
+              </div>
+            ) : activeBuilding === 'kana-lab' ? (
+              <div className="h-full">
+                <ChatArea
+                  openPDFReader={handleOpenPDFReader}
+                  toggleHistoryPanel={handleToggleHistoryPanel}
+                  activeChat={activeChat}
+                  onChatSelect={handleChatSelect}
+                />
+              </div>
+            ) : activeStation ? <div className="h-full">
               {/* Feature Content */}
-              <div className="w-full h-full overflow-y-auto p-6">
-                {activeBuilding === 'arena' ? (
-                  <div className="h-full">
-                    <ArenaHub
-                      onExit={() => {
-                        // Reset sub-feature when exiting the game
-                        setActiveSubFeature(null);
-                      }}
-                      initialMode={'hub'}
-                      featureId={undefined}
-                      subFeatureId={undefined}
-                    />
-                  </div>
-                ) : activeBuilding === 'library' ? (
-                  <div className="h-full">
-                    <LibraryHub
-                      onExit={() => {
-                        // Reset sub-feature when exiting the library
-                        setActiveSubFeature(null);
-                      }}
-                      initialMode="hub"
-                      featureId={undefined}
-                      subFeatureId={undefined}
-                    />
-                  </div>
-                ) : activeBuilding === 'echo-chambers' ? (
-                  <div className="h-full">
-                    <EchoChambers
-                      onExit={() => {
-                        // Reset sub-feature when exiting the echo chambers
-                        setActiveSubFeature(null);
-                      }}
-                      activeStation={activeStation}
-                      activeSubFeature={activeSubFeature}
-                    />
-                  </div>
-                ) : activeBuilding === 'study-centre' ? (
-                  <div className="h-full">
-                    <StudyCentre
-                      onNavigate={() => {
-                        // Reset sub-feature when exiting the study centre
-                        setActiveSubFeature(null);
-                      }}
-                      currentUser={user}
-                    />
-                  </div>
-                ) : activeBuilding === 'marketplace' ? (
-                  <div className="h-full">
-                    <Marketplace
-                      onExit={() => {
-                        // Reset sub-feature when exiting the marketplace
-                        setActiveSubFeature(null);
-                      }}
-                      activeStation={activeStation}
-                      activeSubFeature={activeSubFeature}
-                    />
-                  </div>
-                ) : activeBuilding === 'kana-lab' ? (
-                  <div className="h-full">
-                    <ChatbotInterface />
-                  </div>
-                ) : activeStation ? <div className="h-full">
-                    {/* Feature Content */}
-                    <div className="mb-6">
-                      <h2 className="font-pixel text-xl mb-2 text-primary">
-                        {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.name}
-                      </h2>
-                      <p className="text-gray-300">
-                        {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.description}
-                      </p>
-                    </div>
-                    {/* Sub-features Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.subFeatures?.map((sub: { id: string; name: string; description: string; icon: string; interaction?: () => void }) => <div key={sub.id} className={`
+              <div className="mb-6">
+                <h2 className="font-pixel text-xl mb-2 text-primary">
+                  {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.name}
+                </h2>
+                <p className="text-gray-300">
+                  {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.description}
+                </p>
+              </div>
+              {/* Sub-features Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {interiors[activeBuilding]?.features.find((f: InteriorFeature) => f.id === activeStation)?.subFeatures?.map((sub: { id: string; name: string; description: string; icon: string; interaction?: () => void }) => <div key={sub.id} className={`
                               bg-dark/50 border rounded-lg p-6 transition-all cursor-pointer
                               ${activeSubFeature === sub.id ? 'border-primary scale-105' : 'border-primary/30'}
                               hover:border-primary/50 hover:scale-[1.02]
                             `} onClick={() => handleSubFeatureClick(sub.id)}>
-                            <div className="text-3xl mb-3">{sub.icon}</div>
-                            <h3 className="font-pixel text-primary mb-2">
-                              {sub.name}
-                            </h3>
-                            <p className="text-gray-400 text-sm">
-                              {sub.description}
-                            </p>
-                            <button className="mt-4 px-4 py-2 bg-primary/20 text-primary rounded-lg text-sm hover:bg-primary/30 transition-colors" onClick={(e) => {
-                              e.stopPropagation();
-                              handleSubFeatureClick(sub.id);
-                            }}>
-                              Enter
-                            </button>
-                          </div>)}
-                    </div>
-                  </div> : <div className="h-full flex items-center justify-center text-gray-400">
-                    Select a feature to begin
-                  </div>}
+                  <div className="text-3xl mb-3">{sub.icon}</div>
+                  <h3 className="font-pixel text-primary mb-2">
+                    {sub.name}
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    {sub.description}
+                  </p>
+                  <button className="mt-4 px-4 py-2 bg-primary/20 text-primary rounded-lg text-sm hover:bg-primary/30 transition-colors" onClick={(e) => {
+                    e.stopPropagation();
+                    handleSubFeatureClick(sub.id);
+                  }}>
+                    Enter
+                  </button>
+                </div>)}
               </div>
-            </div>
+            </div> : <div className="h-full flex items-center justify-center text-gray-400">
+              Select a feature to begin
+            </div>}
           </div>
-        </div>}
-      {/* HUD Elements */}
-      <div className="absolute bottom-4 left-4 bg-black/40 backdrop-blur-sm rounded-lg p-2 border border-white/20 z-30">
-        <div className="flex items-center text-white">
-          <span className="mr-2 text-xs">World:</span>
-          <span className="text-green-400 text-xs font-bold">ONLINE</span>
-          <span className="mx-2 text-white/40">|</span>
-          <span className="text-xs">Players:</span>
-          <span className="text-blue-400 text-xs font-bold ml-1">247</span>
         </div>
       </div>
-      {/* Mini map */}
-      <div className="absolute bottom-4 right-4 w-32 md:w-40 h-32 md:h-40 bg-black/40 backdrop-blur-sm rounded-lg border border-white/20 p-2 z-30">
-        <div className="relative w-full h-full">
-          {buildings.map(building => <div key={`map-${building.id}`} className="absolute w-2 h-2 rounded-full" style={{
+    </div>}
+    {/* HUD Elements */}
+    <div className="absolute bottom-4 left-4 bg-black/40 backdrop-blur-sm rounded-lg p-2 border border-white/20 z-30">
+      <div className="flex items-center text-white">
+        <span className="mr-2 text-xs">World:</span>
+        <span className="text-green-400 text-xs font-bold">ONLINE</span>
+        <span className="mx-2 text-white/40">|</span>
+        <span className="text-xs">Players:</span>
+        <span className="text-blue-400 text-xs font-bold ml-1">247</span>
+      </div>
+    </div>
+    {/* Mini map */}
+    <div className="absolute bottom-4 right-4 w-32 md:w-40 h-32 md:h-40 bg-black/40 backdrop-blur-sm rounded-lg border border-white/20 p-2 z-30">
+      <div className="relative w-full h-full">
+        {buildings.map(building => <div key={`map-${building.id}`} className="absolute w-2 h-2 rounded-full" style={{
           backgroundColor: building.color,
           top: building.position.top || (building.position.bottom ? `calc(100% - ${building.position.bottom})` : '50%'),
           left: building.position.left || (building.position.right ? `calc(100% - ${building.position.right})` : '50%'),
           boxShadow: `0 0 4px ${building.color}`
         }} />)}
-          <div className="absolute w-3 h-3 rounded-full bg-yellow-400 border-2 border-white animate-pulse" style={{
+        <div className="absolute w-3 h-3 rounded-full bg-yellow-400 border-2 border-white animate-pulse" style={{
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)'
         }} />
-          <div className="absolute bottom-0 left-0 text-gray-400 text-xs">
-            Mini Map
-          </div>
+        <div className="absolute bottom-0 left-0 text-gray-400 text-xs">
+          Mini Map
         </div>
       </div>
+    </div>
 
-      {/* CSS Animations */}
-      <style>
-        {`
+    {/* CSS Animations */}
+    <style>
+      {`
           @keyframes twinkle {
             0% { opacity: 0.2; }
             50% { opacity: 1; }
@@ -1007,7 +1030,7 @@ const EnhancedGameEnvironment = () => {
             100% { transform: rotate(0deg); }
           }
         `}
-      </style>
-    </div>;
+    </style>
+  </div>;
 };
 export default EnhancedGameEnvironment;

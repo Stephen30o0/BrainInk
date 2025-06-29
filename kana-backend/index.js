@@ -9,6 +9,14 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const fsPromises = fs.promises;
+const { evaluate } = require('mathjs');
+const { generateSVGGraph } = require('./utils/svgGraph');
+let generateChartJSGraph = null;
+try {
+  generateChartJSGraph = require('./utils/chartjsGraph').generateChartJSGraph;
+} catch (e) {
+  // chartjs-node-canvas not installed
+}
 
 // Import tournament routes
 const tournamentRoutes = require('./routes/tournaments');
@@ -505,22 +513,41 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
   console.log(`DEBUG: AI requested graph generation for function: ${functionStr} over [${xMin}, ${xMax}] with step ${step}`);
   const data = [];
   try {
-    // WARNING: Using eval() is a security risk in production. This is a simplified example.
-    let expression = functionStr.split('=')[1].trim();
-    // Sanitize the expression to be valid JavaScript
+    // Parse and extract the function from the equation (handle y = ... or just the expression)
+    let expression = functionStr.includes('=') ? functionStr.split('=')[1].trim() : functionStr.trim();
+    
+    // Clean and normalize the expression for mathjs
     expression = expression
       .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
-      .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication with variables and parentheses (e.g., 2x -> 2 * x, 3(x) -> 3 * (x))
-      .replace(/\)\( /g, ') * ('); // Handle implicit multiplication between parentheses (e.g., (x+1)(x-1) -> (x+1) * (x-1))
+      .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication
+      .replace(/\)\(/g, ') * ('); // Handle multiplication between parentheses
 
-    const func = new Function('x', `return ${expression};`);
+    console.log(`DEBUG: Cleaned expression: ${expression}`);
+
+    // Generate data points using mathjs evaluate
     for (let x = xMin; x <= xMax; x += step) {
-      data.push({ x: x, y: func(x) });
+      try {
+        const scope = { x: x };
+        const y = evaluate(expression, scope);
+        if (typeof y === 'number' && isFinite(y)) {
+          data.push({ x: x, y: y });
+        }
+      } catch (evalError) {
+        console.log(`DEBUG: Error evaluating at x=${x}: ${evalError.message}`);
+        // Skip invalid points but continue with the rest
+      }
     }
-    return data; // Return data on success
-  } catch (evalError) {
-    console.error("Error evaluating math function:", evalError);
-    return null; // Return null on failure
+    
+    if (data.length === 0) {
+      console.error("No valid data points generated");
+      return null;
+    }
+    
+    console.log(`DEBUG: Generated ${data.length} data points`);
+    return data;
+  } catch (error) {
+    console.error("Error in generateGraphData:", error);
+    return null;
   }
 }
 
@@ -755,10 +782,23 @@ app.get('/', (req, res) => {
 // --- GRAPH GENERATION HELPER ---
 const generateGraphImage = async (data, title, xLabel, yLabel) => {
   try {
-    console.log("DEBUG: Graph generation requested but chartjs-node-canvas not available");
-    console.log("DEBUG: Graph data:", data);
-    // For now, return null to indicate graph generation is not available
-    // This allows the chat function to continue with text-only response
+    // Try ChartJS (PNG) if available
+    if (generateChartJSGraph) {
+      try {
+        const pngUrl = await generateChartJSGraph(data, title, xLabel, yLabel);
+        if (pngUrl) return pngUrl;
+      } catch (e) {
+        console.warn('ChartJS graph generation failed, falling back to SVG:', e);
+      }
+    }
+    // Fallback: SVG
+    const svg = generateSVGGraph(data, title, xLabel, yLabel);
+    if (svg) {
+      const fileName = `graph_${Date.now()}.svg`;
+      const filePath = path.join(__dirname, 'uploads', fileName);
+      fs.writeFileSync(filePath, svg, 'utf8');
+      return `/uploads/${fileName}`;
+    }
     return null;
   } catch (error) {
     console.error("Error generating graph image:", error);

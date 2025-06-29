@@ -1,36 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
+import { realAgentService } from '../services/realAgentService';
 
-// Define interfaces locally since we removed the agentService
+// Define interfaces needed for the hook
 interface AgentInfo {
     name: string;
     status: string;
-    lastActive: string;
-    description?: string;
     capabilities: string[];
 }
 
 interface AgentMessage {
-    type: 'user' | 'agent';
+    id: string;
+    sender: 'user' | 'agent';
     content: string;
-    timestamp: string;
-    agent?: string;
-    metadata?: {
-        action?: string;
-        mode?: string;
-        confidence?: number;
-    };
+    timestamp: Date;
+    agentName?: string;
 }
 
 interface AgentResponse {
     success: boolean;
-    agent: string;
-    response: string;
-    metadata: {
-        timestamp: string;
-        action?: string;
-        mode?: string;
-        confidence?: number;
-    };
+    message: string;
+    data?: any;
 }
 
 interface UseBrainInkAgentsOptions {
@@ -51,6 +40,11 @@ interface UseBrainInkAgentsReturn {
     sendMessage: (message: string, context?: any) => Promise<AgentResponse>;
     clearConversation: () => void;
     reconnect: () => Promise<void>;
+
+    // Specialized agent methods
+    generateQuiz: (subject: string, difficulty?: 'easy' | 'medium' | 'hard', questionCount?: number, squadId?: string) => Promise<AgentResponse>;
+    analyzeProgress: (subject?: string) => Promise<AgentResponse>;
+    coordinateSquad: (squadId?: string, action?: 'status' | 'find_partners' | 'suggest_activity', subject?: string) => Promise<AgentResponse>;
 }
 
 export const useBrainInkAgents = (options: UseBrainInkAgentsOptions = {}): UseBrainInkAgentsReturn => {
@@ -66,47 +60,21 @@ export const useBrainInkAgents = (options: UseBrainInkAgentsOptions = {}): UseBr
     const loadAgentStatus = useCallback(async () => {
         setSystemStatus('checking');
         try {
-            // Check the real agent backend directly
-            const response = await fetch('http://localhost:3001/health');
-            if (response.ok) {
+            const isAvailable = await realAgentService.isAgentSystemOnline();
+            if (isAvailable) {
+                const agentList = await realAgentService.getAvailableAgents();
+                setAgents(agentList);
                 setSystemStatus('online');
                 setIsConnected(true);
-
-                // Set real agents from the backend
-                const agentsResponse = await fetch('http://localhost:3001/agents');
-                if (agentsResponse.ok) {
-                    const data = await agentsResponse.json();
-                    setAgents(data.agents || []);
-                } else {
-                    // Default agents if endpoint fails
-                    setAgents([
-                        {
-                            name: 'K.A.N.A. Educational Tutor',
-                            status: 'online',
-                            lastActive: new Date().toISOString(),
-                            description: 'Educational AI assistant with real Kana AI integration',
-                            capabilities: ['quiz_generation', 'tutoring', 'subject_help']
-                        },
-                        {
-                            name: 'Learning Progress Analyst',
-                            status: 'online',
-                            lastActive: new Date().toISOString(),
-                            description: 'Real data analysis and progress tracking',
-                            capabilities: ['progress_analysis', 'performance_insights', 'recommendations']
-                        },
-                        {
-                            name: 'Squad Learning Coordinator',
-                            status: 'online',
-                            lastActive: new Date().toISOString(),
-                            description: 'Squad coordination with real database integration',
-                            capabilities: ['squad_coordination', 'partner_matching', 'team_activities']
-                        }
-                    ]);
-                }
             } else {
                 setSystemStatus('offline');
                 setIsConnected(false);
-                setAgents([]);
+                // Fallback agents when offline
+                setAgents([
+                    { name: 'K.A.N.A. Educational Tutor', status: 'offline', capabilities: ['Teaching', 'Q&A'] },
+                    { name: 'Learning Progress Analyst', status: 'offline', capabilities: ['Analysis'] },
+                    { name: 'Squad Learning Coordinator', status: 'offline', capabilities: ['Coordination'] }
+                ]);
             }
         } catch (error) {
             console.error('Failed to load agent status:', error);
@@ -127,70 +95,49 @@ export const useBrainInkAgents = (options: UseBrainInkAgentsOptions = {}): UseBr
 
         // Add user message to conversation
         const userMessage: AgentMessage = {
-            type: 'user',
+            id: `user-${Date.now()}`,
+            sender: 'user',
             content: message,
-            timestamp: new Date().toISOString()
+            timestamp: new Date()
         };
         setConversation(prev => [...prev, userMessage]);
 
         try {
-            // Use direct API call instead of agentService
-            const response = await fetch(`http://localhost:3001/chat/${encodeURIComponent(selectedAgent)}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    message,
-                    userId: 'current-user',
-                    squadId: context?.squadId,
-                    conversationId: context?.conversationId || 'main',
-                    ...context
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-            }
-
-            const data = await response.json();
-
-            const agentResponse: AgentResponse = {
-                success: true,
-                agent: selectedAgent,
-                response: data.response || data.content || 'No response',
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    action: data.action,
-                    mode: 'real_api'
-                }
-            };
+            const response = await realAgentService.sendMessage(message, selectedAgent, context);
 
             // Add agent response to conversation
             const agentMessage: AgentMessage = {
-                type: 'agent',
-                content: agentResponse.response,
-                timestamp: agentResponse.metadata.timestamp,
-                agent: agentResponse.agent,
-                metadata: agentResponse.metadata
+                id: `agent-${Date.now()}`,
+                sender: 'agent',
+                content: response,
+                timestamp: new Date(),
+                agentName: selectedAgent
             };
             setConversation(prev => [...prev, agentMessage]);
 
-            return agentResponse;
+            return {
+                success: true,
+                message: response,
+                data: { agentName: selectedAgent }
+            };
         } catch (error) {
             console.error('Failed to send message:', error);
 
             // Add error message to conversation
             const errorMessage: AgentMessage = {
-                type: 'agent',
+                id: `error-${Date.now()}`,
+                sender: 'agent',
                 content: 'Sorry, I encountered an error. Please try again.',
-                timestamp: new Date().toISOString(),
-                agent: selectedAgent,
-                metadata: { mode: 'error' }
+                timestamp: new Date(),
+                agentName: selectedAgent
             };
             setConversation(prev => [...prev, errorMessage]);
 
-            throw error;
+            return {
+                success: false,
+                message: 'Failed to send message',
+                data: { error: error instanceof Error ? error.message : 'Unknown error' }
+            };
         } finally {
             setIsLoading(false);
         }
@@ -204,6 +151,170 @@ export const useBrainInkAgents = (options: UseBrainInkAgentsOptions = {}): UseBr
         await loadAgentStatus();
     }, [loadAgentStatus]);
 
+    // Specialized agent methods
+    const generateQuiz = useCallback(async (
+        subject: string,
+        difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+        questionCount: number = 5,
+        squadId?: string
+    ): Promise<AgentResponse> => {
+        const previousAgent = selectedAgent;
+        setSelectedAgent('K.A.N.A. Educational Tutor');
+
+        try {
+            // If squadId is provided, use generateSquadQuiz, otherwise use sendMessage for a general quiz
+            let response: string;
+            if (squadId) {
+                response = await realAgentService.generateSquadQuiz(squadId, subject, difficulty);
+            } else {
+                response = await realAgentService.sendMessage(
+                    `Generate a ${difficulty} difficulty quiz with ${questionCount} questions about ${subject}`,
+                    'K.A.N.A. Educational Tutor'
+                );
+            }
+
+            // Add to conversation
+            const userMessage: AgentMessage = {
+                id: `user-${Date.now()}`,
+                sender: 'user',
+                content: `Generate a ${difficulty} difficulty quiz with ${questionCount} questions about ${subject}`,
+                timestamp: new Date()
+            };
+
+            const agentMessage: AgentMessage = {
+                id: `agent-${Date.now()}`,
+                sender: 'agent',
+                content: response,
+                timestamp: new Date(),
+                agentName: 'K.A.N.A. Educational Tutor'
+            };
+
+            setConversation(prev => [...prev, userMessage, agentMessage]);
+
+            return {
+                success: true,
+                message: response,
+                data: { subject, difficulty, questionCount }
+            };
+        } catch (error) {
+            console.error('Failed to generate quiz:', error);
+            return {
+                success: false,
+                message: 'Failed to generate quiz',
+                data: { error: error instanceof Error ? error.message : 'Unknown error' }
+            };
+        } finally {
+            setSelectedAgent(previousAgent);
+        }
+    }, [selectedAgent]);
+
+    const analyzeProgress = useCallback(async (subject?: string): Promise<AgentResponse> => {
+        const previousAgent = selectedAgent;
+        setSelectedAgent('Learning Progress Analyst');
+
+        try {
+            const response = await realAgentService.analyzeUserProgress(undefined, subject);
+
+            // Add to conversation
+            const userMessage: AgentMessage = {
+                id: `user-${Date.now()}`,
+                sender: 'user',
+                content: subject ? `Analyze my progress in ${subject}` : 'Analyze my overall learning progress',
+                timestamp: new Date()
+            };
+
+            const agentMessage: AgentMessage = {
+                id: `agent-${Date.now()}`,
+                sender: 'agent',
+                content: response,
+                timestamp: new Date(),
+                agentName: 'Learning Progress Analyst'
+            };
+
+            setConversation(prev => [...prev, userMessage, agentMessage]);
+
+            return {
+                success: true,
+                message: response,
+                data: { subject }
+            };
+        } catch (error) {
+            console.error('Failed to analyze progress:', error);
+            return {
+                success: false,
+                message: 'Failed to analyze progress',
+                data: { error: error instanceof Error ? error.message : 'Unknown error' }
+            };
+        } finally {
+            setSelectedAgent(previousAgent);
+        }
+    }, [selectedAgent]);
+
+    const coordinateSquad = useCallback(async (
+        squadId?: string,
+        action: 'status' | 'find_partners' | 'suggest_activity' = 'status',
+        subject?: string
+    ): Promise<AgentResponse> => {
+        const previousAgent = selectedAgent;
+        setSelectedAgent('Squad Learning Coordinator');
+
+        try {
+            // Map actions to realAgentService activityTypes
+            let activityType: 'study_session' | 'challenge' | 'progress_check' = 'progress_check';
+            let userMessage = '';
+
+            switch (action) {
+                case 'status':
+                    activityType = 'progress_check';
+                    userMessage = 'How does my squad look like?';
+                    break;
+                case 'find_partners':
+                    activityType = 'study_session';
+                    userMessage = subject ? `Help me find study partners for ${subject}` : 'Help me find study partners';
+                    break;
+                case 'suggest_activity':
+                    activityType = 'challenge';
+                    userMessage = subject ? `Suggest a squad activity for ${subject}` : 'Suggest a squad learning activity';
+                    break;
+            }
+
+            const response = await realAgentService.coordinateSquadActivity(squadId || 'default', activityType);
+
+            // Add to conversation
+            const userMsg: AgentMessage = {
+                id: `user-${Date.now()}`,
+                sender: 'user',
+                content: userMessage,
+                timestamp: new Date()
+            };
+
+            const agentMsg: AgentMessage = {
+                id: `agent-${Date.now()}`,
+                sender: 'agent',
+                content: response,
+                timestamp: new Date(),
+                agentName: 'Squad Learning Coordinator'
+            };
+
+            setConversation(prev => [...prev, userMsg, agentMsg]);
+
+            return {
+                success: true,
+                message: response,
+                data: { squadId, action, subject }
+            };
+        } catch (error) {
+            console.error('Failed to coordinate squad:', error);
+            return {
+                success: false,
+                message: 'Failed to coordinate squad',
+                data: { error: error instanceof Error ? error.message : 'Unknown error' }
+            };
+        } finally {
+            setSelectedAgent(previousAgent);
+        }
+    }, [selectedAgent]);
+
     return {
         agents,
         selectedAgent,
@@ -216,6 +327,11 @@ export const useBrainInkAgents = (options: UseBrainInkAgentsOptions = {}): UseBr
         setSelectedAgent,
         sendMessage,
         clearConversation,
-        reconnect
+        reconnect,
+
+        // Specialized methods
+        generateQuiz,
+        analyzeProgress,
+        coordinateSquad
     };
 };

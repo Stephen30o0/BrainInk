@@ -21,7 +21,6 @@ import { SignUp } from './pages/SignUp';
 import { TownSquare } from './pages/TownSquare';
 import { MessagingPage } from './pages/MessagingPage';
 import { WalletProvider } from './components/shared/WalletContext';
-import { ChatbotInterface } from './pages/ChatbotInterface';
 import Achievements from './pages/Achievements';
 import { Notifications } from './pages/Notifications';
 import { Friends } from './pages/Friends';
@@ -30,7 +29,6 @@ import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedL
 import { ChainlinkGrandPrizeDemo } from './components/demo/ChainlinkGrandPrizeDemo';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherLogin } from './pages/TeacherLogin';
-import { AgentDashboard } from './pages/AgentDashboard';
 import { AuthProvider } from './hooks/useAuth';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
@@ -97,13 +95,11 @@ export function App() {
                       />
                       <Route path="/signup" element={<SignUp />} />
                       <Route path="/login" element={<TeacherLogin />} />
-                      <Route path="/agents" element={<AgentDashboard />} />
                       {/* <Route path="/customize-profile" element={<CustomizeProfilePage />} /> */}
                       {/* Routes below require authentication and profile customization */}
                       <Route element={<EnsureProfileCustomizedLayout />}>
                         <Route path="/townsquare" element={<TownSquare />} />
                         <Route path="/messages" element={<MessagingPage />} />
-                        <Route path="/chatbot" element={<ChatbotInterface />} />
                         <Route path="/achievements" element={<Achievements />} />
                         <Route path="/notifications" element={<Notifications />} />
                         <Route path="/friends" element={<Friends />} />

@@ -5,8 +5,8 @@ import { EchoChambers } from '../echo/EchoChambers';
 import { Library } from '../library/Library';
 import { StudyCentre } from '../study/StudyCentre';
 import { Marketplace } from '../marketplace/Marketplace';
-import { ChatbotInterface } from '../../pages/ChatbotInterface';
 import { useAuth } from '../../hooks/useAuth';
+import ChatArea from '../../../quiz/src/components/ChatArea';
 
 interface BuildingInteriorProps {
   buildingId: string;
@@ -39,6 +39,10 @@ export const BuildingInterior = ({
   const { user } = useAuth(); // Get the current authenticated user
   const [activeStation, setActiveStation] = useState<string | null>(null);
   const [activeSubFeature, setActiveSubFeature] = useState<string | null>(null);
+
+  // ChatArea state variables
+  const [activeChat, setActiveChat] = useState<{ id: number; subject: string; title: string; } | null>(null);
+  const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
 
   // Get building details from buildings array if provided
   const getBuildingDetails = () => {
@@ -165,7 +169,7 @@ export const BuildingInterior = ({
           name: 'AI Interface',
           description: 'Direct connection to K.A.N.A.',
           icon: '🤖',
-          interaction: () => window.location.href = '/chatbot'
+          interaction: () => window.location.href = '/quiz/math'
         },
         {
           id: 'study-pods',
@@ -375,13 +379,26 @@ export const BuildingInterior = ({
       setActiveSubFeature(null);
     };
 
+    // ChatArea handlers
+    const handleOpenPDFReader = (pdfUrl: string) => {
+      window.open(pdfUrl, '_blank');
+    };
+
+    const handleToggleHistoryPanel = () => {
+      setIsHistoryPanelOpen(!isHistoryPanelOpen);
+    };
+
+    const handleChatSelect = (chat: { id: number; subject: string; title: string; }) => {
+      setActiveChat(chat);
+    };
+
     // Render content based on building type
     console.log(`Rendering content for building: ${buildingId} with station: ${activeStation} and subFeature: ${activeSubFeature}`);
-    
+
     switch (buildingId) {
       case 'arena':
         return (
-          <ArenaHub 
+          <ArenaHub
             onExit={handleExit}
             initialMode={'game'}
             featureId={'practice'}
@@ -390,7 +407,7 @@ export const BuildingInterior = ({
         );
       case 'echo-chambers':
         return (
-          <EchoChambers 
+          <EchoChambers
             onExit={handleExit}
             activeStation={activeStation}
             activeSubFeature={activeSubFeature}
@@ -398,7 +415,7 @@ export const BuildingInterior = ({
         );
       case 'study-centre':
         return (
-          <StudyCentre 
+          <StudyCentre
             onNavigate={handleExit}
             currentUser={user}
           />
@@ -421,7 +438,14 @@ export const BuildingInterior = ({
         );
       case 'kana-lab':
         return (
-          <ChatbotInterface />
+          <div className="h-full">
+            <ChatArea
+              openPDFReader={handleOpenPDFReader}
+              toggleHistoryPanel={handleToggleHistoryPanel}
+              activeChat={activeChat}
+              onChatSelect={handleChatSelect}
+            />
+          </div>
         );
       default:
         return (
@@ -503,12 +527,12 @@ export const BuildingInterior = ({
                 {/* Sub-features Grid */}
                 <div className="grid grid-cols-2 gap-4">
                   {interior.features.find((f: any) => f.id === activeStation)?.subFeatures?.map((sub: any) => (
-                    <div 
-                      key={sub.id} 
+                    <div
+                      key={sub.id}
                       className={`bg-dark/50 border rounded-lg p-6 transition-all cursor-pointer
                         ${activeSubFeature === sub.id ? 'border-primary scale-105' : 'border-primary/30'}
                         hover:border-primary/50 hover:scale-[1.02]
-                      `} 
+                      `}
                       onClick={() => setActiveSubFeature(sub.id)}
                     >
                       <div className="text-3xl mb-3">{sub.icon}</div>
@@ -518,7 +542,7 @@ export const BuildingInterior = ({
                       <p className="text-gray-400 text-sm">
                         {sub.description}
                       </p>
-                      <button 
+                      <button
                         className="mt-4 px-4 py-2 bg-primary/20 text-primary rounded-lg text-sm hover:bg-primary/30 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();

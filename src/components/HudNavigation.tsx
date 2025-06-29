@@ -64,7 +64,9 @@ export const HudNavigation = () => {
   const mainNavItems = [{
     icon: <MessageSquareIcon size={18} />,
     label: 'Kana',
-    color: 'from-blue-500 to-cyan-500'
+    color: 'from-blue-500 to-cyan-500',
+    isRoute: true,
+    route: '/quiz/math'
   }, {
     icon: <BrainIcon size={18} />,
     label: 'Knowledge',
@@ -129,230 +131,230 @@ export const HudNavigation = () => {
     if (mobileMenuOpen) setMobileMenuOpen(false);
   };
   return <>
-      <header className="fixed top-0 left-0 w-full z-40 bg-dark/80 backdrop-blur-md border-b-2 border-primary/30">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
-          {/* Logo - redirects to Hero section */}
-          <div className="flex items-center cursor-pointer" onClick={handleLogoClick}>
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-tertiary p-0.5 relative overflow-visible">
-              <div className="w-full h-full rounded-full bg-dark flex items-center justify-center overflow-hidden">
-                <img src="/Screenshot_2025-05-05_141452-removebg-preview.png" alt="Brain Ink Logo" className="w-10 h-10 object-contain" />
-              </div>
+    <header className="fixed top-0 left-0 w-full z-40 bg-dark/80 backdrop-blur-md border-b-2 border-primary/30">
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
+        {/* Logo - redirects to Hero section */}
+        <div className="flex items-center cursor-pointer" onClick={handleLogoClick}>
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-tertiary p-0.5 relative overflow-visible">
+            <div className="w-full h-full rounded-full bg-dark flex items-center justify-center overflow-hidden">
+              <img src="/Screenshot_2025-05-05_141452-removebg-preview.png" alt="Brain Ink Logo" className="w-10 h-10 object-contain" />
             </div>
-            <span className="font-pixel text-primary text-lg hidden md:block ml-3">
-              BRAIN INK
-            </span>
           </div>
+          <span className="font-pixel text-primary text-lg hidden md:block ml-3">
+            BRAIN INK
+          </span>
+        </div>
 
-          {/* Navigation Items - Desktop */}
-          <nav className="hidden lg:flex items-center space-x-6 overflow-x-auto py-1">
-            {mainNavItems.map((item, index) => {
+        {/* Navigation Items - Desktop */}
+        <nav className="hidden lg:flex items-center space-x-6 overflow-x-auto py-1">
+          {mainNavItems.map((item, index) => {
             const isActive = activeSection === item.label.toLowerCase();
             const href = item.isRoute ? item.route : `#${item.label.toLowerCase()}`;
             return <a key={index} href={href} className="flex flex-col items-center group relative" onClick={(e) => {
-                if (item.isRoute) {
-                  // Let the href handle the navigation for routes
-                  return;
-                } else {
-                  e.preventDefault();
-                  handleNavClick(item.label);
-                }
-              }}>
-                  <div className={`
+              if (item.isRoute) {
+                // Let the href handle the navigation for routes
+                return;
+              } else {
+                e.preventDefault();
+                handleNavClick(item.label);
+              }
+            }}>
+              <div className={`
                     ${isActive ? 'text-primary' : 'text-gray-400'} 
                     group-hover:text-primary transition-colors duration-300
                     ${isActive ? 'scale-110' : 'scale-100'} transform
                   `}>
-                    {item.icon}
-                    {isActive && <div className="absolute -inset-1 rounded-full bg-gradient-to-r opacity-20 animate-pulse -z-10"></div>}
-                  </div>
-                  <span className={`
+                {item.icon}
+                {isActive && <div className="absolute -inset-1 rounded-full bg-gradient-to-r opacity-20 animate-pulse -z-10"></div>}
+              </div>
+              <span className={`
                     text-xs font-pixel transition-all duration-300
                     ${isActive ? 'text-primary' : 'text-gray-400'} 
                     group-hover:text-primary
                   `}>
-                    {item.label}
-                  </span>
-                  <div className={`
+                {item.label}
+              </span>
+              <div className={`
                     h-0.5 bg-gradient-to-r ${item.color} rounded-full transition-all duration-300
                     ${isActive ? 'w-full opacity-100' : 'w-0 opacity-0'} 
                     group-hover:w-full group-hover:opacity-75
                     mt-1
                   `}></div>
-                </a>;
+            </a>;
           })}
-            
-            {/* Token Button */}
-            <a href="#token" className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md font-pixel text-dark text-sm flex items-center space-x-2 hover:brightness-110 transition-all duration-300 shadow-glow" onClick={(e) => {
-              e.preventDefault();
-              handleNavClick('Token');
-            }}>
-              <WalletIcon size={16} />
-              <span>TOKEN</span>
-            </a>
-          </nav>
 
-          {/* Progress and Stats */}
-          <div className="hidden md:flex items-center space-x-6 ml-4">
-            {/* Level Progress */}
-            <div className="flex items-center">
-              {(userAvatar || userDisplayName) ? (
-                <div className="flex items-center space-x-2 mr-2">
-                  {userAvatar && <span className="text-2xl leading-none">{userAvatar}</span>} {/* Display avatar as emoji */}
-                  {userDisplayName && <span className="text-sm font-pixel text-primary">{userDisplayName}</span>}
-                </div>
-              ) : (
-                <span className="text-xs font-pixel text-primary mr-2">
-                  LVL 5
-                </span>
-              )}
-              <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden relative">
-                <div className={`absolute inset-0 bg-primary/20 rounded-full ${isScrolling ? 'animate-pulse' : ''}`}></div>
-                <div className="h-full bg-gradient-to-r from-primary via-tertiary to-secondary rounded-full relative" style={{
+          {/* Token Button */}
+          <a href="#token" className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md font-pixel text-dark text-sm flex items-center space-x-2 hover:brightness-110 transition-all duration-300 shadow-glow" onClick={(e) => {
+            e.preventDefault();
+            handleNavClick('Token');
+          }}>
+            <WalletIcon size={16} />
+            <span>TOKEN</span>
+          </a>
+        </nav>
+
+        {/* Progress and Stats */}
+        <div className="hidden md:flex items-center space-x-6 ml-4">
+          {/* Level Progress */}
+          <div className="flex items-center">
+            {(userAvatar || userDisplayName) ? (
+              <div className="flex items-center space-x-2 mr-2">
+                {userAvatar && <span className="text-2xl leading-none">{userAvatar}</span>} {/* Display avatar as emoji */}
+                {userDisplayName && <span className="text-sm font-pixel text-primary">{userDisplayName}</span>}
+              </div>
+            ) : (
+              <span className="text-xs font-pixel text-primary mr-2">
+                LVL 5
+              </span>
+            )}
+            <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden relative">
+              <div className={`absolute inset-0 bg-primary/20 rounded-full ${isScrolling ? 'animate-pulse' : ''}`}></div>
+              <div className="h-full bg-gradient-to-r from-primary via-tertiary to-secondary rounded-full relative" style={{
                 width: `${scrollProgress}%`,
                 transition: 'width 0.3s ease-out'
               }}>
-                  <div className="absolute inset-0 bg-white/20 rounded-full"></div>
-                  <div className="absolute inset-0 overflow-hidden">
-                    <div className="shimmer-effect"></div>
-                  </div>
+                <div className="absolute inset-0 bg-white/20 rounded-full"></div>
+                <div className="absolute inset-0 overflow-hidden">
+                  <div className="shimmer-effect"></div>
                 </div>
               </div>
-            </div>
-            
-            {/* XP */}
-            <div className="flex items-center">
-              <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center mr-1 relative">
-                <span className="text-dark text-xs font-bold">XP</span>
-                <div className="absolute inset-0 rounded-full bg-secondary/30 animate-ping opacity-50"></div>
-              </div>
-              <span className="text-xs font-pixel text-secondary">{xp}</span>
-            </div>
-            
-            {/* Coins */}
-            <div className="flex items-center">
-              <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center mr-1 relative">
-                <span className="text-dark text-xs font-bold">$</span>
-                <div className="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping opacity-50"></div>
-              </div>
-              <span className="text-xs font-pixel text-yellow-400">
-                {coins}
-              </span>
             </div>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button className="lg:hidden text-primary" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            <div className={`w-6 h-0.5 bg-primary mb-1 transition-all ${mobileMenuOpen ? 'transform rotate-45 translate-y-1.5' : ''}`}></div>
-            <div className={`w-6 h-0.5 bg-primary mb-1 transition-all ${mobileMenuOpen ? 'opacity-0' : 'opacity-100'}`}></div>
-            <div className={`w-6 h-0.5 bg-primary transition-all ${mobileMenuOpen ? 'transform -rotate-45 -translate-y-1.5' : ''}`}></div>
-          </button>
+          {/* XP */}
+          <div className="flex items-center">
+            <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center mr-1 relative">
+              <span className="text-dark text-xs font-bold">XP</span>
+              <div className="absolute inset-0 rounded-full bg-secondary/30 animate-ping opacity-50"></div>
+            </div>
+            <span className="text-xs font-pixel text-secondary">{xp}</span>
+          </div>
+
+          {/* Coins */}
+          <div className="flex items-center">
+            <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center mr-1 relative">
+              <span className="text-dark text-xs font-bold">$</span>
+              <div className="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping opacity-50"></div>
+            </div>
+            <span className="text-xs font-pixel text-yellow-400">
+              {coins}
+            </span>
+          </div>
         </div>
 
-        {/* Mobile Menu */}
-        <div className={`
+        {/* Mobile Menu Button */}
+        <button className="lg:hidden text-primary" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <div className={`w-6 h-0.5 bg-primary mb-1 transition-all ${mobileMenuOpen ? 'transform rotate-45 translate-y-1.5' : ''}`}></div>
+          <div className={`w-6 h-0.5 bg-primary mb-1 transition-all ${mobileMenuOpen ? 'opacity-0' : 'opacity-100'}`}></div>
+          <div className={`w-6 h-0.5 bg-primary transition-all ${mobileMenuOpen ? 'transform -rotate-45 -translate-y-1.5' : ''}`}></div>
+        </button>
+      </div>
+
+      {/* Mobile Menu */}
+      <div className={`
           lg:hidden bg-dark/90 border-b-2 border-primary/30 overflow-hidden transition-all duration-300
           ${mobileMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}
         `}>
-          <div className="px-4 py-2 flex flex-col space-y-2 max-w-7xl mx-auto">
-            {/* Stats in mobile view */}
-            <div className="flex items-center justify-between py-2 border-b border-primary/20">
-              <div className="flex items-center">
-                <span className="text-xs font-pixel text-primary mr-2">
-                  LVL 5
-                </span>
-                <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden relative">
-                  <div className="h-full bg-gradient-to-r from-primary via-tertiary to-secondary rounded-full relative" style={{
+        <div className="px-4 py-2 flex flex-col space-y-2 max-w-7xl mx-auto">
+          {/* Stats in mobile view */}
+          <div className="flex items-center justify-between py-2 border-b border-primary/20">
+            <div className="flex items-center">
+              <span className="text-xs font-pixel text-primary mr-2">
+                LVL 5
+              </span>
+              <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden relative">
+                <div className="h-full bg-gradient-to-r from-primary via-tertiary to-secondary rounded-full relative" style={{
                   width: `${scrollProgress}%`
                 }}>
-                    <div className="absolute inset-0 bg-white/20 rounded-full"></div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center">
-                  <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center mr-1">
-                    <span className="text-dark text-xs font-bold">XP</span>
-                  </div>
-                  <span className="text-xs font-pixel text-secondary">{xp}</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center mr-1">
-                    <span className="text-dark text-xs font-bold">$</span>
-                  </div>
-                  <span className="text-xs font-pixel text-yellow-400">{coins}</span>
+                  <div className="absolute inset-0 bg-white/20 rounded-full"></div>
                 </div>
               </div>
             </div>
-            
-            {/* Main Navigation Items */}
-            {mainNavItems.map((item, index) => {
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center mr-1">
+                  <span className="text-dark text-xs font-bold">XP</span>
+                </div>
+                <span className="text-xs font-pixel text-secondary">{xp}</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center mr-1">
+                  <span className="text-dark text-xs font-bold">$</span>
+                </div>
+                <span className="text-xs font-pixel text-yellow-400">{coins}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Navigation Items */}
+          {mainNavItems.map((item, index) => {
             const isActive = activeSection === item.label.toLowerCase();
             const href = item.isRoute ? item.route : `#${item.label.toLowerCase()}`;
             return <a key={index} href={href} className="flex items-center space-x-3 py-2" onClick={(e) => {
-                if (item.isRoute) {
-                  // Let the href handle the navigation for routes
-                  return;
-                } else {
-                  e.preventDefault();
-                  handleNavClick(item.label);
-                }
-              }}>
-                  <div className={`
+              if (item.isRoute) {
+                // Let the href handle the navigation for routes
+                return;
+              } else {
+                e.preventDefault();
+                handleNavClick(item.label);
+              }
+            }}>
+              <div className={`
                     p-2 rounded-full bg-gray-800/60 
                     ${isActive ? 'text-primary bg-gray-700/80' : 'text-gray-400'}
                   `}>
-                    {item.icon}
-                  </div>
-                  <span className={`
+                {item.icon}
+              </div>
+              <span className={`
                     font-pixel ${isActive ? 'text-primary' : 'text-gray-400'}
                   `}>
-                    {item.label}
-                  </span>
-                  {isActive && <div className="ml-auto">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    </div>}
-                </a>;
+                {item.label}
+              </span>
+              {isActive && <div className="ml-auto">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+              </div>}
+            </a>;
           })}
-            
-            {/* Token Button in Mobile */}
-            <a href="#token" className="flex items-center space-x-3 py-2 my-1 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md px-3" onClick={(e) => {
-              e.preventDefault();
-              handleNavClick('Token');
-            }}>
-              <WalletIcon size={18} className="text-dark" />
-              <span className="font-pixel text-dark font-bold">TOKEN</span>
-            </a>
-            
-            {/* Additional Items */}
-            <div className="pt-2 border-t border-primary/20 mt-1">
-              {additionalNavItems.map((item, index) => {
+
+          {/* Token Button in Mobile */}
+          <a href="#token" className="flex items-center space-x-3 py-2 my-1 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-md px-3" onClick={(e) => {
+            e.preventDefault();
+            handleNavClick('Token');
+          }}>
+            <WalletIcon size={18} className="text-dark" />
+            <span className="font-pixel text-dark font-bold">TOKEN</span>
+          </a>
+
+          {/* Additional Items */}
+          <div className="pt-2 border-t border-primary/20 mt-1">
+            {additionalNavItems.map((item, index) => {
               const isActive = activeSection === item.label.toLowerCase();
               return <a key={index} href={`#${item.label.toLowerCase()}`} className="flex items-center space-x-3 py-2" onClick={(e) => {
                 e.preventDefault();
                 handleNavClick(item.label);
               }}>
-                    <div className={`
+                <div className={`
                       p-2 rounded-full bg-gray-800/60 
                       ${isActive ? 'text-primary bg-gray-700/80' : 'text-gray-400'}
                     `}>
-                      {item.icon}
-                    </div>
-                    <span className={`
+                  {item.icon}
+                </div>
+                <span className={`
                       font-pixel ${isActive ? 'text-primary' : 'text-gray-400'}
                     `}>
-                      {item.label}
-                    </span>
-                    {isActive && <div className="ml-auto">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                      </div>}
-                  </a>;
+                  {item.label}
+                </span>
+                {isActive && <div className="ml-auto">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                </div>}
+              </a>;
             })}
-            </div>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
-      {/* Background pattern */}
-      <div className="magic-pattern"></div>
-    </>;
+    {/* Background pattern */}
+    <div className="magic-pattern"></div>
+  </>;
 };

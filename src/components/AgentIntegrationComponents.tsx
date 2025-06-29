@@ -17,53 +17,18 @@ export const AgentQuizGenerator: React.FC<AgentQuizGeneratorProps> = ({
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedQuiz, setGeneratedQuiz] = useState<string>('');
 
-    const { systemStatus } = useBrainInkAgents({ autoConnect: true });
+    const { generateQuiz, systemStatus } = useBrainInkAgents({ autoConnect: true });
 
     const handleGenerateQuiz = async () => {
         if (!subject.trim()) return;
 
         setIsGenerating(true);
         try {
-            // Use direct API call to the working squad quiz endpoint
-            const response = await fetch(`http://localhost:3001/squad/default/generate-quiz`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    topic: subject,
-                    difficulty: difficulty
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to generate quiz: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.success && data.quiz) {
-                const quizText = `🎯 **Quiz Generated!**
-
-**Question:** ${data.quiz.question}
-
-**Options:**
-${data.quiz.options.map((option: string, index: number) => `${String.fromCharCode(65 + index)}. ${option}`).join('\n')}
-
-**Correct Answer:** ${String.fromCharCode(65 + data.quiz.correctAnswer)}
-**XP Reward:** ${data.quiz.xpReward} XP
-**Topic:** ${data.quiz.topic}
-
-*Generated via Kana AI*`;
-
-                setGeneratedQuiz(quizText);
-                onQuizGenerated?.(quizText);
-            } else {
-                throw new Error('Invalid quiz data received');
-            }
+            const response = await generateQuiz(subject, difficulty, questionCount);
+            setGeneratedQuiz(response.message);
+            onQuizGenerated?.(response.message);
         } catch (error) {
             console.error('Failed to generate quiz:', error);
-            setGeneratedQuiz('❌ Failed to generate quiz. Please make sure the agent backend is running.');
         } finally {
             setIsGenerating(false);
         }
@@ -178,7 +143,7 @@ export const AgentProgressAnalyzer: React.FC<AgentProgressAnalyzerProps> = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysis, setAnalysis] = useState<string>('');
 
-    const { systemStatus } = useBrainInkAgents();
+    const { analyzeProgress, systemStatus } = useBrainInkAgents();
 
     const subjects = [
         'All Subjects',
@@ -195,31 +160,12 @@ export const AgentProgressAnalyzer: React.FC<AgentProgressAnalyzerProps> = ({
     const handleAnalyzeProgress = async () => {
         setIsAnalyzing(true);
         try {
-            // Use direct API call to squad analysis endpoint
-            const response = await fetch(`http://localhost:3001/squad/default/analyze`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    include_detailed_analysis: true,
-                    analysis_period_days: 7,
-                    subject: selectedSubject === 'All Subjects' ? undefined : selectedSubject
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to analyze progress: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const analysisText = data.analysis || 'Analysis completed but no specific insights were generated.';
-
-            setAnalysis(analysisText);
-            onAnalysisComplete?.(analysisText);
+            const subjectToAnalyze = selectedSubject === 'All Subjects' ? undefined : selectedSubject;
+            const response = await analyzeProgress(subjectToAnalyze);
+            setAnalysis(response.message);
+            onAnalysisComplete?.(response.message);
         } catch (error) {
             console.error('Failed to analyze progress:', error);
-            setAnalysis('❌ Failed to analyze progress. Please make sure the agent backend is running.');
         } finally {
             setIsAnalyzing(false);
         }
@@ -306,7 +252,7 @@ export const AgentSquadCoordinator: React.FC<AgentSquadCoordinatorProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [recommendation, setRecommendation] = useState<string>('');
 
-    const { systemStatus } = useBrainInkAgents();
+    const { coordinateSquad, systemStatus } = useBrainInkAgents();
 
     const actions = [
         { value: 'status', label: 'Squad Status', description: 'Check how your squad is doing' },
@@ -317,45 +263,11 @@ export const AgentSquadCoordinator: React.FC<AgentSquadCoordinatorProps> = ({
     const handleCoordinate = async () => {
         setIsProcessing(true);
         try {
-            let endpoint = '';
-            let body = {};
-
-            if (selectedAction === 'status') {
-                // Use squad analysis for status
-                endpoint = `http://localhost:3001/squad/${squadId || 'default'}/analyze`;
-                body = {
-                    include_detailed_analysis: true,
-                    analysis_period_days: 7
-                };
-            } else {
-                // Use squad coordination for other actions
-                endpoint = `http://localhost:3001/squad/${squadId || 'default'}/coordinate`;
-                body = {
-                    action: selectedAction,
-                    subject: subject || undefined
-                };
-            }
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to coordinate squad: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const recommendationText = data.analysis || data.coordination || 'Coordination completed successfully.';
-
-            setRecommendation(recommendationText);
-            onRecommendation?.(recommendationText);
+            const response = await coordinateSquad(squadId, selectedAction, subject || undefined);
+            setRecommendation(response.message);
+            onRecommendation?.(response.message);
         } catch (error) {
             console.error('Failed to coordinate squad:', error);
-            setRecommendation('❌ Failed to coordinate squad. Please make sure the agent backend is running.');
         } finally {
             setIsProcessing(false);
         }
