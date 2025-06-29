@@ -30,6 +30,7 @@ import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedL
 import { ChainlinkGrandPrizeDemo } from './components/demo/ChainlinkGrandPrizeDemo';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherLogin } from './pages/TeacherLogin';
+import { AgentDashboard } from './pages/AgentDashboard';
 import { AuthProvider } from './hooks/useAuth';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
@@ -37,7 +38,7 @@ import { AuthProvider } from './hooks/useAuth';
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showChainlinkDemo, setShowChainlinkDemo] = useState(false);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
@@ -49,73 +50,74 @@ export function App() {
     <ProfileCustomizationModalProvider>
       <AuthProvider>
         <SoundProvider>
-        <AudioProvider>
-          <WalletProvider>
-            <Router>
-              <div className="bg-[#0a0a1a] text-white min-h-screen w-full overflow-x-hidden font-pixel">
-                {isLoading ? (
-                  <LoadingScreen />
-                ) : (
-                  <Routes>
-                    <Route
-                      path="/"
-                      element={
-                        <>
-                          <HudNavigation />
-                          <main className="relative w-full">
-                            <HeroSection />
-                            <KanaSection />
-                            <KnowledgeVerse />
-                            <QuestSection />
-                            <ArenaSection />
-                            <CreatorSection />
-                            <TokenSection />
-                            <InstitutionalSection />
-                            <RoadmapSection />
-                            <TeamSection />
-                            <JoinSection />
-                            <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-                              {Array.from({ length: 20 }).map((_, i) => (
-                                <div
-                                  key={i}
-                                  className="absolute bg-blue-400 opacity-30 rounded-full animate-float"
-                                  style={{
-                                    width: `${Math.random() * 10 + 5}px`,
-                                    height: `${Math.random() * 10 + 5}px`,
-                                    left: `${Math.random() * 100}%`,
-                                    top: `${Math.random() * 100}%`,
-                                    animationDuration: `${Math.random() * 10 + 10}s`,
-                                    animationDelay: `${Math.random() * 5}s`,
-                                  }}
-                                />
-                              ))}
-                            </div>
-                          </main>
-                        </>
-                      }
-                    />
-                    <Route path="/signup" element={<SignUp />} />
-                    <Route path="/login" element={<TeacherLogin />} />
-                    {/* <Route path="/customize-profile" element={<CustomizeProfilePage />} /> */}
-                    {/* Routes below require authentication and profile customization */}                 
-                    <Route element={<EnsureProfileCustomizedLayout />}>
-                      <Route path="/townsquare" element={<TownSquare />} />
-                      <Route path="/messages" element={<MessagingPage />} />
-                      <Route path="/chatbot" element={<ChatbotInterface />} />
-                      <Route path="/achievements" element={<Achievements />} />
-                      <Route path="/notifications" element={<Notifications />} />
-                      <Route path="/friends" element={<Friends />} />
-                      <Route path="/quiz/math" element={<QuizInterface />} />
-                    </Route>
-                    {/* Teacher Dashboard Route */}
-                    <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
-                  </Routes>
-                )}
-              </div>
-            </Router>
-          </WalletProvider>
-        </AudioProvider>
-      </SoundProvider>
+          <AudioProvider>
+            <WalletProvider>
+              <Router>
+                <div className="bg-[#0a0a1a] text-white min-h-screen w-full overflow-x-hidden font-pixel">
+                  {isLoading ? (
+                    <LoadingScreen />
+                  ) : (
+                    <Routes>
+                      <Route
+                        path="/"
+                        element={
+                          <>
+                            <HudNavigation />
+                            <main className="relative w-full">
+                              <HeroSection />
+                              <KanaSection />
+                              <KnowledgeVerse />
+                              <QuestSection />
+                              <ArenaSection />
+                              <CreatorSection />
+                              <TokenSection />
+                              <InstitutionalSection />
+                              <RoadmapSection />
+                              <TeamSection />
+                              <JoinSection />
+                              <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
+                                {Array.from({ length: 20 }).map((_, i) => (
+                                  <div
+                                    key={i}
+                                    className="absolute bg-blue-400 opacity-30 rounded-full animate-float"
+                                    style={{
+                                      width: `${Math.random() * 10 + 5}px`,
+                                      height: `${Math.random() * 10 + 5}px`,
+                                      left: `${Math.random() * 100}%`,
+                                      top: `${Math.random() * 100}%`,
+                                      animationDuration: `${Math.random() * 10 + 10}s`,
+                                      animationDelay: `${Math.random() * 5}s`,
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </main>
+                          </>
+                        }
+                      />
+                      <Route path="/signup" element={<SignUp />} />
+                      <Route path="/login" element={<TeacherLogin />} />
+                      <Route path="/agents" element={<AgentDashboard />} />
+                      {/* <Route path="/customize-profile" element={<CustomizeProfilePage />} /> */}
+                      {/* Routes below require authentication and profile customization */}
+                      <Route element={<EnsureProfileCustomizedLayout />}>
+                        <Route path="/townsquare" element={<TownSquare />} />
+                        <Route path="/messages" element={<MessagingPage />} />
+                        <Route path="/chatbot" element={<ChatbotInterface />} />
+                        <Route path="/achievements" element={<Achievements />} />
+                        <Route path="/notifications" element={<Notifications />} />
+                        <Route path="/friends" element={<Friends />} />
+                        <Route path="/quiz/math" element={<QuizInterface />} />
+                      </Route>
+                      {/* Teacher Dashboard Route */}
+                      <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
+                    </Routes>
+                  )}
+                </div>
+              </Router>
+            </WalletProvider>
+          </AudioProvider>
+        </SoundProvider>
       </AuthProvider>
     </ProfileCustomizationModalProvider>
   );

@@ -824,6 +824,68 @@ class SquadService {
       return { squads: [], totalCount: 0, hasNext: false };
     }
   }
+
+  // Agent Integration Methods
+  async getSquadAnalysis(squadId: string): Promise<string | null> {
+    try {
+      // Import the real agent service
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.analyzeSquadPerformance(squadId);
+    } catch (error) {
+      console.error('Error getting squad analysis from agent:', error);
+      return `Unable to analyze squad performance: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async getStudyRecommendations(userId: number, subject?: string): Promise<string | null> {
+    try {
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.analyzeUserProgress(userId, subject);
+    } catch (error) {
+      console.error('Error getting study recommendations from agent:', error);
+      return `Unable to get study recommendations: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async generateQuizForSquad(squadId: string, subject: string, difficulty: 'easy' | 'medium' | 'hard' = 'medium'): Promise<string | null> {
+    try {
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.generateSquadQuiz(squadId, subject, difficulty);
+    } catch (error) {
+      console.error('Error generating quiz from agent:', error);
+      return `Unable to generate quiz: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async getSquadMotivation(squadId: string): Promise<string | null> {
+    try {
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.coordinateSquadActivity(squadId, 'progress_check');
+    } catch (error) {
+      console.error('Error getting squad motivation from agent:', error);
+      return `Unable to get motivation message: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async planSquadStudySession(squadId: string): Promise<string | null> {
+    try {
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.coordinateSquadActivity(squadId, 'study_session');
+    } catch (error) {
+      console.error('Error planning study session:', error);
+      return `Unable to plan study session: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async suggestSquadChallenge(squadId: string): Promise<string | null> {
+    try {
+      const { realAgentService } = await import('../../src/services/realAgentService');
+      return await realAgentService.coordinateSquadActivity(squadId, 'challenge');
+    } catch (error) {
+      console.error('Error suggesting squad challenge:', error);
+      return `Unable to suggest challenge: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
 }
 
 export const squadService = new SquadService();

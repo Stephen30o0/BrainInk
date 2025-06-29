@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Ink Agent Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .status {
+            padding: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .agent-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .agent-card:hover {
+            border-color: #4f46e5;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.15);
+        }
+
+        .agent-card.active {
+            border-color: #4f46e5;
+            background: #f8fafc;
+        }
+
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .agent-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .kana-tutor {
+            background: #ef4444;
+        }
+
+        .squad-coordinator {
+            background: #10b981;
+        }
+
+        .progress-analyst {
+            background: #3b82f6;
+        }
+
+        .agent-info h3 {
+            color: #1e293b;
+            margin-bottom: 5px;
+        }
+
+        .agent-info p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .chat-interface {
+            padding: 30px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8fafc;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #4f46e5;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.agent {
+            background: white;
+            border: 1px solid #e2e8f0;
+            margin-right: auto;
+        }
+
+        .message-header {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
+
+        .send-btn:hover {
+            background: #3730a3;
+        }
+
+        .send-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .quick-action {
+            padding: 8px 16px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .quick-action:hover {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+        }
+
+        .error {
+            color: #ef4444;
+            background: #fef2f2;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #fecaca;
+        }
+
+        @media (max-width: 768px) {
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .quick-actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Brain Ink Agent Test Interface</h1>
+            <p>Test your AI agents and explore their capabilities</p>
+        </div>
+
+        <div class="status">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">Connecting to agents...</span>
+            </div>
+            <div id="agents-list"></div>
+        </div>
+
+        <div class="agents-grid" id="agents-grid">
+            <!-- Agents will be loaded here -->
+        </div>
+
+        <div class="chat-interface">
+            <h3 style="margin-bottom: 20px; color: #1e293b;">💬 Chat with Agent</h3>
+
+            <div class="quick-actions" id="quick-actions">
+                <button class="quick-action" onclick="sendQuickMessage('Create a Japanese quiz for me')">🇯🇵 Japanese
+                    Quiz</button>
+                <button class="quick-action" onclick="sendQuickMessage('Show me my learning progress')">📊 Progress
+                    Report</button>
+                <button class="quick-action" onclick="sendQuickMessage('Help me find study partners for chemistry')">👥
+                    Study Group</button>
+                <button class="quick-action"
+                    onclick="sendQuickMessage('Generate 5 math questions, medium difficulty')">🔢 Math Quiz</button>
+                <button class="quick-action" onclick="sendQuickMessage('What subjects am I strongest in?')">💪
+                    Strengths</button>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <div class="message agent">
+                    <div class="message-header">Brain Ink Agent</div>
+                    <div>👋 Welcome! Select an agent above and start chatting. Try the quick action buttons for example
+                        interactions!</div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div>🤖 Agent is thinking...</div>
+            </div>
+
+            <div class="input-group">
+                <input type="text" class="message-input" id="message-input" placeholder="Type your message here..."
+                    onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()" id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedAgent = null;
+        let agents = [];
+
+        // Initialize the interface
+        async function init() {
+            try {
+                await loadAgents();
+                updateStatus('✅ Connected to Brain Ink Agent Manager', true);
+            } catch (error) {
+                updateStatus('❌ Failed to connect to agents', false);
+                console.error('Init error:', error);
+            }
+        }
+
+        // Load available agents
+        async function loadAgents() {
+            try {
+                const response = await fetch('http://localhost:3001/agents');
+                const data = await response.json();
+                agents = data.agents;
+
+                renderAgents();
+                updateAgentsList();
+            } catch (error) {
+                console.error('Failed to load agents:', error);
+                throw error;
+            }
+        }
+
+        // Render agent cards
+        function renderAgents() {
+            const grid = document.getElementById('agents-grid');
+            grid.innerHTML = '';
+
+            agents.forEach(agent => {
+                const card = document.createElement('div');
+                card.className = 'agent-card';
+                card.onclick = () => selectAgent(agent.name);
+
+                const avatarClass = agent.name.toLowerCase().includes('kana') ? 'kana-tutor' :
+                    agent.name.toLowerCase().includes('squad') ? 'squad-coordinator' :
+                        'progress-analyst';
+
+                const emoji = agent.name.toLowerCase().includes('kana') ? '🇯🇵' :
+                    agent.name.toLowerCase().includes('squad') ? '👥' : '📊';
+
+                card.innerHTML = `
+                    <div class="agent-header">
+                        <div class="agent-avatar ${avatarClass}">${emoji}</div>
+                        <div class="agent-info">
+                            <h3>${agent.name}</h3>
+                            <p>Ready to assist</p>
+                        </div>
+                    </div>
+                    <p style="color: #64748b; line-height: 1.5;">${agent.bio}</p>
+                    <div style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 5px;">
+                        ${agent.topics?.slice(0, 3).map(topic =>
+                    `<span style="background: #e2e8f0; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">${topic}</span>`
+                ).join('') || ''}
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        // Select an agent
+        function selectAgent(agentName) {
+            selectedAgent = agentName;
+
+            // Update UI
+            document.querySelectorAll('.agent-card').forEach(card => {
+                card.classList.remove('active');
+            });
+
+            event.target.closest('.agent-card').classList.add('active');
+
+            // Add welcome message
+            addMessage(`Hi! I'm ${agentName}. How can I help you today?`, 'agent');
+
+            updateStatus(`💬 Chatting with ${agentName}`, true);
+        }
+
+        // Send message
+        async function sendMessage() {
+            if (!selectedAgent) {
+                alert('Please select an agent first!');
+                return;
+            }
+
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Show loading
+            showLoading(true);
+
+            try {
+                const response = await fetch(`http://localhost:3001/chat/${encodeURIComponent(selectedAgent)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        userId: 'test-user-' + Date.now()
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    addMessage(data.response, 'agent', data.action);
+                } else {
+                    addMessage(`Error: ${data.error}`, 'agent');
+                }
+            } catch (error) {
+                console.error('Chat error:', error);
+                addMessage('Sorry, I encountered an error. Please try again.', 'agent');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Send quick message
+        function sendQuickMessage(message) {
+            if (!selectedAgent) {
+                // Auto-select appropriate agent based on message
+                if (message.includes('Japanese') || message.includes('quiz')) {
+                    selectAgentByName('Kana Tutor');
+                } else if (message.includes('progress') || message.includes('strengths')) {
+                    selectAgentByName('Progress Analyst');
+                } else if (message.includes('study partners') || message.includes('group')) {
+                    selectAgentByName('Squad Coordinator');
+                } else {
+                    selectAgentByName('Kana Tutor'); // Default
+                }
+            }
+
+            document.getElementById('message-input').value = message;
+            sendMessage();
+        }
+
+        // Select agent by name
+        function selectAgentByName(name) {
+            const cards = document.querySelectorAll('.agent-card');
+            cards.forEach(card => {
+                if (card.innerHTML.includes(name)) {
+                    card.click();
+                }
+            });
+        }
+
+        // Add message to chat
+        function addMessage(text, sender, action = null) {
+            const chatMessages = document.getElementById('chat-messages');
+            const message = document.createElement('div');
+            message.className = `message ${sender}`;
+
+            const header = sender === 'user' ? 'You' : selectedAgent || 'Agent';
+            const actionText = action ? ` (${action})` : '';
+
+            message.innerHTML = `
+                <div class="message-header">${header}${actionText}</div>
+                <div>${text}</div>
+            `;
+
+            chatMessages.appendChild(message);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Show/hide loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            document.getElementById('send-btn').disabled = show;
+        }
+
+        // Update status
+        function updateStatus(text, connected) {
+            document.getElementById('status-text').textContent = text;
+            const dot = document.querySelector('.status-dot');
+            dot.style.background = connected ? '#10b981' : '#ef4444';
+        }
+
+        // Update agents list
+        function updateAgentsList() {
+            const list = document.getElementById('agents-list');
+            list.innerHTML = `
+                <strong>Available Agents:</strong> ${agents.map(a => a.name).join(', ')} 
+                <span style="color: #64748b;">(${agents.length} active)</span>
+            `;
+        }
+
+        // Handle enter key
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Initialize when page loads
+        window.onload = init;
+    </script>
+</body>
+
+</html>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { ElizaAgentSelector } from '../components/ElizaAgentSelector';
 // No need for navigation imports since we're embedded in the building
 
 
@@ -87,20 +88,29 @@ export const ChatbotInterface: React.FC = () => {
             </div>
           </div>
         ) : (
-          <ErrorBoundary>
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full">
-                  <div className="animate-pulse-slow text-primary">
-                    <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-                    <p className="mt-4 font-pixel text-sm">Loading Components...</p>
+          <div className="flex-1 p-4">
+            {/* ElizaOS Agent Integration */}
+            <ElizaAgentSelector />
+
+            {/* Fallback to original layout if needed */}
+            <ErrorBoundary>
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center h-32 mt-4">
+                    <div className="animate-pulse-slow text-primary">
+                      <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                      <p className="mt-2 font-pixel text-xs">Loading Legacy Chat...</p>
+                    </div>
                   </div>
+                }
+              >
+                <div className="mt-6 p-4 bg-gray-900/50 rounded-lg">
+                  <p className="text-sm text-gray-400 mb-2">Legacy Chat Interface:</p>
+                  <Layout />
                 </div>
-              }
-            >
-              <Layout />
-            </Suspense>
-          </ErrorBoundary>
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         )}
       </div>
     </div>

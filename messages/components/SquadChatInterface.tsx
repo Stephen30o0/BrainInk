@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { aiAgentService } from '../services/aiAgentService';
 import { squadService, Squad, SquadMember, SquadMessage, SquadLeaderboardStats, StudyLeague, LeagueParticipant } from '../services/squadService';
+import { SquadAIAssistant } from './SquadAIAssistant';
 
 // Remove duplicate interfaces and use the ones from squadService
 interface LocalSquadMessage {
@@ -72,6 +73,7 @@ export const SquadChatInterface = ({
   const [selectedLeague, setSelectedLeague] = useState<StudyLeague | null>(null);
   const [leagueLeaderboard, setLeagueLeaderboard] = useState<LeagueParticipant[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load squad detail and messages from backend
@@ -1162,6 +1164,13 @@ export const SquadChatInterface = ({
                 <BookOpen size={16} className="inline mr-1" />
                 Study
               </button>
+              <button
+                onClick={() => setShowAIAssistant(true)}
+                className="px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-colors"
+              >
+                <Bot size={16} className="inline mr-1" />
+                AI Assistant
+              </button>
               <button className="text-primary hover:text-primary/80">
                 <MoreVertical size={20} />
               </button>
@@ -1392,6 +1401,13 @@ export const SquadChatInterface = ({
       {showQuizModal && renderQuizModal()}
       {quizLeaderboard.length > 0 && renderQuizLeaderboard()}
       {showManageMembers && renderManageMembersModal()}
+      {showAIAssistant && (
+        <SquadAIAssistant
+          squadId={squad.id}
+          squadMembers={squad.members}
+          onClose={() => setShowAIAssistant(false)}
+        />
+      )}
     </div>
   );
 };
