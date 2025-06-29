@@ -3,7 +3,7 @@
 
 class BrainInkAgentClient {
     constructor(options = {}) {
-        this.apiBaseUrl = options.apiBaseUrl || 'http://localhost:3001';
+        this.apiBaseUrl = options.apiBaseUrl || process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com';
         this.onMessage = options.onMessage || (() => { });
         this.onError = options.onError || console.error;
         this.agents = [];
@@ -90,7 +90,7 @@ class BrainInkAgentClient {
 // 1. Basic Integration
 function initBrainInkAgents() {
     const agentClient = new BrainInkAgentClient({
-        apiBaseUrl: 'http://localhost:3001',
+        apiBaseUrl: process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com',
         onMessage: (response, agentName, action) => {
             console.log(`${agentName} responded:`, response);
 
@@ -197,7 +197,7 @@ function addAIQuickActions(agentClient) {
 // 4. Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     // Only initialize if agents service is available
-    fetch('http://localhost:3001/health')
+    fetch((process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com') + '/health')
         .then(response => response.json())
         .then(data => {
             if (data.status === 'ok') {

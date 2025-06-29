@@ -515,7 +515,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
   try {
     // Parse and extract the function from the equation (handle y = ... or just the expression)
     let expression = functionStr.includes('=') ? functionStr.split('=')[1].trim() : functionStr.trim();
-    
+
     // Clean and normalize the expression for mathjs
     expression = expression
       .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
@@ -537,12 +537,12 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
         // Skip invalid points but continue with the rest
       }
     }
-    
+
     if (data.length === 0) {
       console.error("No valid data points generated");
       return null;
     }
-    
+
     console.log(`DEBUG: Generated ${data.length} data points`);
     return data;
   } catch (error) {

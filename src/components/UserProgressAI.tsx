@@ -111,7 +111,7 @@ Please provide:
 3. Strengths and areas for improvement
 4. Specific recommendations for continued growth`;
 
-            const response = await fetch('http://localhost:3001/chat/Learning Progress Analyst', {
+            const response = await fetch(`${process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com'}/chat/Learning Progress Analyst`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -160,7 +160,7 @@ Please suggest:
 4. Time management tips
 5. Goals for next week`;
 
-            const response = await fetch('http://localhost:3001/chat/K.A.N.A. Educational Tutor', {
+            const response = await fetch(`${process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com'}/chat/K.A.N.A. Educational Tutor`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

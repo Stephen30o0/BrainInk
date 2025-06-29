@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bot, Sparkles, Users, TrendingUp, MessageSquare, X, Loader, Brain } from 'lucide-react';
 
@@ -16,6 +15,8 @@ interface QuizData {
     topic: string;
     generatedAt: string;
 }
+
+const AGENT_API_URL = process.env.REACT_APP_AGENT_API_URL || process.env.VITE_AGENT_API_BASE_URL || process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com';
 
 export const SquadAIAssistant: React.FC<SquadAIAssistantProps> = ({
     squadId,
@@ -63,7 +64,7 @@ export const SquadAIAssistant: React.FC<SquadAIAssistantProps> = ({
     const analyzeSquadRealData = async (): Promise<string> => {
         try {
             // Call the REAL agent backend analyze endpoint directly (same as quiz generation)
-            const response = await fetch(`http://localhost:3001/squad/${squadId}/analyze`, {
+            const response = await fetch(`${AGENT_API_URL}/squad/${squadId}/analyze`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -118,7 +119,7 @@ I encountered an error while analyzing squad "${squadId}":
 
 **To fix this:** Make sure the ElizaOS agent backend is running on port 3001 and the squad ID is valid.
 
-**Technical info:** Direct call to http://localhost:3001/squad/${squadId}/analyze failed`;
+**Technical info:** Direct call to ${AGENT_API_URL}/squad/${squadId}/analyze failed`;
         }
     };
 
@@ -126,7 +127,7 @@ I encountered an error while analyzing squad "${squadId}":
         try {
             setIsLoading(true);
 
-            const response = await fetch(`http://localhost:3001/squad/${squadId}/generate-quiz`, {
+            const response = await fetch(`${AGENT_API_URL}/squad/${squadId}/generate-quiz`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -193,7 +194,7 @@ Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     const coordinateSquadActivities = async (): Promise<string> => {
         try {
             // Use the REAL agent backend endpoint for Squad Coordination
-            const response = await fetch(`http://localhost:3001/squad/${squadId}/coordinate`, {
+            const response = await fetch(`${AGENT_API_URL}/squad/${squadId}/coordinate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -234,7 +235,7 @@ Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     const handleKanaChat = async (message: string): Promise<string> => {
         try {
             // Connect to real Kana AI backend via the correct agent name
-            const response = await fetch(`http://localhost:3001/chat/K.A.N.A. Educational Tutor`, {
+            const response = await fetch(`${AGENT_API_URL}/chat/K.A.N.A. Educational Tutor`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

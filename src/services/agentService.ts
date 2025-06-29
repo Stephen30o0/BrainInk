@@ -1,6 +1,6 @@
 // /**
 //  * Brain Ink Agent Service
-//  * Connects to the ElizaOS-style agent backend running on localhost:3001
+//  * Connects to the ElizaOS-style agent backend using BRAININK_AGENT_URL
 //  */
 
 // export interface AgentInfo {
@@ -48,7 +48,7 @@
 // }
 
 // class AgentService {
-//     private readonly AGENT_API_BASE = 'http://localhost:3001';
+//     private readonly AGENT_API_BASE = process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com';
 
 //     async healthCheck(): Promise<boolean> {
 //         try {

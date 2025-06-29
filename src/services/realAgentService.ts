@@ -39,7 +39,7 @@ interface SquadData {
 }
 
 class RealAgentService {
-    private readonly AGENT_API_BASE = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:3001';
+    private readonly AGENT_API_BASE = import.meta.env.VITE_AGENT_API_BASE_URL || process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com';
     private readonly SQUAD_API_BASE = 'https://brainink-backend-freinds-micro.onrender.com/squads';
     private readonly KANA_API_BASE = import.meta.env.VITE_KANA_API_BASE_URL || 'http://localhost:10000/api/kana';
     private readonly API_KEY = import.meta.env.VITE_AGENT_API_KEY || 'brainink_agent_secure_key_2025';
