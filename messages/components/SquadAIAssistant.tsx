@@ -16,7 +16,7 @@ interface QuizData {
     generatedAt: string;
 }
 
-const AGENT_API_URL = process.env.REACT_APP_AGENT_API_URL || process.env.VITE_AGENT_API_BASE_URL || process.env.BRAININK_AGENT_URL || 'https://elizaos-agent-REPLACE.onrender.com';
+const AGENT_API_URL = process.env.REACT_APP_AGENT_API_URL || process.env.VITE_AGENT_API_BASE_URL || process.env.BRAININK_AGENT_URL || 'https://brainink.onrender.com';
 
 export const SquadAIAssistant: React.FC<SquadAIAssistantProps> = ({
     squadId,
