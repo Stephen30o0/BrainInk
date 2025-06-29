@@ -8,6 +8,7 @@ import { LibraryHub } from '../library/LibraryHub';
 import { Marketplace } from '../marketplace/Marketplace';
 import { useAuth } from '../../hooks/useAuth';
 import ChatArea from '../../../quiz/src/components/ChatArea';
+import Sidebar from '../../../quiz/src/components/Sidebar';
 
 interface Position {
   top?: string;
@@ -917,13 +918,19 @@ const EnhancedGameEnvironment = () => {
                 />
               </div>
             ) : activeBuilding === 'kana-lab' ? (
-              <div className="h-full">
-                <ChatArea
-                  openPDFReader={handleOpenPDFReader}
-                  toggleHistoryPanel={handleToggleHistoryPanel}
+              <div className="h-full flex">
+                <Sidebar
                   activeChat={activeChat}
                   onChatSelect={handleChatSelect}
                 />
+                <div className="flex-1 h-full">
+                  <ChatArea
+                    openPDFReader={handleOpenPDFReader}
+                    toggleHistoryPanel={handleToggleHistoryPanel}
+                    activeChat={activeChat}
+                    onChatSelect={handleChatSelect}
+                  />
+                </div>
               </div>
             ) : activeStation ? <div className="h-full">
               {/* Feature Content */}

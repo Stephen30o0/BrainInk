@@ -16,7 +16,8 @@ interface QuizData {
     generatedAt: string;
 }
 
-const AGENT_API_URL = process.env.REACT_APP_AGENT_API_URL || process.env.VITE_AGENT_API_BASE_URL || process.env.BRAININK_AGENT_URL || 'https://brainink.onrender.com';
+// Use Vite's import.meta.env for environment variables in the browser
+const AGENT_API_URL = import.meta.env.VITE_AGENT_API_URL || import.meta.env.VITE_AGENT_API_BASE_URL || import.meta.env.VITE_BRAININK_AGENT_URL || 'https://brainink.onrender.com';
 
 export const SquadAIAssistant: React.FC<SquadAIAssistantProps> = ({
     squadId,
