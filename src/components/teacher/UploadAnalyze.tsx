@@ -241,7 +241,8 @@ export const UploadAnalyze: React.FC = () => {
             pdf_data: pdfData,
             pdf_analysis: true,
             grading_mode: true,
-            assignment_type: assignmentTitle || 'Assignment',
+            task_type: 'grade_assignment',
+            assignment_title: assignmentTitle || 'Assignment',
             max_points: maxPoints,
             grading_rubric: gradingRubric || 'Standard academic grading criteria',
             student_context: `Grading PDF assignment for student: ${selectedStudent}`,
@@ -249,6 +250,7 @@ export const UploadAnalyze: React.FC = () => {
           } : {
             pdf_data: pdfData,
             pdf_analysis: true,
+            task_type: 'analyze',
             student_context: `Analyzing PDF for student: ${selectedStudent}`,
             analysis_type: 'pdf_student_notes'
           };
@@ -339,14 +341,16 @@ export const UploadAnalyze: React.FC = () => {
             image_data: imageData,
             image_analysis: true,
             grading_mode: true,
-            assignment_type: assignmentTitle || 'Assignment',
+            task_type: 'grade_assignment',
+            assignment_title: assignmentTitle || 'Assignment',
             max_points: maxPoints,
             grading_rubric: gradingRubric || 'Standard academic grading criteria',
             student_context: `Grading assignment for student: ${selectedStudent}`,
-            analysis_type: 'assignment_grading'
+            analysis_type: 'image_assignment_grading'
           } : {
             image_data: imageData,
             image_analysis: true,
+            task_type: 'analyze',
             student_context: `Analyzing notes for student: ${selectedStudent}`,
             analysis_type: 'student_notes'
           };
