@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrophyIcon,
@@ -129,7 +129,7 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
         }
     };
 
-    const handleJoinTournament = async (tournamentId: string) => {
+    const handleJoinTournament = useCallback(async (tournamentId: string) => {
         if (!userAddress || userAddress.trim() === '') {
             setError('User address is required. Please connect your wallet.');
             return;
@@ -149,9 +149,9 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
             setError(err.message || 'Failed to join tournament');
             console.error('Join tournament error:', err);
         }
-    };
+    }, [userAddress, onStartQuiz]);
 
-    const handleStartTournament = async (tournamentId: string) => {
+    const handleStartTournament = useCallback(async (tournamentId: string) => {
         try {
             setError(null);
             await backendTournamentService.startTournament(tournamentId, userAddress);
@@ -159,9 +159,9 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
         } catch (err: any) {
             setError(err.message || 'Failed to start tournament');
         }
-    };
+    }, [userAddress]);
 
-    const handleRespondToInvitation = async (invitationId: string, response: 'accept' | 'decline') => {
+    const handleRespondToInvitation = useCallback(async (invitationId: string, response: 'accept' | 'decline') => {
         try {
             setError(null);
             await backendTournamentService.respondToInvitation(invitationId, userAddress, response);
@@ -169,242 +169,230 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
         } catch (err: any) {
             setError(err.message || `Failed to ${response} invitation`);
         }
-    };
+    }, [userAddress]);
 
-    const TournamentCard: React.FC<{ tournament: BackendTournament; showActions?: boolean }> = ({
-        tournament,
-        showActions = true
-    }) => {
-        const isCreator = tournament.creator_address === userAddress;
-        const isParticipant = tournament.participants.includes(userAddress);
-        const canJoin = !isCreator && !isParticipant && tournament.status === 'registration';
-        const canStart = isCreator && tournament.status === 'registration' && tournament.current_players >= 2;
-
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                className="group relative bg-gradient-to-br from-dark/40 via-dark/30 to-dark/20 backdrop-blur-md border border-primary/20 rounded-xl p-6 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 overflow-hidden"
+    const TournamentCard = React.memo<{ tournament: BackendTournament; showActions?: boolean }>(
+        ({
+            tournament,
+            showActions = true
+        }) => {
+            const isCreator = tournament.creator_address === userAddress;
+            const isParticipant = tournament.participants.includes(userAddress);
+            const canJoin = !isCreator && !isParticipant && tournament.status === 'registration';
+            const canStart = isCreator && tournament.status === 'registration' && tournament.current_players >= 2;        return (
+            <div
+                className="group relative bg-gradient-to-br from-dark/40 via-dark/30 to-dark/20 backdrop-blur-sm border border-primary/20 rounded-xl p-6 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10 transition-all duration-200 overflow-hidden will-change-transform hover:scale-[1.02]"
             >
-                {/* Background Gradient Effect */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    {/* Background Gradient Effect - optimized */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-secondary/3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 will-change-auto" />
 
-                {/* Tournament Header */}
-                <div className="relative z-10 flex justify-between items-start mb-6">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                <TrophyIcon className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors duration-300">
-                                    {tournament.name}
-                                </h3>
-                                {tournament.description && (
-                                    <p className="text-gray-400 text-sm mt-1 line-clamp-2">{tournament.description}</p>
-                                )}
+                    {/* Tournament Header */}
+                    <div className="relative z-10 flex justify-between items-start mb-6">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                    <TrophyIcon className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors duration-200">
+                                        {tournament.name}
+                                    </h3>
+                                    {tournament.description && (
+                                        <p className="text-gray-400 text-sm mt-1 line-clamp-2">{tournament.description}</p>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg ${tournament.status === 'registration'
-                            ? 'bg-gradient-to-r from-blue-500/20 to-blue-600/20 text-blue-300 border border-blue-500/30'
-                            : tournament.status === 'active'
-                                ? 'bg-gradient-to-r from-green-500/20 to-green-600/20 text-green-300 border border-green-500/30'
-                                : 'bg-gradient-to-r from-gray-500/20 to-gray-600/20 text-gray-300 border border-gray-500/30'
-                            }`}>
-                            {tournament.status}
-                        </span>
-                        {(isCreator || isParticipant) && (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${isCreator
-                                ? 'bg-gradient-to-r from-purple-500/20 to-purple-600/20 text-purple-300 border border-purple-500/30'
-                                : 'bg-gradient-to-r from-blue-500/20 to-blue-600/20 text-blue-300 border border-blue-500/30'
+                        <div className="flex flex-col items-end gap-2">
+                            <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg ${tournament.status === 'registration'
+                                ? 'bg-gradient-to-r from-blue-500/20 to-blue-600/20 text-blue-300 border border-blue-500/30'
+                                : tournament.status === 'active'
+                                    ? 'bg-gradient-to-r from-green-500/20 to-green-600/20 text-green-300 border border-green-500/30'
+                                    : 'bg-gradient-to-r from-gray-500/20 to-gray-600/20 text-gray-300 border border-gray-500/30'
                                 }`}>
-                                {isCreator ? <Crown size={12} /> : <CheckCircle size={12} />}
-                                {isCreator ? 'Creator' : 'Joined'}
+                                {tournament.status}
                             </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Tournament Stats Grid */}
-                <div className="relative z-10 space-y-4 mb-6">
-                    {/* First Row: Players and Questions */}
-                    <div className="grid grid-cols-2 gap-4">
-                        {/* Players */}
-                        <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-primary/30 transition-colors">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Users className="w-4 h-4 text-blue-400" />
-                                <span className="text-gray-400 text-xs font-medium">Players</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-white font-bold text-lg">{tournament.current_players}</span>
-                                <span className="text-gray-500">/{tournament.max_players}</span>
-                            </div>
-                            <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
-                                <div
-                                    className="bg-gradient-to-r from-blue-500 to-blue-400 h-1.5 rounded-full transition-all duration-300"
-                                    style={{ width: `${Math.min((tournament.current_players / tournament.max_players) * 100, 100)}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Questions */}
-                        <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-primary/30 transition-colors">
-                            <div className="flex items-center gap-2 mb-1">
-                                <BookOpen className="w-4 h-4 text-purple-400" />
-                                <span className="text-gray-400 text-xs font-medium">Questions</span>
-                            </div>
-                            <span className="text-white font-bold text-lg">{tournament.questions_per_match}</span>
-                        </div>
-                    </div>
-
-                    {/* Second Row: Entry Fee and Prize Pool */}
-                    <div className="grid grid-cols-2 gap-4">
-                        {/* Entry Fee */}
-                        <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-yellow-500/30 transition-colors">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Coins className="w-4 h-4 text-yellow-400" />
-                                <span className="text-gray-400 text-xs font-medium">Entry Fee</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                {tournament.entry_fee > 0 ? (
-                                    <>
-                                        <span className="text-yellow-400 font-bold text-lg">{parseFloat(tournament.entry_fee.toString()).toFixed(2)}</span>
-                                        <span className="text-yellow-500 text-sm font-medium">INK</span>
-                                    </>
-                                ) : (
-                                    <span className="text-green-400 font-bold text-sm">FREE</span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Prize Pool */}
-                        <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-green-500/30 transition-colors">
-                            <div className="flex items-center gap-2 mb-1">
-                                <TrophyIcon className="w-4 h-4 text-green-400" />
-                                <span className="text-gray-400 text-xs font-medium">Prize Pool</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                {tournament.prize_pool > 0 ? (
-                                    <>
-                                        <span className="text-green-400 font-bold text-lg">{parseFloat(tournament.prize_pool.toString()).toFixed(2)}</span>
-                                        <span className="text-green-500 text-sm font-medium">INK</span>
-                                    </>
-                                ) : (
-                                    <span className="text-gray-500 font-medium text-sm">None</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tournament Details */}
-                <div className="relative z-10 grid grid-cols-2 gap-4 mb-6">
-                    <div className="flex items-center gap-3 p-3 bg-dark/20 rounded-lg border border-gray-700/30">
-                        {getDifficultyIcon(tournament.difficulty_level)}
-                        <div>
-                            <p className="text-gray-400 text-xs">Difficulty</p>
-                            <p className="text-white font-semibold capitalize">{tournament.difficulty_level}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-dark/20 rounded-lg border border-gray-700/30">
-                        <Brain className="w-4 h-4 text-indigo-400" />
-                        <div>
-                            <p className="text-gray-400 text-xs">Subject</p>
-                            <p className="text-white font-semibold capitalize">
-                                {tournament.subject_category.replace('-', ' ')}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Custom Topics */}
-                {tournament.custom_topics && tournament.custom_topics.length > 0 && (
-                    <div className="relative z-10 mb-6">
-                        <p className="text-gray-400 text-sm mb-3 font-medium">Topics:</p>
-                        <div className="flex flex-wrap gap-2">
-                            {tournament.custom_topics.slice(0, 4).map(topic => (
-                                <span
-                                    key={topic}
-                                    className="px-3 py-1.5 bg-gradient-to-r from-primary/20 to-primary/10 text-primary text-xs font-medium rounded-full border border-primary/20 hover:border-primary/40 transition-colors"
-                                >
-                                    {topic}
-                                </span>
-                            ))}
-                            {tournament.custom_topics.length > 4 && (
-                                <span className="px-3 py-1.5 bg-gray-700/50 text-gray-400 text-xs font-medium rounded-full border border-gray-600/50">
-                                    +{tournament.custom_topics.length - 4} more
+                            {(isCreator || isParticipant) && (
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${isCreator
+                                    ? 'bg-gradient-to-r from-purple-500/20 to-purple-600/20 text-purple-300 border border-purple-500/30'
+                                    : 'bg-gradient-to-r from-blue-500/20 to-blue-600/20 text-blue-300 border border-blue-500/30'
+                                    }`}>
+                                    {isCreator ? <Crown size={12} /> : <CheckCircle size={12} />}
+                                    {isCreator ? 'Creator' : 'Joined'}
                                 </span>
                             )}
                         </div>
                     </div>
-                )}
 
-                {/* Tournament Info Footer */}
-                <div className="relative z-10 flex items-center justify-between text-sm text-gray-400 mb-6 pt-4 border-t border-gray-700/30">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full bg-primary/60"></div>
-                            <span>Creator: {tournament.creator_address.slice(0, 6)}...{tournament.creator_address.slice(-4)}</span>
+                    {/* Tournament Stats Grid */}
+                    <div className="relative z-10 space-y-4 mb-6">
+                        {/* First Row: Players and Questions */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Players */}
+                            <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-primary/30 transition-colors">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Users className="w-4 h-4 text-blue-400" />
+                                    <span className="text-gray-400 text-xs font-medium">Players</span>
+                                </div>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-white font-bold text-lg">{tournament.current_players}</span>
+                                    <span className="text-gray-500">/{tournament.max_players}</span>
+                                </div>
+                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                                    <div
+                                        className="bg-gradient-to-r from-blue-500 to-blue-400 h-1.5 rounded-full transition-all duration-300"
+                                        style={{ width: `${Math.min((tournament.current_players / tournament.max_players) * 100, 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Questions */}
+                            <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-primary/30 transition-colors">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <BookOpen className="w-4 h-4 text-purple-400" />
+                                    <span className="text-gray-400 text-xs font-medium">Questions</span>
+                                </div>
+                                <span className="text-white font-bold text-lg">{tournament.questions_per_match}</span>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{tournament.time_limit_minutes}min</span>
+
+                        {/* Second Row: Entry Fee and Prize Pool */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Entry Fee */}
+                            <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-yellow-500/30 transition-colors">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Coins className="w-4 h-4 text-yellow-400" />
+                                    <span className="text-gray-400 text-xs font-medium">Entry Fee</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {tournament.entry_fee > 0 ? (
+                                        <>
+                                            <span className="text-yellow-400 font-bold text-lg">{parseFloat(tournament.entry_fee.toString()).toFixed(2)}</span>
+                                            <span className="text-yellow-500 text-sm font-medium">INK</span>
+                                        </>
+                                    ) : (
+                                        <span className="text-green-400 font-bold text-sm">FREE</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Prize Pool */}
+                            <div className="bg-dark/30 rounded-lg p-3 border border-gray-700/50 hover:border-green-500/30 transition-colors">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <TrophyIcon className="w-4 h-4 text-green-400" />
+                                    <span className="text-gray-400 text-xs font-medium">Prize Pool</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {tournament.prize_pool > 0 ? (
+                                        <>
+                                            <span className="text-green-400 font-bold text-lg">{parseFloat(tournament.prize_pool.toString()).toFixed(2)}</span>
+                                            <span className="text-green-500 text-sm font-medium">INK</span>
+                                        </>
+                                    ) : (
+                                        <span className="text-gray-500 font-medium text-sm">None</span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Action Buttons */}
-                {showActions && (
-                    <div className="relative z-10 flex gap-3 flex-wrap">
-                        {canJoin && (
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => handleJoinTournament(tournament.id)}
-                                className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-primary to-primary/80 text-dark font-bold rounded-xl hover:from-primary/90 hover:to-primary/70 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/25"
-                            >
-                                <Play size={18} />
-                                <span>Join Tournament</span>
-                                {tournament.entry_fee > 0 && (
-                                    <span className="ml-2 px-2 py-1 text-xs bg-dark/20 text-dark/80 rounded-lg font-medium">
-                                        {parseFloat(tournament.entry_fee.toString()).toFixed(2)} INK
+                    {/* Tournament Details */}
+                    <div className="relative z-10 grid grid-cols-2 gap-4 mb-6">
+                        <div className="flex items-center gap-3 p-3 bg-dark/20 rounded-lg border border-gray-700/30">
+                            {getDifficultyIcon(tournament.difficulty_level)}
+                            <div>
+                                <p className="text-gray-400 text-xs">Difficulty</p>
+                                <p className="text-white font-semibold capitalize">{tournament.difficulty_level}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 bg-dark/20 rounded-lg border border-gray-700/30">
+                            <Brain className="w-4 h-4 text-indigo-400" />
+                            <div>
+                                <p className="text-gray-400 text-xs">Subject</p>
+                                <p className="text-white font-semibold capitalize">
+                                    {tournament.subject_category.replace('-', ' ')}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Custom Topics */}
+                    {tournament.custom_topics && tournament.custom_topics.length > 0 && (
+                        <div className="relative z-10 mb-6">
+                            <p className="text-gray-400 text-sm mb-3 font-medium">Topics:</p>
+                            <div className="flex flex-wrap gap-2">
+                                {tournament.custom_topics.slice(0, 4).map(topic => (
+                                    <span
+                                        key={topic}
+                                        className="px-3 py-1.5 bg-gradient-to-r from-primary/20 to-primary/10 text-primary text-xs font-medium rounded-full border border-primary/20 hover:border-primary/40 transition-colors"
+                                    >
+                                        {topic}
+                                    </span>
+                                ))}
+                                {tournament.custom_topics.length > 4 && (
+                                    <span className="px-3 py-1.5 bg-gray-700/50 text-gray-400 text-xs font-medium rounded-full border border-gray-600/50">
+                                        +{tournament.custom_topics.length - 4} more
                                     </span>
                                 )}
-                            </motion.button>
-                        )}
+                            </div>
+                        </div>
+                    )}
 
-                        {canStart && (
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => handleStartTournament(tournament.id)}
-                                className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-green-500/25"
-                            >
-                                <Zap size={18} />
-                                <span>Start Tournament</span>
-                            </motion.button>
-                        )}
-
-                        {isParticipant && tournament.status === 'active' && (
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => onStartQuiz?.(tournament.id)}
-                                className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-blue-500/25"
-                            >
-                                <Play size={18} />
-                                <span>View Matches</span>
-                            </motion.button>
-                        )}
+                    {/* Tournament Info Footer */}
+                    <div className="relative z-10 flex items-center justify-between text-sm text-gray-400 mb-6 pt-4 border-t border-gray-700/30">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-primary/60"></div>
+                                <span>Creator: {tournament.creator_address.slice(0, 6)}...{tournament.creator_address.slice(-4)}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>{tournament.time_limit_minutes}min</span>
+                            </div>
+                        </div>
                     </div>
-                )}
-            </motion.div>
+
+                    {/* Action Buttons */}
+                    {showActions && (
+                        <div className="relative z-10 flex gap-3 flex-wrap">
+                            {canJoin && (
+                                <button
+                                    onClick={() => handleJoinTournament(tournament.id)}
+                                    className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-primary to-primary/80 text-dark font-bold rounded-xl hover:from-primary/90 hover:to-primary/70 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/25 hover:scale-105 active:scale-95 will-change-transform"
+                                >
+                                    <Play size={18} />
+                                    <span>Join Tournament</span>
+                                    {tournament.entry_fee > 0 && (
+                                        <span className="ml-2 px-2 py-1 text-xs bg-dark/20 text-dark/80 rounded-lg font-medium">
+                                            {parseFloat(tournament.entry_fee.toString()).toFixed(2)} INK
+                                        </span>
+                                    )}
+                                </button>
+                            )}
+
+                            {canStart && (
+                                <button
+                                    onClick={() => handleStartTournament(tournament.id)}
+                                    className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-green-500/25 hover:scale-105 active:scale-95 will-change-transform"
+                                >
+                                    <Zap size={18} />
+                                    <span>Start Tournament</span>
+                                </button>
+                            )}
+
+                            {isParticipant && tournament.status === 'active' && (
+                                <button
+                                    onClick={() => onStartQuiz?.(tournament.id)}
+                                    className="flex-1 min-w-[140px] px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-blue-500/25 hover:scale-105 active:scale-95 will-change-transform"
+                                >
+                                    <Play size={18} />
+                                    <span>View Matches</span>
+                                </button>
+                            )}
+                        </div>
+                    )}            </div>
         );
-    };
+    });
 
     const InvitationCard: React.FC<{ invitation: any }> = ({ invitation }) => (
         <motion.div
@@ -483,7 +471,12 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
         </motion.div>
     );
 
-    // Scroll functionality
+    // Memoized tournament lists to prevent unnecessary re-renders
+    const memoizedTournaments = useMemo(() => tournaments, [tournaments]);
+    const memoizedMyTournaments = useMemo(() => myTournaments, [myTournaments]);
+    const memoizedInvitations = useMemo(() => invitations, [invitations]);
+
+    // Scroll functionality - optimized to prevent rendering issues
     useEffect(() => {
         const handleScroll = () => {
             if (containerRef.current) {
@@ -495,35 +488,53 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
                     clearTimeout(scrollTimeoutRef.current);
                 }
 
-                // Debounce the scroll button updates to prevent flicker
+                // Use a longer debounce and requestAnimationFrame to prevent blocking
                 scrollTimeoutRef.current = setTimeout(() => {
-                    // Show scroll-to-top button if scrolled down by at least 50px and content is scrollable
-                    setShowScrollTop(scrollTop > 50 && isScrollable);
-
-                    // Show scroll-to-bottom button if not at bottom and content is scrollable
-                    setShowScrollBottom(scrollTop < scrollHeight - clientHeight - 50 && isScrollable);
-                }, 50); // 50ms debounce
+                    requestAnimationFrame(() => {
+                        // Only update if the values actually changed to prevent unnecessary renders
+                        const newShowScrollTop = scrollTop > 50 && isScrollable;
+                        const newShowScrollBottom = scrollTop < scrollHeight - clientHeight - 50 && isScrollable;
+                        
+                        setShowScrollTop(prev => prev !== newShowScrollTop ? newShowScrollTop : prev);
+                        setShowScrollBottom(prev => prev !== newShowScrollBottom ? newShowScrollBottom : prev);
+                    });
+                }, 150); // Increased to 150ms to reduce frequency
             }
         };
 
         const container = containerRef.current;
         if (container) {
-            container.addEventListener('scroll', handleScroll);
-            // Initial check after a short delay to ensure content is rendered
-            setTimeout(handleScroll, 100);
-            // Also check on resize
-            window.addEventListener('resize', handleScroll);
+            // Use passive listener for better performance
+            container.addEventListener('scroll', handleScroll, { passive: true });
+            
+            // Initial check with delay
+            const initialCheck = () => {
+                requestAnimationFrame(() => {
+                    setTimeout(handleScroll, 100);
+                });
+            };
+            initialCheck();
+            
+            // Debounced resize handler
+            let resizeTimeout: NodeJS.Timeout;
+            const handleResize = () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    requestAnimationFrame(handleScroll);
+                }, 300); // Longer delay for resize
+            };
+            window.addEventListener('resize', handleResize, { passive: true });
 
             return () => {
                 container.removeEventListener('scroll', handleScroll);
-                window.removeEventListener('resize', handleScroll);
-                // Clear timeout on cleanup
+                window.removeEventListener('resize', handleResize);
                 if (scrollTimeoutRef.current) {
                     clearTimeout(scrollTimeoutRef.current);
                 }
+                clearTimeout(resizeTimeout);
             };
         }
-    }, [tournaments, myTournaments, invitations, activeTab]); // Re-run when content changes
+    }, []); // Remove dependencies to prevent excessive re-runs
 
     const scrollToTop = () => {
         containerRef.current?.scrollTo({
@@ -729,7 +740,7 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
                                             </div>
                                         ) : (
                                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {tournaments.map(tournament => (
+                                                {memoizedTournaments.map(tournament => (
                                                     <TournamentCard key={tournament.id} tournament={tournament} />
                                                 ))}
                                             </div>
@@ -751,7 +762,7 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
                                             </div>
                                         ) : (
                                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {myTournaments.map(tournament => (
+                                                {memoizedMyTournaments.map(tournament => (
                                                     <TournamentCard key={tournament.id} tournament={tournament} />
                                                 ))}
                                             </div>
@@ -773,7 +784,7 @@ export const UnifiedTournamentHub: React.FC<TournamentHubProps> = ({ onBack, onS
                                             </div>
                                         ) : (
                                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {invitations.map(invitation => (
+                                                {memoizedInvitations.map(invitation => (
                                                     <InvitationCard key={invitation.id} invitation={invitation} />
                                                 ))}
                                             </div>

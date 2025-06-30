@@ -47,7 +47,7 @@ export interface LearningPath {
 }
 
 class StudyCentreService {
-  private readonly kanaBackendUrl = 'http://localhost:10000';
+  private readonly kanaBackendUrl = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
 
   async generateKanaAssignments(userId?: string): Promise<Assignment[]> {
     try {

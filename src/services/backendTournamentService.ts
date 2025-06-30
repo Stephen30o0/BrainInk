@@ -2,8 +2,8 @@
 import { chainlinkTestnetService } from './chainlinkTestnetService';
 import { ethers, Contract, formatUnits, parseUnits } from 'ethers';
 
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-    ? 'https://kana-backend-app.onrender.com/api/tournaments'
+const API_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL 
+    ? `${import.meta.env.VITE_KANA_API_BASE_URL.replace('/api/kana', '')}/api/tournaments`
     : 'http://localhost:10000/api/tournaments';
 
 // INK Token Contract ABI for frontend interactions
@@ -124,11 +124,21 @@ export class BackendTournamentService {
     private async makeRequest(url: string, options: RequestInit = {}): Promise<Response> {
         const maxRetries = 3;
         const retryDelay = 1000; // 1 second
+        const timeoutMs = 15000; // 15 second timeout
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            let controller: AbortController | null = null;
+            let timeoutId: NodeJS.Timeout | null = null;
+
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                controller = new AbortController();
+                
+                // Set up timeout with proper cleanup
+                timeoutId = setTimeout(() => {
+                    if (controller && !controller.signal.aborted) {
+                        controller.abort('Request timeout');
+                    }
+                }, timeoutMs);
 
                 const response = await fetch(url, {
                     ...options,
@@ -139,26 +149,43 @@ export class BackendTournamentService {
                     signal: controller.signal
                 });
 
-                clearTimeout(timeoutId);
+                // Clear timeout on success
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+
                 return response;
             } catch (error) {
+                // Clear timeout on error
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+
                 console.error(`Request attempt ${attempt} failed:`, error);
 
                 if (attempt === maxRetries) {
                     if (error instanceof Error) {
-                        if (error.name === 'AbortError') {
+                        if (error.name === 'AbortError' || error.message.includes('aborted')) {
                             throw new Error('Request timeout. Please check your connection and try again.');
-                        } else if (error.message.includes('ERR_CONNECTION_REFUSED')) {
+                        } else if (error.message.includes('ERR_CONNECTION_REFUSED') || error.message.includes('ECONNREFUSED')) {
                             throw new Error('Tournament backend is not available. Please check your connection and try again.');
                         } else if (error.message.includes('ERR_NETWORK_CHANGED')) {
                             throw new Error('Network connection changed. Please try again.');
+                        } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+                            throw new Error('Network error. Please check your internet connection and try again.');
                         }
                     }
                     throw new Error(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
 
-                // Wait before retrying
-                await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+                // Wait before retrying (longer delay for network issues)
+                const delay = error instanceof Error && 
+                    (error.name === 'AbortError' || error.message.includes('timeout')) ? 
+                    retryDelay * attempt * 2 : retryDelay * attempt;
+                
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
 

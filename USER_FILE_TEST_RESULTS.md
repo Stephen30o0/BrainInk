@@ -348,3 +348,22 @@ NEW (Professional Theme):
 **🏆 K.A.N.A. now generates graphs that are identical in quality to professional mathematical software and reference examples!**
 
 ---
+
+### 🚨 **TOURNAMENT BACKEND CONNECTION ISSUE - RESOLVED**
+
+**Issue Identified:** June 30, 2025  
+**Problem:** Frontend AbortError when connecting to tournament backend  
+**Root Cause:** Frontend trying to connect to `localhost:10000` instead of production backend  
+**Status:** ✅ **COMPLETELY FIXED**
+
+#### **🔍 Error Analysis:**
+```
+Request attempt 1 failed: AbortError: signal is aborted without reason
+Backend Unavailable
+Cannot connect to the tournament backend server.
+Please ensure the backend is running on localhost:10000
+```
+
+**Root Cause:** Frontend services were hardcoded to `localhost:10000` instead of using environment variables.
+
+#### **🛠️ Fix Implementation:**
