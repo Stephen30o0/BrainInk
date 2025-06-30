@@ -54,7 +54,14 @@ async function generateChartJSGraph(data, title = '', xLabel = 'x', yLabel = 'y'
   };
   const buffer = await chartJSNodeCanvas.renderToBuffer(config);
   const fileName = `graph_${Date.now()}.png`;
-  const filePath = path.join(__dirname, '../uploads', fileName);
+  const uploadsDir = path.join(__dirname, '../uploads');
+  
+  // Ensure uploads directory exists
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  
+  const filePath = path.join(uploadsDir, fileName);
   fs.writeFileSync(filePath, buffer);
   return `/uploads/${fileName}`;
 }

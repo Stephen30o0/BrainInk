@@ -92,6 +92,13 @@ const STUDY_MATERIALS_DIR = path.join(__dirname, 'uploads', 'study_materials');
 if (!fs.existsSync(STUDY_MATERIALS_DIR)) {
   fs.mkdirSync(STUDY_MATERIALS_DIR, { recursive: true });
 }
+
+// Ensure uploads directory exists for graphs
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 const studyMaterialStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, STUDY_MATERIALS_DIR),
   filename: (req, file, cb) => {
@@ -119,8 +126,14 @@ app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
 app.use('/api/kana/study_material_files', express.static(STUDY_MATERIALS_DIR));
 app.use('/images', express.static(IMAGES_DIR));
 app.use('/api/kana/images', express.static(IMAGES_DIR));
+
+// Serve graph uploads directory
+app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/api/kana/uploads', express.static(UPLOADS_DIR));
+
 console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files and /api/kana/study_material_files`);
 console.log(`DEBUG: Serving static files from ${IMAGES_DIR} at /images and /api/kana/images`);
+console.log(`DEBUG: Serving graph files from ${UPLOADS_DIR} at /uploads and /api/kana/uploads`);
 
 // Tournament routes
 app.use('/api/tournaments', tournamentRoutes);
@@ -656,7 +669,11 @@ app.post('/api/chat', async (req, res) => {
 
     const result = await chat.sendMessage(message);
     const response = result.response;
-    const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+    
+    // Check all parts for function calls, not just the first one
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    const functionCall = parts.find(part => part.functionCall)?.functionCall;
+    
     const userMessage = Array.isArray(message) ? message.find(p => p.text)?.text || '' : message;
     const isGraphRequest = /\b(plot|graph)\b/i.test(userMessage);
 
