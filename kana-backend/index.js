@@ -552,8 +552,11 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
 
     console.log(`DEBUG: Cleaned expression: ${expression}`);
 
-    // Generate data points using mathjs evaluate
-    for (let x = xMin; x <= xMax; x += step) {
+    // Generate more data points for smoother curves
+    // Use smaller step size for better curve resolution
+    const actualStep = Math.min(step, (xMax - xMin) / 100); // At least 100 points for smooth curves
+    
+    for (let x = xMin; x <= xMax; x += actualStep) {
       try {
         const scope = { x: x };
         const y = evaluate(expression, scope);

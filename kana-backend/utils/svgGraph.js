@@ -40,7 +40,7 @@ function generateSVGGraph(data, title = '', xLabel = 'x', yLabel = 'y') {
   const xAxisY = scaleY(Math.max(plotMinY, Math.min(0, plotMaxY)));
   const yAxisX = scaleX(Math.max(plotMinX, Math.min(0, plotMaxX)));
   
-  // Create polyline points from the data array
+  // Create smooth polyline points from the data array
   const polyline = data.map(point => `${scaleX(point.x)},${scaleY(point.y)}`).join(' ');
   
   // Generate grid lines and tick marks
@@ -54,18 +54,18 @@ function generateSVGGraph(data, title = '', xLabel = 'x', yLabel = 'y') {
   for (let i = 0; i <= numXTicks; i++) {
     const x = plotMinX + (i / numXTicks) * (plotMaxX - plotMinX);
     const pixelX = scaleX(x);
-    gridLines += `<line x1="${pixelX}" y1="${padding}" x2="${pixelX}" y2="${height-padding}" stroke="#333" stroke-width="1" opacity="0.3"/>`;
-    tickMarks += `<line x1="${pixelX}" y1="${xAxisY-5}" x2="${pixelX}" y2="${xAxisY+5}" stroke="#aaa" stroke-width="2"/>`;
-    tickMarks += `<text x="${pixelX}" y="${xAxisY+20}" text-anchor="middle" fill="#ccc" font-size="12">${x.toFixed(1)}</text>`;
+    gridLines += `<line x1="${pixelX}" y1="${padding}" x2="${pixelX}" y2="${height-padding}" stroke="#ddd" stroke-width="1" opacity="0.8"/>`;
+    tickMarks += `<line x1="${pixelX}" y1="${xAxisY-5}" x2="${pixelX}" y2="${xAxisY+5}" stroke="#666" stroke-width="2"/>`;
+    tickMarks += `<text x="${pixelX}" y="${xAxisY+20}" text-anchor="middle" fill="#444" font-size="12">${x.toFixed(1)}</text>`;
   }
   
   // Y-axis grid lines and ticks
   for (let i = 0; i <= numYTicks; i++) {
     const y = plotMinY + (i / numYTicks) * (plotMaxY - plotMinY);
     const pixelY = scaleY(y);
-    gridLines += `<line x1="${padding}" y1="${pixelY}" x2="${width-padding}" y2="${pixelY}" stroke="#333" stroke-width="1" opacity="0.3"/>`;
-    tickMarks += `<line x1="${yAxisX-5}" y1="${pixelY}" x2="${yAxisX+5}" y2="${pixelY}" stroke="#aaa" stroke-width="2"/>`;
-    tickMarks += `<text x="${yAxisX-15}" y="${pixelY+5}" text-anchor="end" fill="#ccc" font-size="12">${y.toFixed(1)}</text>`;
+    gridLines += `<line x1="${padding}" y1="${pixelY}" x2="${width-padding}" y2="${pixelY}" stroke="#ddd" stroke-width="1" opacity="0.8"/>`;
+    tickMarks += `<line x1="${yAxisX-5}" y1="${pixelY}" x2="${yAxisX+5}" y2="${pixelY}" stroke="#666" stroke-width="2"/>`;
+    tickMarks += `<text x="${yAxisX-15}" y="${pixelY+5}" text-anchor="end" fill="#444" font-size="12">${y.toFixed(1)}</text>`;
   }
   
   // SVG
@@ -73,13 +73,13 @@ function generateSVGGraph(data, title = '', xLabel = 'x', yLabel = 'y') {
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
-      .graph-bg { fill: #0f0f23; }
-      .grid-line { stroke: #333; stroke-width: 1; opacity: 0.3; }
-      .axis-line { stroke: #666; stroke-width: 2; }
-      .main-line { fill: none; stroke: #00ff88; stroke-width: 3; }
-      .title-text { fill: #fff; font-size: 20px; font-weight: bold; }
-      .axis-label { fill: #ccc; font-size: 14px; }
-      .tick-label { fill: #aaa; font-size: 12px; }
+      .graph-bg { fill: #ffffff; }
+      .grid-line { stroke: #ddd; stroke-width: 1; opacity: 0.8; }
+      .axis-line { stroke: #333; stroke-width: 2; }
+      .main-line { fill: none; stroke: #1f77b4; stroke-width: 2.5; }
+      .title-text { fill: #333; font-size: 18px; font-weight: bold; font-family: Arial, sans-serif; }
+      .axis-label { fill: #444; font-size: 14px; font-family: Arial, sans-serif; }
+      .tick-label { fill: #444; font-size: 12px; font-family: Arial, sans-serif; }
     </style>
   </defs>
   
