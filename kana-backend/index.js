@@ -865,6 +865,316 @@ const startServer = async () => {
     }
   });
 
+  // New endpoint for direct K.A.N.A. analysis (used by teacher dashboard)
+  app.post('/kana-direct', async (req, res) => {
+    try {
+      const { image_data, pdf_data, pdf_text, student_context, analysis_type, task_type, assignment_title, max_points, grading_rubric } = req.body;
+
+      // Check if at least one type of data is provided
+      if (!image_data && !pdf_data && !pdf_text) {
+        return res.status(400).json({ error: 'Either image_data, pdf_data, or pdf_text is required' });
+      }
+
+      console.log(`DEBUG: /kana-direct called with task_type: ${task_type}, analysis_type: ${analysis_type}, student_context: ${student_context}`);
+
+      // Check if Gemini AI is initialized
+      if (!genAI) {
+        console.error('ERROR: Google AI not initialized - check GOOGLE_API_KEY');
+        return res.status(500).json({ error: 'AI service not configured' });
+      }
+
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const isGradingMode = task_type === 'grade_assignment';
+
+      let analysisResult;
+
+      // Handle PDF analysis
+      if (pdf_data || pdf_text) {
+        let textContent = pdf_text;
+
+        // If we have pdf_data (base64), convert it to text
+        if (pdf_data && !pdf_text) {
+          try {
+            const pdfBuffer = Buffer.from(pdf_data, 'base64');
+            textContent = await extractTextFromFile('application/pdf', pdfBuffer);
+          } catch (pdfError) {
+            console.error('Error extracting text from PDF:', pdfError);
+            return res.status(400).json({ error: 'Failed to extract text from PDF' });
+          }
+        }
+
+        // Create analysis prompt based on mode
+        let prompt;
+        
+        if (isGradingMode) {
+          // Grading mode - comprehensive assessment with scores
+          prompt = `You are K.A.N.A., an AI grading assistant for "${assignment_title || 'Student Assignment'}". ${student_context ? `Context: ${student_context}` : ''}
+
+ASSIGNMENT DETAILS:
+- Title: ${assignment_title || 'Student Work'}
+- Maximum Points: ${max_points || 100}
+- Grading Rubric: ${grading_rubric || 'Standard academic assessment'}
+
+Please provide a structured grading assessment in this EXACT format:
+
+**GRADE SUMMARY**
+Letter Grade: [A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F]
+Points Earned: [X/${max_points || 100}]
+Percentage: [XX%]
+
+**CONTENT OVERVIEW**
+Subject: [Identify the academic subject]
+Level: [Academic level assessment]
+Work Type: [Essay, homework, project, etc.]
+
+**PERFORMANCE ASSESSMENT**
+Strengths:
+• [Specific strength 1]
+• [Specific strength 2]
+• [Specific strength 3]
+
+Areas for Improvement:
+• [Specific area 1]
+• [Specific area 2]
+• [Specific area 3]
+
+**DETAILED FEEDBACK**
+Content Quality: [Assessment of understanding and accuracy]
+Organization: [Structure and presentation evaluation]
+Technical Skills: [Subject-specific skills demonstrated]
+
+**RECOMMENDATIONS**
+Next Steps:
+1. [Specific action item]
+2. [Specific action item]
+3. [Specific action item]
+
+**TEACHER NOTES**
+[Brief summary for gradebook/records]
+
+Document content:
+${textContent}`;
+        } else {
+          // Analysis only mode - educational insights without grading
+          prompt = `You are K.A.N.A., an educational AI assistant providing learning analysis. ${student_context ? `Context: ${student_context}` : ''}
+
+Please analyze this student work and provide educational insights in this EXACT format:
+
+**LEARNING ANALYSIS**
+Subject Area: [Identify the academic subject]
+Academic Level: [Estimated grade level]
+Content Type: [Type of work submitted]
+
+**UNDERSTANDING ASSESSMENT**
+Concepts Demonstrated:
+• [Concept 1 - level of understanding]
+• [Concept 2 - level of understanding]
+• [Concept 3 - level of understanding]
+
+Learning Strengths:
+• [Strength 1]
+• [Strength 2]
+• [Strength 3]
+
+Growth Opportunities:
+• [Area for development 1]
+• [Area for development 2]
+• [Area for development 3]
+
+**EDUCATIONAL INSIGHTS**
+Study Suggestions:
+1. [Specific study recommendation]
+2. [Specific study recommendation]
+3. [Specific study recommendation]
+
+Resources to Explore:
+• [Resource type 1]
+• [Resource type 2]
+• [Resource type 3]
+
+**ENCOURAGEMENT**
+[Positive, motivating message for the student]
+
+Document content:
+${textContent}`;
+        }
+
+        const result = await model.generateContent(prompt);
+        analysisResult = result.response.text();
+      }
+      // Handle image analysis
+      else if (image_data) {
+        const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        // Convert base64 to proper format for Gemini
+        const imageData = {
+          inlineData: {
+            data: image_data,
+            mimeType: "image/jpeg"
+          }
+        };
+
+        // Create analysis prompt based on mode
+        let prompt;
+        
+        if (isGradingMode) {
+          prompt = `You are K.A.N.A., an AI grading assistant for "${assignment_title || 'Student Assignment'}". ${student_context ? `Context: ${student_context}` : ''}
+
+ASSIGNMENT DETAILS:
+- Title: ${assignment_title || 'Student Work'}  
+- Maximum Points: ${max_points || 100}
+- Grading Rubric: ${grading_rubric || 'Standard academic assessment'}
+
+Analyze this image of student work and provide grading assessment in this EXACT format:
+
+**GRADE SUMMARY**
+Letter Grade: [A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F]
+Points Earned: [X/${max_points || 100}]
+Percentage: [XX%]
+
+**VISUAL CONTENT OVERVIEW**
+What I Can See: [Description of work in image]
+Subject: [Academic subject identified]
+Work Type: [Type of assignment visible]
+
+**PERFORMANCE ASSESSMENT**
+Strengths Observed:
+• [Specific strength 1]
+• [Specific strength 2]
+• [Specific strength 3]
+
+Areas for Improvement:
+• [Specific area 1]
+• [Specific area 2]
+• [Specific area 3]
+
+**DETAILED FEEDBACK**
+Content Accuracy: [Assessment of correctness]
+Presentation: [Neatness, organization, clarity]
+Technical Skills: [Subject-specific skills shown]
+
+**RECOMMENDATIONS**
+Next Steps:
+1. [Specific action item]
+2. [Specific action item]
+3. [Specific action item]
+
+**TEACHER NOTES**
+[Brief summary for gradebook/records]`;
+        } else {
+          prompt = `You are K.A.N.A., an educational AI assistant providing learning analysis. ${student_context ? `Context: ${student_context}` : ''}
+
+Analyze this image of student work and provide educational insights in this EXACT format:
+
+**LEARNING ANALYSIS**
+What I Can See: [Description of work in image]
+Subject Area: [Academic subject identified]
+Academic Level: [Estimated grade level]
+
+**UNDERSTANDING ASSESSMENT**
+Concepts Demonstrated:
+• [Concept 1 - level shown]
+• [Concept 2 - level shown]
+• [Concept 3 - level shown]
+
+Learning Strengths:
+• [Strength 1]
+• [Strength 2]
+• [Strength 3]
+
+Growth Opportunities:
+• [Area for development 1]
+• [Area for development 2]
+• [Area for development 3]
+
+**EDUCATIONAL INSIGHTS**
+Study Suggestions:
+1. [Specific study recommendation]
+2. [Specific study recommendation]
+3. [Specific study recommendation]
+
+Resources to Explore:
+• [Resource type 1]
+• [Resource type 2]
+• [Resource type 3]
+
+**ENCOURAGEMENT**
+[Positive, motivating message for the student]`;
+        }
+
+        // Generate content with image and prompt
+        const result = await visionModel.generateContent([prompt, imageData]);
+        analysisResult = result.response.text();
+      }
+
+      console.log(`DEBUG: K.A.N.A. analysis completed successfully for ${task_type || analysis_type}`);
+
+      // Parse structured data from the analysis for frontend compatibility
+      const knowledgeGaps = parseKnowledgeGaps(analysisResult);
+      const recommendations = parseRecommendations(analysisResult);
+      const strengths = parseStrengths(analysisResult);
+      const confidence = parseConfidenceFromAnalysis(analysisResult);
+      const gradingData = parseGradingFromAnalysis(analysisResult);
+
+      // Structure the response based on mode
+      const responseData = {
+        success: true,
+        analysis: analysisResult,
+        kanaResponse: analysisResult,
+        analysis_type: analysis_type,
+        task_type: task_type,
+        student_context: student_context,
+        content_type: pdf_data || pdf_text ? 'pdf' : 'image',
+        grading_mode: isGradingMode,
+        
+        // Frontend-compatible structured fields
+        knowledge_gaps: knowledgeGaps,
+        recommendations: recommendations,
+        student_strengths: strengths,
+        strengths: strengths, // For compatibility with newer frontend versions
+        confidence: confidence,
+        
+        // Add extracted text for frontend display
+        extracted_text: pdf_text || (pdf_data ? 'Text extracted from PDF' : 'Text extracted from image')
+      };
+
+      // Add grading information if available
+      if (isGradingMode && gradingData.score !== null) {
+        responseData.grade = gradingData.score;
+        responseData.score = gradingData.score;
+        responseData.max_points = gradingData.maxPoints || max_points;
+        responseData.letter_grade = gradingData.letterGrade;
+        responseData.percentage = gradingData.percentage;
+        
+        // Parse improvement areas from grading analysis
+        responseData.improvement_areas = parseKnowledgeGaps(analysisResult);
+        responseData.areas_for_improvement = parseKnowledgeGaps(analysisResult);
+        
+        // Overall feedback from the analysis
+        responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() || 
+                                       analysisResult.substring(0, 200) + '...';
+      }
+
+      // Add assignment details if in grading mode
+      if (isGradingMode) {
+        responseData.assignment_details = {
+          title: assignment_title,
+          max_points: max_points,
+          grading_rubric: grading_rubric
+        };
+      }
+
+      res.json(responseData);
+
+    } catch (error) {
+      console.error('Error in /kana-direct:', error);
+      res.status(500).json({ 
+        error: 'Failed to analyze content', 
+        details: error.message 
+      });
+    }
+  });
+
   app.listen(port, '0.0.0.0', () => {
     console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
   });
@@ -1172,3 +1482,96 @@ function getClassificationConfidence(message, classification) {
 initializeElizaAgents();
 
 console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
+
+// Helper functions to parse structured data from K.A.N.A.'s formatted analysis
+function parseKnowledgeGaps(analysisText) {
+  const gaps = [];
+  const lines = analysisText.split('\n');
+  let inGapsSection = false;
+  
+  for (const line of lines) {
+    if (line.includes('Growth Opportunities:') || line.includes('Areas for Improvement:') || 
+        line.includes('Knowledge Gaps:') || line.includes('Areas for development')) {
+      inGapsSection = true;
+      continue;
+    }
+    if (line.includes('**') && inGapsSection) {
+      inGapsSection = false;
+    }
+    if (inGapsSection && line.trim().startsWith('•')) {
+      gaps.push(line.replace(/^[•*]\s*/, '').trim());
+    }
+  }
+  return gaps;
+}
+
+function parseRecommendations(analysisText) {
+  const recommendations = [];
+  const lines = analysisText.split('\n');
+  let inRecommendationsSection = false;
+  
+  for (const line of lines) {
+    if (line.includes('Study Suggestions:') || line.includes('Recommendations:') || 
+        line.includes('Next Steps:') || line.includes('Teaching suggestions:')) {
+      inRecommendationsSection = true;
+      continue;
+    }
+    if (line.includes('**') && inRecommendationsSection) {
+      inRecommendationsSection = false;
+    }
+    if (inRecommendationsSection && (line.trim().startsWith('•') || line.trim().match(/^\d+\./))) {
+      recommendations.push(line.replace(/^[•*\d\.]\s*/, '').trim());
+    }
+  }
+  return recommendations;
+}
+
+function parseStrengths(analysisText) {
+  const strengths = [];
+  const lines = analysisText.split('\n');
+  let inStrengthsSection = false;
+  
+  for (const line of lines) {
+    if (line.includes('Learning Strengths:') || line.includes('Strengths:') || 
+        line.includes('Strengths Observed:')) {
+      inStrengthsSection = true;
+      continue;
+    }
+    if (line.includes('**') && inStrengthsSection) {
+      inStrengthsSection = false;
+    }
+    if (inStrengthsSection && line.trim().startsWith('•')) {
+      strengths.push(line.replace(/^[•*]\s*/, '').trim());
+    }
+  }
+  return strengths;
+}
+
+function parseConfidenceFromAnalysis(analysisText) {
+  // Extract a confidence score based on the depth and structure of the analysis
+  const hasDetailedSections = analysisText.includes('**') && analysisText.includes('•');
+  const wordCount = analysisText.split(' ').length;
+  const hasSpecificConcepts = analysisText.toLowerCase().includes('understanding') || 
+                              analysisText.toLowerCase().includes('demonstrates') ||
+                              analysisText.toLowerCase().includes('concepts');
+  
+  let confidence = 70; // Base confidence
+  if (hasDetailedSections) confidence += 10;
+  if (wordCount > 200) confidence += 10;
+  if (hasSpecificConcepts) confidence += 10;
+  
+  return Math.min(95, confidence);
+}
+
+function parseGradingFromAnalysis(analysisText) {
+  const gradeMatch = analysisText.match(/Points Earned:\s*(\d+)\/(\d+)/);
+  const letterGradeMatch = analysisText.match(/Letter Grade:\s*([A-F][+-]?)/);
+  const percentageMatch = analysisText.match(/Percentage:\s*(\d+)%/);
+  
+  return {
+    score: gradeMatch ? parseInt(gradeMatch[1]) : null,
+    maxPoints: gradeMatch ? parseInt(gradeMatch[2]) : null,
+    letterGrade: letterGradeMatch ? letterGradeMatch[1] : null,
+    percentage: percentageMatch ? parseInt(percentageMatch[1]) : null
+  };
+}
