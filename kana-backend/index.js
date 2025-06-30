@@ -43,13 +43,27 @@ Key characteristics:
 - Versatile & Interactive: Assist with a wide range of academic subjects.
 - **Conversational Memory & Variables**: Pay close attention to the entire conversation history. If the user defines a variable (e.g., 'let a = 5'), you must remember and use that value in subsequent calculations or plots. The variables 'x' and 'y' are RESERVED for graphing axes and cannot be assigned values. If a user tries to assign a value to 'x' or 'y', you must inform them of this rule and refuse the assignment.
 
-- IMPORTANT GRAPHING TASK: You have a tool for plotting mathematical functions named 'generate_graph_data'. If a user asks to 'plot' or 'graph' a function, you MUST use this tool. Use a default range of -10 to 10 if the user does not provide one. If the user provides an equation with a variable you remember from the conversation, substitute it before plotting.
+- **CRITICAL GRAPHING REQUIREMENT**: You MUST use the 'generate_graph_data' tool whenever a user asks to plot, graph, or visualize ANY mathematical function. This includes requests like:
+  * "graph y = x^2"
+  * "plot sin(x)"
+  * "can you show me y = log(x)?"
+  * "draw the function y = e^x"
+  * ANY request to visualize a mathematical expression
+  
+  When the user requests a graph, IMMEDIATELY call the generate_graph_data tool with:
+  - functionStr: the mathematical expression (e.g., "y = x^2", "sin(x)", "log(x)")
+  - xMin: default -10 (or user specified)
+  - xMax: default 10 (or user specified)  
+  - step: default 1 (or user specified)
+  
+  Do NOT just explain the function - USE THE TOOL to generate the actual graph.
 
 - Tool User: You can also generate text and analyze images/notes.
 
 Interaction Guidelines:
 - If you don't know something, say so.
-- Maintain a supportive, professional, and encouraging tone.`
+- Maintain a supportive, professional, and encouraging tone.
+- ALWAYS use the graph tool when graphing is requested - never just provide text explanations of what a graph would look like.`
   }]
 };
 
@@ -519,6 +533,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
     // Clean and normalize the expression for mathjs
     expression = expression
       .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
+      .replace(/\*\*/g, '^') // Convert back to mathjs exponent syntax
       .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication
       .replace(/\)\(/g, ') * ('); // Handle multiplication between parentheses
 
@@ -647,30 +662,38 @@ app.post('/api/chat', async (req, res) => {
 
     if (isGraphRequest && functionCall && functionCall.name === 'generate_graph_data') {
       const { functionStr, xMin, xMax, step } = functionCall.args;
-      const graphData = await generateGraphData(functionStr, xMin, xMax, step);
+      console.log(`DEBUG: Processing graph request for: ${functionStr}`);
+      
+      try {
+        const graphData = await generateGraphData(functionStr, xMin, xMax, step);
 
-      if (graphData) {
-        const imageUrl = await generateGraphImage(graphData, functionStr, 'x', 'y');
-        if (imageUrl) {
-          const kanaResponseText = `Here is the graph for ${functionStr}.`;
-          conversation.history.push({ role: 'user', parts: [{ text: message }] });
-          conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-          return res.json({
-            type: 'mathematical_graph',
-            kanaResponse: kanaResponseText,
-            generatedImageUrl: imageUrl
-          });
+        if (graphData && graphData.length > 0) {
+          console.log(`DEBUG: Generated ${graphData.length} data points for graph`);
+          const imageUrl = await generateGraphImage(graphData, functionStr, 'x', 'y');
+          if (imageUrl) {
+            const kanaResponseText = `Here is the graph for ${functionStr}.`;
+            conversation.history.push({ role: 'user', parts: [{ text: message }] });
+            conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
+            return res.json({
+              type: 'mathematical_graph',
+              kanaResponse: kanaResponseText,
+              generatedImageUrl: imageUrl
+            });
+          } else {
+            console.error("Graph image generation failed after data calculation.");
+            throw new Error("Graph image generation failed.");
+          }
         } else {
-          // This case might happen if canvas fails, but the function was valid
-          throw new Error("Graph image generation failed after data calculation.");
+          console.error("No valid data points generated for graph");
+          throw new Error("Could not generate valid data points for the function.");
         }
-      } else {
-        // This case handles the evaluation error from generateGraphData
-        const fallbackResponse = await chat.sendMessage("I tried to generate a graph, but there was an error with the function. Please check the mathematical expression and ensure it's valid.");
-        const kanaResponseText = fallbackResponse.response.text();
+      } catch (graphError) {
+        console.error("Graph generation error:", graphError.message);
+        // Send a fallback response explaining the issue
+        const fallbackResponse = `I tried to generate a graph for "${functionStr}", but encountered an error: ${graphError.message}. Please check that the mathematical expression is valid and try again.`;
         conversation.history.push({ role: 'user', parts: [{ text: message }] });
-        conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-        return res.json({ kanaResponse: kanaResponseText });
+        conversation.history.push({ role: 'model', parts: [{ text: fallbackResponse }] });
+        return res.json({ kanaResponse: fallbackResponse });
       }
     } else {
       const kanaResponseText = response.text();

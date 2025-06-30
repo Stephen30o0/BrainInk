@@ -2,24 +2,30 @@
 // Usage: generateSVGGraph(data, title, xLabel, yLabel)
 
 function generateSVGGraph(data, title = '', xLabel = 'x', yLabel = 'y') {
-  // data: { x: number[], y: number[] }
-  if (!data || !Array.isArray(data.x) || !Array.isArray(data.y) || data.x.length !== data.y.length) {
+  // data: Array of {x: number, y: number} objects
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null;
   }
+  
   const width = 500;
   const height = 300;
   const padding = 50;
-  const points = data.x.map((x, i) => ({ x, y: data.y[i] }));
+  
+  // Extract x and y values from the data array
+  const xValues = data.map(point => point.x);
+  const yValues = data.map(point => point.y);
+  
   // Find min/max
-  const minX = Math.min(...data.x);
-  const maxX = Math.max(...data.x);
-  const minY = Math.min(...data.y);
-  const maxY = Math.max(...data.y);
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
   // Scale functions
   const scaleX = x => padding + ((x - minX) / (maxX - minX || 1)) * (width - 2 * padding);
   const scaleY = y => height - padding - ((y - minY) / (maxY - minY || 1)) * (height - 2 * padding);
-  // Polyline points
-  const polyline = points.map(p => `${scaleX(p.x)},${scaleY(p.y)}`).join(' ');
+  
+  // Create polyline points from the data array
+  const polyline = data.map(point => `${scaleX(point.x)},${scaleY(point.y)}`).join(' ');
   // Axes
   const xAxisY = scaleY(minY);
   const yAxisX = scaleX(minX);

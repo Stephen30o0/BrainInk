@@ -5,19 +5,25 @@ const fs = require('fs');
 const path = require('path');
 
 async function generateChartJSGraph(data, title = '', xLabel = 'x', yLabel = 'y') {
-  if (!data || !Array.isArray(data.x) || !Array.isArray(data.y) || data.x.length !== data.y.length) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null;
   }
+  
   const width = 500;
   const height = 300;
   const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
+  
+  // Extract x and y values from the data array
+  const xValues = data.map(point => point.x);
+  const yValues = data.map(point => point.y);
+  
   const config = {
     type: 'line',
     data: {
-      labels: data.x,
+      labels: xValues,
       datasets: [{
         label: title || 'y',
-        data: data.y,
+        data: yValues,
         borderColor: '#6c5ce7',
         backgroundColor: 'rgba(108,92,231,0.2)',
         fill: false,
