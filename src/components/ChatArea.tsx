@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, XCircle, UploadCloud, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
-const BACKEND_BASE_URL = 'http://localhost:10000';
+const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
 
 interface Message {
     id: string;

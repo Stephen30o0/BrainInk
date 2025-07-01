@@ -279,7 +279,8 @@ class TeacherService {
       }));
 
       // Call K.A.N.A. for teacher recommendations
-      const response = await fetch('http://localhost:10000/kana-direct', {
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

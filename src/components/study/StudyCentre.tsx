@@ -146,7 +146,8 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
       console.log('🔍 Using userId for assignments:', userId, 'from realUser:', realUser);
       
       // Test the backend assignment generation directly
-      const response = await fetch('http://localhost:10000/api/create-assignments-from-analysis', {
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const response = await fetch(`${BACKEND_BASE_URL}/api/create-assignments-from-analysis`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
