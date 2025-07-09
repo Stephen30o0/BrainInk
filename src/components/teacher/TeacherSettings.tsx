@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Settings, User, Bell, Database, Shield, Eye, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, User, Bell, Database, Shield, Save, Loader2 } from 'lucide-react';
+import { teacherService } from '../../services/teacherService';
 
 interface TeacherSettings {
   profile: {
@@ -32,11 +33,11 @@ interface TeacherSettings {
 export const TeacherSettings: React.FC = () => {
   const [settings, setSettings] = useState<TeacherSettings>({
     profile: {
-      name: 'Dr. Sarah Johnson',
-      email: 'sarah.johnson@school.edu',
-      subjects: ['Mathematics', 'Physics'],
-      classId: 'MATH-101-2024',
-      school: 'Lincoln High School'
+      name: 'Loading...',
+      email: '',
+      subjects: [],
+      classId: '',
+      school: ''
     },
     notifications: {
       emailAlerts: true,
@@ -60,11 +61,104 @@ export const TeacherSettings: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('profile');
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    // Here you would save settings to your backend
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  useEffect(() => {
+    const fetchTeacherSettings = async () => {
+      try {
+        const data = await teacherService.getTeacherSettings();
+        if (data) {
+          setSettings({
+            profile: {
+              name: data.profile.name,
+              email: data.profile.email,
+              subjects: data.profile.subject ? [data.profile.subject] : [],
+              classId: data.profile.employeeId.toString(),
+              school: data.profile.school
+            },
+            notifications: {
+              emailAlerts: data.preferences.notifications.email,
+              pushNotifications: data.preferences.notifications.push,
+              weeklyReports: data.preferences.notifications.email,
+              aiInsights: true,
+              studentProgress: true
+            },
+            privacy: {
+              shareDataWithSchool: data.privacy.shareProgress,
+              anonymousAnalytics: data.privacy.profileVisibility === 'public',
+              dataRetention: '2_years'
+            },
+            kanaSettings: {
+              analysisFrequency: 'daily',
+              confidenceThreshold: 75,
+              autoSendImprovementPlans: false,
+              includeWeakAreas: true
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error loading teacher settings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeacherSettings();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaved(false);
+      setLoading(true);
+
+      // Convert settings to teacherService format
+      const teacherSettings = {
+        profile: {
+          name: settings.profile.name,
+          email: settings.profile.email,
+          subject: settings.profile.subjects[0] || 'General',
+          employeeId: parseInt(settings.profile.classId) || 0,
+          school: settings.profile.school
+        },
+        preferences: {
+          notifications: {
+            email: settings.notifications.emailAlerts,
+            push: settings.notifications.pushNotifications,
+            sms: false
+          },
+          theme: 'light',
+          language: 'en',
+          timezone: 'UTC',
+          autoSave: true,
+          showTutorials: true
+        },
+        privacy: {
+          shareProgress: settings.privacy.shareDataWithSchool,
+          profileVisibility: settings.privacy.anonymousAnalytics ? 'public' : 'school',
+          allowMessages: true,
+          showOnlineStatus: true
+        },
+        security: {
+          twoFactorEnabled: false,
+          sessionTimeout: 30,
+          loginNotifications: true,
+          lastPasswordChange: new Date().toISOString()
+        }
+      };
+
+      const success = await teacherService.updateTeacherSettings(teacherSettings);
+
+      if (success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        console.error('Failed to save teacher settings');
+      }
+    } catch (error) {
+      console.error('Error saving teacher settings:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateProfile = (field: string, value: any) => {
@@ -102,6 +196,14 @@ export const TeacherSettings: React.FC = () => {
     { id: 'kana', label: 'K.A.N.A. Settings', icon: Database }
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-16 h-16 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -115,11 +217,10 @@ export const TeacherSettings: React.FC = () => {
         </div>
         <button
           onClick={handleSave}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-            saved 
-              ? 'bg-green-600 text-white' 
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${saved
+            ? 'bg-green-600 text-white'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
         >
           <Save className="w-4 h-4" />
           <span>{saved ? 'Saved!' : 'Save Changes'}</span>
@@ -137,11 +238,10 @@ export const TeacherSettings: React.FC = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${activeTab === tab.id
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{tab.label}</span>
@@ -155,12 +255,12 @@ export const TeacherSettings: React.FC = () => {
         {/* Content Area */}
         <div className="lg:col-span-3">
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            
+
             {/* Profile Tab */}
             {activeTab === 'profile' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-semibold text-gray-900">Profile Information</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
@@ -171,7 +271,7 @@ export const TeacherSettings: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                     <input
@@ -181,7 +281,7 @@ export const TeacherSettings: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Class ID</label>
                     <input
@@ -191,7 +291,7 @@ export const TeacherSettings: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">School</label>
                     <input
@@ -202,7 +302,7 @@ export const TeacherSettings: React.FC = () => {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Subjects Taught</label>
                   <div className="flex flex-wrap gap-2">
@@ -223,7 +323,7 @@ export const TeacherSettings: React.FC = () => {
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-semibold text-gray-900">Notification Preferences</h3>
-                
+
                 <div className="space-y-4">
                   {Object.entries(settings.notifications).map(([key, value]) => (
                     <div key={key} className="flex items-center justify-between">
@@ -258,7 +358,7 @@ export const TeacherSettings: React.FC = () => {
             {activeTab === 'privacy' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-semibold text-gray-900">Privacy & Data</h3>
-                
+
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -275,7 +375,7 @@ export const TeacherSettings: React.FC = () => {
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Data Retention Period</label>
                     <select
@@ -297,7 +397,7 @@ export const TeacherSettings: React.FC = () => {
             {activeTab === 'kana' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-semibold text-gray-900">K.A.N.A. AI Configuration</h3>
-                
+
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Analysis Frequency</label>
@@ -311,7 +411,7 @@ export const TeacherSettings: React.FC = () => {
                       <option value="weekly">Weekly</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Confidence Threshold: {settings.kanaSettings.confidenceThreshold}%
@@ -328,7 +428,7 @@ export const TeacherSettings: React.FC = () => {
                       Only show suggestions with this confidence level or higher
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium text-gray-900">Auto-send Improvement Plans</h4>

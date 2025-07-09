@@ -5,7 +5,7 @@ declare global {
     scrollTimer?: NodeJS.Timeout;
   }
 }
-import { BrainIcon, BookOpenIcon, TrophyIcon, WalletIcon, UsersIcon, MapIcon, MessageSquareIcon, GraduationCapIcon } from 'lucide-react';
+import { BrainIcon, BookOpenIcon, TrophyIcon, WalletIcon, UsersIcon, MapIcon, MessageSquareIcon, GraduationCapIcon, ShieldCheckIcon } from 'lucide-react';
 export const HudNavigation = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [xp] = useState(247);
@@ -85,10 +85,16 @@ export const HudNavigation = () => {
     color: 'from-amber-500 to-yellow-500'
   }, {
     icon: <GraduationCapIcon size={18} />,
-    label: 'Teacher',
+    label: 'School',
     color: 'from-purple-500 to-indigo-500',
     isRoute: true,
-    route: '/teacher-dashboard'
+    route: '/school-login'
+  }, {
+    icon: <ShieldCheckIcon size={18} />,
+    label: 'Principal',
+    color: 'from-indigo-600 to-purple-700',
+    isRoute: true,
+    route: '/principal-login'
   }, {
     icon: <UsersIcon size={18} />,
     label: 'Team',

@@ -8,30 +8,74 @@ import { StudentProfiles } from '../components/teacher/StudentProfiles';
 import { AISuggestions } from '../components/teacher/AISuggestions';
 import { TeacherSettings } from '../components/teacher/TeacherSettings';
 import { ClassManagement } from '../components/teacher/ClassManagement';
+import { AssignmentManager } from '../components/teacher/AssignmentManager';
+import { GradingDashboard } from '../components/teacher/GradingDashboard';
 import { useAuth } from '../hooks/useAuth';
+import { teacherService } from '../services/teacherService';
+import { schoolSelectionService } from '../services/schoolSelectionService';
 
-type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'ai-suggestions' | 'manage-class' | 'settings';
+type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'ai-suggestions' | 'manage-class' | 'settings';
 
 export const TeacherDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TeacherDashboardTab>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [backendConnected, setBackendConnected] = useState(false);
+  const [teacherData, setTeacherData] = useState<any>(null);
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Check if user is authenticated and has teacher role
-    if (!isAuthenticated) {
-      navigate('/login?redirect=/teacher-dashboard');
-      return;
-    }
-
-    if (user?.role !== 'teacher') {
-      navigate('/');
-      return;
-    }
-
-    setIsLoading(false);
+    initializeDashboard();
   }, [isAuthenticated, user, navigate]);
+
+  const initializeDashboard = async () => {
+    try {
+      // Check if user is authenticated
+      const accessToken = localStorage.getItem('access_token');
+
+      if (!accessToken) {
+        console.log('❌ No authentication token found');
+        navigate('/school-login', { replace: true });
+        return;
+      }
+
+      // Check if user has confirmed school and role as teacher
+      const schoolRoleInfo = schoolSelectionService.getStoredSchoolRole();
+
+      if (!schoolRoleInfo.confirmed || schoolRoleInfo.role !== 'teacher') {
+        console.log('❌ Teacher role not confirmed:', schoolRoleInfo);
+        // Clear any stale data and redirect to role selection
+        schoolSelectionService.clearSchoolRole();
+        navigate('/role-selection', { replace: true });
+        return;
+      }
+
+      console.log('✅ Teacher authorization confirmed:', schoolRoleInfo);
+
+      // Try to sync with backend if available
+      try {
+        await teacherService.syncWithBackend();
+        setBackendConnected(true);
+        console.log('✅ Backend sync successful');
+      } catch (backendError) {
+        console.warn('⚠️ Backend sync failed, using local mode:', backendError);
+        setBackendConnected(false);
+      }
+
+      // Set teacher data from school selection
+      setTeacherData({
+        role: schoolRoleInfo.role,
+        school_id: schoolRoleInfo.schoolId,
+        school_name: schoolRoleInfo.schoolName
+      });
+
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Dashboard initialization error:', error);
+      setIsLoading(false);
+      navigate('/school-login', { replace: true });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -54,6 +98,10 @@ export const TeacherDashboard: React.FC = () => {
         return <ClassOverview />;
       case 'students':
         return <StudentProfiles />;
+      case 'assignments':
+        return <AssignmentManager />;
+      case 'grading':
+        return <GradingDashboard />;
       case 'ai-suggestions':
         return <AISuggestions />;
       case 'manage-class':
@@ -68,12 +116,12 @@ export const TeacherDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <TeacherSidebar 
-        activeTab={activeTab} 
-        onTabChange={(tab) => setActiveTab(tab as TeacherDashboardTab)} 
+      <TeacherSidebar
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as TeacherDashboardTab)}
         teacher={user}
       />
-      
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
@@ -89,9 +137,18 @@ export const TeacherDashboard: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <div className="bg-blue-100 px-3 py-1 rounded-full">
-                <span className="text-blue-800 text-sm font-medium">K.A.N.A. Active</span>
+                <span className="text-blue-800 text-sm font-medium">
+                  {backendConnected ? 'Backend Connected' : 'K.A.N.A. Active'}
+                </span>
               </div>
-              <button 
+              {backendConnected && teacherData && (
+                <div className="bg-green-100 px-3 py-1 rounded-full">
+                  <span className="text-green-800 text-sm font-medium">
+                    {teacherData.name || 'Teacher'}
+                  </span>
+                </div>
+              )}
+              <button
                 onClick={() => navigate('/')}
                 className="text-gray-500 hover:text-gray-700"
               >

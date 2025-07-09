@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Users, 
-  BookOpen, 
+import {
+  TrendingUp,
+  Users,
+  BookOpen,
   AlertTriangle,
   CheckCircle,
   Clock,
   Brain,
-  Loader2
+  Loader2,
+  FileText,
+  BarChart3,
+  Award
 } from 'lucide-react';
 import { AnalyticsChart } from './AnalyticsChart';
 import { teacherService, KanaRecommendation } from '../../services/teacherService';
@@ -19,6 +22,15 @@ interface ClassMetrics {
   completionRate: number;
   strugglingStudents: number;
   topPerformers: number;
+}
+
+interface GradingMetrics {
+  totalAssignments: number;
+  totalGrades: number;
+  averageClassScore: number;
+  gradingProgress: number;
+  assignmentsNeedingGrading: number;
+  recentActivity: any[];
 }
 
 interface RecentActivity {
@@ -33,6 +45,7 @@ interface RecentActivity {
 
 export const TeacherOverview: React.FC = () => {
   const [metrics, setMetrics] = useState<ClassMetrics | null>(null);
+  const [gradingMetrics, setGradingMetrics] = useState<GradingMetrics | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [kanaInsights, setKanaInsights] = useState<KanaRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,15 +53,15 @@ export const TeacherOverview: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
-    
+
     // Listen for class student changes
     const handleClassStudentsChanged = (event: any) => {
       console.log('Class students changed, refreshing dashboard...', event.detail);
       setTimeout(() => loadDashboardData(), 500); // Small delay to ensure data is saved
     };
-    
+
     window.addEventListener('classStudentsChanged', handleClassStudentsChanged);
-    
+
     return () => {
       window.removeEventListener('classStudentsChanged', handleClassStudentsChanged);
     };
@@ -64,7 +77,10 @@ export const TeacherOverview: React.FC = () => {
 
       // Load class insights
       const insights = teacherService.generateClassInsights(students);
-      
+
+      // Load grading analytics
+      const gradingAnalytics = await teacherService.getGradingAnalytics();
+
       // Convert insights to metrics format
       const metricsData: ClassMetrics = {
         totalStudents: insights.totalStudents,
@@ -76,9 +92,12 @@ export const TeacherOverview: React.FC = () => {
       };
       setMetrics(metricsData);
 
+      // Set grading metrics
+      setGradingMetrics(gradingAnalytics);
+
       // Load recent activity from students
       const activities: RecentActivity[] = [];
-      
+
       students.slice(0, 8).forEach((student, index) => {
         if (student.recentActivity && student.recentActivity.length > 0) {
           const activity = student.recentActivity[0];
@@ -105,9 +124,34 @@ export const TeacherOverview: React.FC = () => {
       });
       setRecentActivity(activities);
 
-      // Load K.A.N.A. recommendations
-      const recommendations = await teacherService.getKanaRecommendations(students);
-      setKanaInsights(recommendations.slice(0, 3)); // Show top 3 insights
+      // Generate mock K.A.N.A. recommendations based on insights
+      const recommendations: KanaRecommendation[] = [
+        {
+          id: '1',
+          type: 'class',
+          priority: 'high',
+          title: 'Focus on Struggling Students',
+          description: `${insights.strugglingStudents.length} students need additional support`,
+          actionItems: ['Schedule individual consultations', 'Provide additional resources'],
+          reasoning: 'Low performance indicators detected',
+          estimatedImpact: 'High improvement in class average',
+          timeframe: '2 weeks',
+          generatedAt: new Date().toISOString()
+        },
+        {
+          id: '2',
+          type: 'curriculum',
+          priority: 'medium',
+          title: 'Enhance Top Performer Engagement',
+          description: `Challenge ${insights.topPerformers.length} high-achieving students`,
+          actionItems: ['Assign advanced projects', 'Peer tutoring opportunities'],
+          reasoning: 'Students showing excellent progress',
+          estimatedImpact: 'Maintain engagement and leadership',
+          timeframe: '1 week',
+          generatedAt: new Date().toISOString()
+        }
+      ];
+      setKanaInsights(recommendations);
 
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -146,7 +190,7 @@ export const TeacherOverview: React.FC = () => {
           <div className="text-center">
             <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-4" />
             <p className="text-red-600 mb-4">{error}</p>
-            <button 
+            <button
               onClick={loadDashboardData}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
@@ -287,15 +331,82 @@ export const TeacherOverview: React.FC = () => {
                     <span className="font-medium text-gray-900">{activity.score}%</span>
                   )}
                   <span className="text-sm text-gray-500">{activity.timestamp}</span>
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.needsAttention ? 'bg-red-500' : 'bg-green-500'
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full ${activity.needsAttention ? 'bg-red-500' : 'bg-green-500'
+                    }`} />
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Grading Metrics */}
+      {gradingMetrics && (
+        <>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">Grading Overview</h3>
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-purple-600" />
+              <span className="text-purple-800 font-medium">Assignment Analytics</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Assignments</p>
+                  <p className="text-3xl font-bold text-gray-900">{gradingMetrics.totalAssignments}</p>
+                </div>
+                <FileText className="w-8 h-8 text-blue-600" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Grades Given</p>
+                  <p className="text-3xl font-bold text-gray-900">{gradingMetrics.totalGrades}</p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Class Average</p>
+                  <p className="text-3xl font-bold text-gray-900">{gradingMetrics.averageClassScore}%</p>
+                </div>
+                <Award className="w-8 h-8 text-purple-600" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Grading Progress</p>
+                  <p className="text-3xl font-bold text-gray-900">{gradingMetrics.gradingProgress}%</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-blue-600" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Need Grading</p>
+                  <p className="text-3xl font-bold text-yellow-600">{gradingMetrics.assignmentsNeedingGrading}</p>
+                </div>
+                <Clock className="w-8 h-8 text-yellow-600" />
+              </div>
+              <div className="mt-2">
+                <span className="text-sm text-yellow-600">Pending review</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

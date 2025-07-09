@@ -1,6 +1,100 @@
-import { apiService } from './apiService';
+// Backend API Configuration
+const BACKEND_URL = 'https://brainink-backend.onrender.com';
 
-// Types for Teacher Dashboard integrated with real BrainInk data
+// Import classroom service
+import { teacherClassroomService } from './teacherClassroomService';
+// Import grades and assignments service
+import GradesAssignmentsService, { type Grade } from './gradesAssignmentsService';
+
+// Get service instance
+const gradesAssignmentsService = GradesAssignmentsService.getInstance();
+
+// Backend API Response Types
+interface BackendStudent {
+  id: number;
+  user_id: number;
+  school_id: number;
+  user: {
+    id: number;
+    username: string;
+    fname: string;
+    lname: string;
+    email: string;
+  };
+  enrollment_date: string;
+  is_active: boolean;
+}
+
+interface BackendSubject {
+  id: number;
+  name: string;
+  school_id: number;
+  created_date: string;
+  is_active: boolean;
+  teacher_count?: number;
+  student_count?: number;
+  teachers?: BackendTeacher[];
+  students?: BackendStudent[];
+}
+
+interface BackendTeacher {
+  id: number;
+  user_id: number;
+  school_id: number;
+  user: {
+    id: number;
+    username: string;
+    fname: string;
+    lname: string;
+    email: string;
+  };
+  hire_date: string;
+  is_active: boolean;
+}
+
+interface BackendAssignment {
+  id: number;
+  title: string;
+  description?: string;
+  subject_id: number;
+  teacher_id: number;
+  due_date?: string;
+  max_points: number;
+  assignment_type?: string;
+  created_date: string;
+  is_active: boolean;
+  subject?: BackendSubject;
+  grade_count?: number;
+  average_score?: number;
+}
+
+interface BackendGrade {
+  id: number;
+  assignment_id: number;
+  student_id: number;
+  score: number;
+  max_points: number;
+  feedback?: string;
+  graded_date: string;
+  graded_by: number;
+  assignment?: BackendAssignment;
+  student?: BackendStudent;
+}
+
+interface BackendSchoolInvitation {
+  id: number;
+  email: string;
+  invitation_type: 'teacher' | 'student';
+  school_id: number;
+  school_name: string;
+  invited_by: number;
+  invited_date: string;
+  is_used: boolean;
+  used_date?: string;
+  is_active: boolean;
+}
+
+// Frontend Types
 export interface Student {
   id: number;
   username: string;
@@ -123,195 +217,1169 @@ class TeacherServiceClass {
   private studentsCache: Student[] = [];
   private lastCacheUpdate: number = 0;
   private cacheTimeout = 5 * 60 * 1000; // 5 minutes
-  private classStudents: Set<number> = new Set(); // Track which students are in the class
+  private backendConnected: boolean = false;
 
   public static getInstance(): TeacherServiceClass {
     if (!TeacherServiceClass.instance) {
       TeacherServiceClass.instance = new TeacherServiceClass();
-      TeacherServiceClass.instance.loadClassStudents();
+      // TeacherServiceClass.instance.loadClassStudents(); // TODO: Implement if needed
+      TeacherServiceClass.instance.initializeBackendConnection();
     }
     return TeacherServiceClass.instance;
   }
 
   /**
-   * Get all students (real users from BrainInk)
+   * Initialize backend connection
    */
-  public async getAllStudents(): Promise<Student[]> {
+  private async initializeBackendConnection(): Promise<void> {
     try {
-      console.log('Loading real BrainInk students...');
-      
-      // Check cache first
-      if (this.studentsCache.length > 0 && Date.now() - this.lastCacheUpdate < this.cacheTimeout) {
-        console.log('Returning cached students');
-        return this.studentsCache;
+      console.log('🔗 Initializing teacher backend connection...');
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('⚠️ No authentication token found');
+        return;
       }
 
-      let users: any[] = [];
-      
-      // Only get students if we have saved class students (manually added)
-      if (this.classStudents.size > 0) {
-        console.log(`Loading saved class students: ${Array.from(this.classStudents).join(', ')}`);
-        
-        // Try to search for each saved student ID by username first
-        const allUsers = [];
-        const searchQueries = ['a', 'alex', 'john', 'maria', 'david', 'sarah', 'mike', 'anna', 'chris', 'lisa', 'emma', 'sophia', 'james', 'olivia', 'michael'];
-        
-        for (const query of searchQueries) {
+      const role = localStorage.getItem('user_role');
+      if (role !== 'teacher') {
+        console.log('ℹ️ User role is not teacher, skipping teacher initialization');
+        return;
+      }
+
+      // Test backend connection
+      const status = await this.getTeacherStatus();
+      if (status) {
+        this.backendConnected = true;
+        console.log('✅ Backend connection established');
+      }
+    } catch (error) {
+      console.error('❌ Backend connection failed:', error);
+      this.backendConnected = false;
+    }
+  }
+
+  /**
+   * Make authenticated API request to backend
+   */
+  private async makeAuthenticatedRequest(endpoint: string, method: string = 'GET', body?: any): Promise<Response> {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const headers: HeadersInit = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const config: RequestInit = {
+      method,
+      headers
+    };
+
+    if (body && (method === 'POST' || method === 'PUT')) {
+      config.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+      console.error('Teacher API Error:', errorData);
+      throw new Error(errorMessage);
+    }
+
+    return response;
+  }
+
+  // ============ SCHOOL ACCESS & MANAGEMENT ============
+
+  /**
+   * Join school via email invitation
+   */
+  public async joinSchoolAsTeacher(email: string): Promise<boolean> {
+    try {
+      console.log('📧 Joining school as teacher with email:', email);
+      const response = await this.makeAuthenticatedRequest('/study-area/join-school/teacher', 'POST', { email });
+      const data = await response.json();
+      console.log('✅ Successfully joined school as teacher:', data.message);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to join school as teacher:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check available invitations for teacher
+   */
+  public async checkAvailableInvitations(): Promise<BackendSchoolInvitation[]> {
+    try {
+      console.log('📋 Checking available invitations...');
+      const response = await this.makeAuthenticatedRequest('/study-area/invitations/available');
+      const data = await response.json();
+      console.log('✅ Available invitations:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to check invitations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Login to specific school as teacher
+   */
+  public async loginToSchool(schoolId: number, email: string): Promise<boolean> {
+    try {
+      console.log('🏫 Logging into school:', schoolId, 'with email:', email);
+      const response = await this.makeAuthenticatedRequest('/study-area/login-school/select-teacher', 'POST', {
+        school_id: schoolId,
+        email
+      });
+      const data = await response.json();
+      console.log('✅ Successfully logged into school:', data.message);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to login to school:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get available schools for teacher
+   */
+  public async getAvailableSchools(): Promise<any[]> {
+    try {
+      console.log('🏫 Getting available schools...');
+      const response = await this.makeAuthenticatedRequest('/study-area/schools/available');
+      const data = await response.json();
+      console.log('✅ Available schools:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get available schools:', error);
+      return [];
+    }
+  }
+
+  // ============ SUBJECT MANAGEMENT ============
+
+  /**
+   * Get teacher's assigned subjects
+   */
+  public async getMySubjects(): Promise<BackendSubject[]> {
+    try {
+      console.log('📚 Getting my assigned subjects...');
+      const response = await this.makeAuthenticatedRequest('/study-area/academic/teachers/my-subjects');
+      const data = await response.json();
+      console.log('✅ My subjects:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get my subjects:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get subject details with students
+   */
+  public async getSubjectDetails(subjectId: number): Promise<BackendSubject | null> {
+    try {
+      console.log('📖 Getting subject details for ID:', subjectId);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}`);
+      const data = await response.json();
+      console.log('✅ Subject details:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get subject details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get subjects taught by teacher with detailed student information
+   */
+  public async getMySubjectsWithStudents(): Promise<any[]> {
+    try {
+      console.log('📚 Getting my subjects with student details...');
+      const subjects = await this.getMySubjects();
+
+      // For each subject, get detailed information including students
+      const subjectsWithDetails = await Promise.all(
+        subjects.map(async (subject: any) => {
           try {
-            const searchResults = await this.searchUsers(query);
-            allUsers.push(...searchResults);
-          } catch (error) {
-            console.warn(`Search for "${query}" failed:`, error);
-          }
-        }
-        
-        // Filter to only include students that are in our class
-        users = allUsers.filter(user => this.classStudents.has(user.id));
-        console.log(`Found ${users.length} class students out of ${this.classStudents.size} saved IDs`);
-      }
-      
-      // If no class students saved, return empty array (teacher needs to add students)
-      if (users.length === 0) {
-        console.log('No class students found. Teacher needs to add students to class.');
-        return [];
-      }
+            const detailResponse = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subject.id}`);
+            const detailData = await detailResponse.json();
 
-      console.log(`Found ${users.length} class students`);
+            // Transform backend student data to frontend format
+            const transformedStudents = detailData.students?.map((student: any) => ({
+              id: student.id,
+              user_id: student.user_id,
+              username: student.name,
+              name: student.name,
+              email: student.email,
+              classroom_id: null, // Will be populated if available
+              subjects: [subject.name]
+            })) || [];
 
-      // Transform users to students with enhanced data
-      const students: Student[] = await Promise.all(
-        users.map(async (user, index) => {
-          try {
-            // Get real progress and stats where possible
-            const progress = index === 0 ? apiService.getUserProgress() : this.getSimulatedProgress(user.id);
-            const stats = index === 0 ? apiService.getUserStats() : this.getSimulatedStats(user.id);
-            const recentActivity = await this.getStudentActivity(user.id);
-
-            const student: Student = {
-              ...user,
-              progress: progress || undefined,
-              stats: stats || undefined,
-              recentActivity,
-              strengths: this.generateStrengths(progress || undefined, stats || undefined),
-              weaknesses: this.generateWeaknesses(progress || undefined, stats || undefined),
-              currentSubjects: this.getCurrentSubjects(recentActivity),
-              learningStyle: this.determineLearningStyle(progress || undefined, stats || undefined),
-              lastActive: this.getLastActiveTime(recentActivity),
-              rank: progress?.current_rank?.name || stats?.current_rank || 'Novice',
-              totalXP: progress?.total_xp || stats?.total_xp || 0
-            };
-
-            return student;
-          } catch (error) {
-            console.warn(`Failed to get enhanced data for user ${user.id}:`, error);
             return {
-              ...user,
-              progress: this.getDefaultProgress(),
-              stats: this.getDefaultStats(),
-              recentActivity: [],
-              strengths: ['Consistent learner'],
-              weaknesses: ['Needs more practice'],
-              currentSubjects: ['Mathematics', 'Science'],
-              learningStyle: 'Visual',
-              lastActive: 'Recently',
-              rank: 'Novice',
-              totalXP: 500
+              ...subject,
+              students: transformedStudents,
+              teacher_count: detailData.teachers?.length || 0,
+              student_count: transformedStudents.length
+            };
+          } catch (error) {
+            console.error(`❌ Failed to get details for subject ${subject.id}:`, error);
+            return {
+              ...subject,
+              students: [],
+              teacher_count: 0,
+              student_count: 0
             };
           }
         })
       );
 
-      // Update cache
-      this.studentsCache = students;
-      this.lastCacheUpdate = Date.now();
-
-      console.log(`Cached ${students.length} students for teacher dashboard`);
-      return students;
+      console.log('✅ Subjects with student details:', subjectsWithDetails.length);
+      return subjectsWithDetails;
     } catch (error) {
-      console.error('Failed to load students:', error);
-      
-      // If no students added to class, return empty array
+      console.error('❌ Failed to get subjects with students:', error);
+      return [];
+    }
+  }
+
+  // ============ ASSIGNMENT MANAGEMENT ============
+
+  /**
+   * Create new assignment
+   */
+  public async createAssignment(assignmentData: {
+    title: string;
+    subject_id: number;
+    description?: string;
+    due_date?: string;
+    max_points?: number;
+    assignment_type?: string;
+  }): Promise<BackendAssignment | null> {
+    try {
+      console.log('📝 Creating assignment:', assignmentData);
+      const response = await this.makeAuthenticatedRequest('/study-area/academic/assignments/create', 'POST', assignmentData);
+      const data = await response.json();
+      console.log('✅ Assignment created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create assignment:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get teacher's assignments
+   */
+  public async getMyAssignments(): Promise<any[]> {
+    try {
+      return await gradesAssignmentsService.getMyAssignments();
+    } catch (error) {
+      console.error('❌ Failed to get assignments:', error);
       return [];
     }
   }
 
   /**
-   * Search for users using the working BrainInk endpoint
+   * Get assignments for specific subject
    */
-  private async searchUsers(query: string): Promise<any[]> {
-    const token = localStorage.getItem('access_token');
-    if (!token) return [];
-
+  public async getSubjectAssignments(subjectId: number): Promise<any[]> {
     try {
-      const response = await fetch(`https://brainink-backend-freinds-micro.onrender.com/friends/users/search?username=${encodeURIComponent(query)}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+      return await gradesAssignmentsService.getSubjectAssignments(subjectId);
+    } catch (error) {
+      console.error('❌ Failed to get subject assignments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update assignment
+   */
+  public async updateAssignment(assignmentId: number, updateData: {
+    title?: string;
+    description?: string;
+    due_date?: string;
+    max_points?: number;
+    assignment_type?: string;
+  }): Promise<BackendAssignment | null> {
+    try {
+      console.log('📝 Updating assignment:', assignmentId, updateData);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/assignments/${assignmentId}`, 'PUT', updateData);
+      const data = await response.json();
+      console.log('✅ Assignment updated:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to update assignment:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete assignment
+   */
+  public async deleteAssignment(assignmentId: number): Promise<boolean> {
+    try {
+      console.log('🗑️ Deleting assignment:', assignmentId);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/assignments/${assignmentId}`, 'DELETE');
+      const data = await response.json();
+      console.log('✅ Assignment deleted:', data.message);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to delete assignment:', error);
+      return false;
+    }
+  }
+
+  // ============ GRADING MANAGEMENT ============
+
+  /**
+   * Create grade for student assignment
+   */
+  public async createGrade(gradeData: {
+    assignment_id: number;
+    student_id: number;
+    score: number;
+    max_points: number;
+    feedback?: string;
+  }): Promise<BackendGrade | null> {
+    try {
+      console.log('✅ Creating grade:', gradeData);
+      const response = await this.makeAuthenticatedRequest('/study-area/academic/grades/create', 'POST', gradeData);
+      const data = await response.json();
+      console.log('✅ Grade created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create grade:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create multiple grades at once
+   */
+  public async createBulkGrades(bulkData: {
+    assignment_id: number;
+    grades: Array<{
+      student_id: number;
+      score: number;
+      feedback?: string;
+    }>;
+  }): Promise<{ successful_grades: BackendGrade[]; failed_grades: any[] }> {
+    try {
+      console.log('📊 Creating bulk grades:', bulkData);
+      const response = await this.makeAuthenticatedRequest('/study-area/academic/grades/bulk', 'POST', bulkData);
+      const data = await response.json();
+      console.log('✅ Bulk grades created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create bulk grades:', error);
+      return { successful_grades: [], failed_grades: [] };
+    }
+  }
+
+  /**
+   * Get grades for specific assignment
+   */
+  public async getAssignmentGrades(assignmentId: number): Promise<BackendGrade[]> {
+    try {
+      console.log('📊 Getting grades for assignment:', assignmentId);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/grades/assignment/${assignmentId}`);
+      const data = await response.json();
+      console.log('✅ Assignment grades:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get assignment grades:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get grading analytics for teacher dashboard
+   */
+  public async getGradingAnalytics(): Promise<{
+    totalAssignments: number;
+    totalGrades: number;
+    averageClassScore: number;
+    gradingProgress: number;
+    recentActivity: any[];
+    assignmentsNeedingGrading: number;
+  }> {
+    try {
+      return await gradesAssignmentsService.getEnhancedGradingAnalytics();
+    } catch (error) {
+      console.error('❌ Failed to get grading analytics:', error);
+      return {
+        totalAssignments: 0,
+        totalGrades: 0,
+        averageClassScore: 0,
+        gradingProgress: 0,
+        recentActivity: [],
+        assignmentsNeedingGrading: 0
+      };
+    }
+  }
+
+  /**
+   * Get assignments that need grading
+   */
+  public async getAssignmentsNeedingGrading(): Promise<any[]> {
+    try {
+      return await gradesAssignmentsService.getAssignmentsNeedingGradingWithDetails();
+    } catch (error) {
+      console.error('❌ Failed to get assignments needing grading:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get student grades in specific subject
+   */
+  public async getStudentGradesInSubject(studentId: number, subjectId: number): Promise<any> {
+    try {
+      console.log('📊 Getting student grades in subject:', studentId, subjectId);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/grades/student/${studentId}/subject/${subjectId}`);
+      const data = await response.json();
+      console.log('✅ Student grades in subject:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get student grades in subject:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get student grade average across all subjects
+   */
+  public async getStudentGradeAverage(studentId: number): Promise<number> {
+    try {
+      console.log('📊 Getting grade average for student:', studentId);
+
+      // If backend is connected, try to get real grades
+      if (this.backendConnected) {
+        const subjects = await this.getMySubjects();
+        let totalGrades = 0;
+        let gradeCount = 0;
+
+        for (const subject of subjects) {
+          try {
+            const grades = await this.getStudentGradesInSubject(studentId, subject.id);
+            if (grades && grades.length > 0) {
+              const subjectGrades = grades.map((g: any) => (g.score / g.max_points) * 100);
+              totalGrades += subjectGrades.reduce((sum: number, grade: number) => sum + grade, 0);
+              gradeCount += subjectGrades.length;
+            }
+          } catch (error) {
+            console.warn('Failed to get grades for subject:', subject.id, error);
+          }
         }
-      });
 
-      if (!response.ok) return [];
+        if (gradeCount > 0) {
+          const average = Math.round(totalGrades / gradeCount);
+          console.log('✅ Calculated grade average:', average);
+          return average;
+        }
+      }
 
-      const results = await response.json();
-      
-      // Handle different response formats
-      if (Array.isArray(results)) return results;
-      if (results.users && Array.isArray(results.users)) return results.users;
-      if (results.data && Array.isArray(results.data)) return results.data;
-      
-      return [];
+      // Fallback to mock data based on student XP
+      const student = this.studentsCache.find(s => s.id === studentId);
+      const mockGrade = student?.totalXP ? Math.min(100, Math.max(50, Math.round(student.totalXP / 10))) : 75;
+      console.log('⚠️ Using mock grade average:', mockGrade);
+      return mockGrade;
     } catch (error) {
-      return [];
+      console.error('❌ Failed to get student grade average:', error);
+      return 75; // Default grade
     }
   }
 
   /**
-   * Get K.A.N.A. AI recommendations for the teacher
+   * Get all grades for a specific student
    */
-  public async getKanaRecommendations(students: Student[]): Promise<KanaRecommendation[]> {
+  public async getStudentGrades(studentId: number): Promise<any[]> {
     try {
-      console.log('Getting K.A.N.A. recommendations for class...');
-      
-      // Skip K.A.N.A. API call for now since it requires image_data
-      // Just use intelligent fallback recommendations
-      console.log('Using intelligent recommendations (K.A.N.A. API requires image data)');
-      return await this.generateIntelligentRecommendations(students);
-    } catch (error) {
-      console.warn('K.A.N.A. recommendations unavailable:', error);
-    }
+      console.log('📋 Getting all grades for student:', studentId);
 
-    // Fallback to intelligent rule-based recommendations
-    console.log('Using fallback recommendations');
-    return await this.generateIntelligentRecommendations(students);
+      // If backend is connected, try to get real grades using the new service
+      if (this.backendConnected) {
+        const subjects = await this.getMySubjects();
+        const allGrades: any[] = [];
+
+        for (const subject of subjects) {
+          try {
+            const gradeReport = await gradesAssignmentsService.getStudentGradesInSubject(studentId, subject.id);
+            if (gradeReport && gradeReport.grades.length > 0) {
+              const formattedGrades = gradeReport.grades.map((grade: Grade) => ({
+                id: grade.id,
+                title: grade.assignment_title || 'Assignment',
+                subject: subject.name,
+                grade: grade.points_earned,
+                maxPoints: grade.assignment_max_points || 100,
+                feedback: grade.feedback,
+                date: grade.graded_date,
+                percentage: grade.percentage || gradesAssignmentsService.calculatePercentage(grade.points_earned, grade.assignment_max_points || 100)
+              }));
+              allGrades.push(...formattedGrades);
+            }
+          } catch (error) {
+            console.warn('Failed to get grades for subject:', subject.id, error);
+          }
+        }
+
+        if (allGrades.length > 0) {
+          console.log('✅ Found', allGrades.length, 'grades for student');
+          return allGrades;
+        }
+      }
+
+      // Fallback to mock grades
+      const mockGrades = [
+        {
+          id: 1,
+          title: 'Math Quiz',
+          subject: 'Mathematics',
+          grade: 85,
+          maxPoints: 100,
+          feedback: 'Good work on problem-solving!',
+          date: new Date().toISOString(),
+          percentage: 85
+        },
+        {
+          id: 2,
+          title: 'Science Test',
+          subject: 'Science',
+          grade: 78,
+          maxPoints: 100,
+          feedback: 'Need to review chemical equations.',
+          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          percentage: 78
+        }
+      ];
+
+      console.log('⚠️ Using mock grades for student');
+      return mockGrades;
+    } catch (error) {
+      console.error('❌ Failed to get student grades:', error);
+      return [];
+    }
   }
 
   /**
-   * Generate comprehensive class insights
+   * Save graded assignment for a student
+   */
+  public async saveGradedAssignment(studentId: number, assignmentData: {
+    title: string;
+    grade: number;
+    maxPoints: number;
+    feedback?: string;
+    gradingCriteria?: string;
+    extractedText?: string;
+    uploadDate?: string;
+    classroomId?: number;
+    subjectId?: number;
+  }): Promise<boolean> {
+    try {
+      console.log('💾 Saving graded assignment for student:', studentId);
+
+      // If backend is connected, try to save via API
+      if (this.backendConnected) {
+        // Use provided subject ID or get subjects and use the first one
+        let targetSubjectId = assignmentData.subjectId;
+
+        if (!targetSubjectId) {
+          const subjects = await this.getMySubjects();
+          if (subjects.length > 0) {
+            targetSubjectId = subjects[0].id; // Use first available subject
+          }
+        }
+
+        if (targetSubjectId) {
+          // Check if assignment already exists
+          const existingAssignments = await this.getSubjectAssignments(targetSubjectId);
+          let assignmentId = existingAssignments.find(a => a.title === assignmentData.title)?.id;
+
+          // Create assignment if it doesn't exist
+          if (!assignmentId) {
+            const newAssignment = await this.createAssignment({
+              title: assignmentData.title,
+              subject_id: targetSubjectId,
+              description: `Auto-generated from upload analysis${assignmentData.classroomId ? ` (Classroom ID: ${assignmentData.classroomId})` : ''}`,
+              max_points: assignmentData.maxPoints,
+              assignment_type: 'upload_analysis'
+            });
+            assignmentId = newAssignment?.id;
+          }
+
+          // Create grade for the assignment
+          if (assignmentId) {
+            const grade = await this.createGrade({
+              assignment_id: assignmentId,
+              student_id: studentId,
+              score: assignmentData.grade,
+              max_points: assignmentData.maxPoints,
+              feedback: assignmentData.feedback
+            });
+
+            if (grade) {
+              console.log('✅ Assignment grade saved successfully');
+              return true;
+            }
+          }
+        }
+      }
+
+      // Fallback to local storage
+      const storageKey = `graded_assignments_${studentId}`;
+      const existingAssignments = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+      const newAssignment = {
+        id: Date.now(),
+        ...assignmentData,
+        savedAt: new Date().toISOString()
+      };
+
+      existingAssignments.push(newAssignment);
+      localStorage.setItem(storageKey, JSON.stringify(existingAssignments));
+
+      console.log('✅ Assignment saved to local storage');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to save graded assignment:', error);
+      return false;
+    }
+  }
+
+  // ============ TEACHER STATUS & INFORMATION ============
+
+  /**
+   * Get comprehensive teacher status
+   */
+  public async getTeacherStatus(): Promise<any> {
+    try {
+      console.log('👨‍🏫 Getting teacher status...');
+      const response = await this.makeAuthenticatedRequest('/study-area/user/status');
+      const data = await response.json();
+      console.log('✅ Teacher status:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get teacher status:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check join eligibility for school
+   */
+  public async checkJoinEligibility(schoolId: number): Promise<any> {
+    try {
+      console.log('🔍 Checking join eligibility for school:', schoolId);
+      const response = await this.makeAuthenticatedRequest(`/study-area/invitations/check-eligibility/${schoolId}`);
+      const data = await response.json();
+      console.log('✅ Join eligibility:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to check join eligibility:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get teacher settings and profile information
+   */
+  public async getTeacherSettings(): Promise<any> {
+    try {
+      console.log('⚙️ Getting teacher settings...');
+      const response = await this.makeAuthenticatedRequest('/study-area/user/status');
+      const data = await response.json();
+
+      // Map backend data to frontend teacher settings format
+      const teacherSettings = {
+        profile: {
+          name: data.user ? `${data.user.fname} ${data.user.lname}` : 'Unknown',
+          email: data.user?.email || '',
+          username: data.user?.username || '',
+          subject: data.teacher?.subjects?.[0]?.name || 'General',
+          school: data.school?.name || 'Unknown School',
+          employeeId: data.teacher?.id || 0,
+          department: data.teacher?.department || 'Academic',
+          phoneNumber: data.user?.phone || '',
+          address: data.user?.address || '',
+          emergencyContact: data.user?.emergency_contact || '',
+          bio: data.user?.bio || 'Dedicated educator passionate about student success.'
+        },
+        preferences: {
+          theme: localStorage.getItem('teacher_theme') || 'light',
+          language: localStorage.getItem('teacher_language') || 'en',
+          notifications: JSON.parse(localStorage.getItem('teacher_notifications') || '{"email": true, "push": true, "sms": false}'),
+          timezone: localStorage.getItem('teacher_timezone') || 'UTC',
+          autoSave: localStorage.getItem('teacher_autosave') === 'true',
+          showTutorials: localStorage.getItem('teacher_tutorials') !== 'false'
+        },
+        privacy: {
+          profileVisibility: localStorage.getItem('teacher_profile_visibility') || 'school',
+          shareProgress: localStorage.getItem('teacher_share_progress') === 'true',
+          allowMessages: localStorage.getItem('teacher_allow_messages') !== 'false',
+          showOnlineStatus: localStorage.getItem('teacher_show_online') !== 'false'
+        },
+        security: {
+          twoFactorEnabled: localStorage.getItem('teacher_2fa') === 'true',
+          sessionTimeout: parseInt(localStorage.getItem('teacher_session_timeout') || '30'),
+          loginNotifications: localStorage.getItem('teacher_login_notifications') !== 'false',
+          lastPasswordChange: localStorage.getItem('teacher_last_password_change') || new Date().toISOString()
+        }
+      };
+
+      console.log('✅ Teacher settings loaded:', teacherSettings);
+      return teacherSettings;
+    } catch (error) {
+      console.error('❌ Failed to get teacher settings:', error);
+      // Return default settings if backend fails
+      return {
+        profile: {
+          name: 'Teacher',
+          email: '',
+          username: '',
+          subject: 'General',
+          school: 'Unknown School',
+          employeeId: 0,
+          department: 'Academic',
+          phoneNumber: '',
+          address: '',
+          emergencyContact: '',
+          bio: 'Dedicated educator passionate about student success.'
+        },
+        preferences: {
+          theme: 'light',
+          language: 'en',
+          notifications: { email: true, push: true, sms: false },
+          timezone: 'UTC',
+          autoSave: false,
+          showTutorials: true
+        },
+        privacy: {
+          profileVisibility: 'school',
+          shareProgress: false,
+          allowMessages: true,
+          showOnlineStatus: true
+        },
+        security: {
+          twoFactorEnabled: false,
+          sessionTimeout: 30,
+          loginNotifications: true,
+          lastPasswordChange: new Date().toISOString()
+        }
+      };
+    }
+  }
+
+  /**
+   * Update teacher settings
+   */
+  public async updateTeacherSettings(settings: any): Promise<boolean> {
+    try {
+      console.log('💾 Updating teacher settings...');
+
+      // Update profile information via backend
+      if (settings.profile) {
+        const profileData = {
+          fname: settings.profile.name?.split(' ')[0] || '',
+          lname: settings.profile.name?.split(' ').slice(1).join(' ') || '',
+          email: settings.profile.email,
+          username: settings.profile.username,
+          phone: settings.profile.phoneNumber,
+          address: settings.profile.address,
+          emergency_contact: settings.profile.emergencyContact,
+          bio: settings.profile.bio
+        };
+
+        // Note: This would require a user profile update endpoint
+        // For now, we'll store profile changes locally
+        localStorage.setItem('teacher_profile_cache', JSON.stringify(profileData));
+      }
+
+      // Update preferences locally (these are UI-specific)
+      if (settings.preferences) {
+        localStorage.setItem('teacher_theme', settings.preferences.theme);
+        localStorage.setItem('teacher_language', settings.preferences.language);
+        localStorage.setItem('teacher_notifications', JSON.stringify(settings.preferences.notifications));
+        localStorage.setItem('teacher_timezone', settings.preferences.timezone);
+        localStorage.setItem('teacher_autosave', settings.preferences.autoSave.toString());
+        localStorage.setItem('teacher_tutorials', settings.preferences.showTutorials.toString());
+      }
+
+      // Update privacy settings locally
+      if (settings.privacy) {
+        localStorage.setItem('teacher_profile_visibility', settings.privacy.profileVisibility);
+        localStorage.setItem('teacher_share_progress', settings.privacy.shareProgress.toString());
+        localStorage.setItem('teacher_allow_messages', settings.privacy.allowMessages.toString());
+        localStorage.setItem('teacher_show_online', settings.privacy.showOnlineStatus.toString());
+      }
+
+      // Update security settings locally
+      if (settings.security) {
+        localStorage.setItem('teacher_2fa', settings.security.twoFactorEnabled.toString());
+        localStorage.setItem('teacher_session_timeout', settings.security.sessionTimeout.toString());
+        localStorage.setItem('teacher_login_notifications', settings.security.loginNotifications.toString());
+        if (settings.security.lastPasswordChange) {
+          localStorage.setItem('teacher_last_password_change', settings.security.lastPasswordChange);
+        }
+      }
+
+      console.log('✅ Teacher settings updated successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to update teacher settings:', error);
+      return false;
+    }
+  }
+
+  // ============ FRONTEND INTEGRATION METHODS ============
+
+  /**
+   * Get all students (enhanced with backend integration)
+   */
+  public async getAllStudents(): Promise<Student[]> {
+    try {
+      console.log('👥 Getting all students...');
+
+      // Check cache first
+      if (this.studentsCache.length > 0 && Date.now() - this.lastCacheUpdate < this.cacheTimeout) {
+        console.log('📋 Returning cached student data');
+        return this.studentsCache;
+      }
+
+      // Try to get students from subjects if backend is connected
+      if (this.backendConnected) {
+        const [subjects, classroomStudents] = await Promise.all([
+          this.getMySubjects(),
+          teacherClassroomService.getAllMyStudents()
+        ]);
+
+        const allStudents: Student[] = [];
+
+        // First, add students from classroom service
+        for (const classroomStudent of classroomStudents) {
+          const student: Student = {
+            id: classroomStudent.id,
+            username: classroomStudent.username,
+            fname: classroomStudent.fname,
+            lname: classroomStudent.lname,
+            email: classroomStudent.email,
+            currentSubjects: [],
+            lastActive: 'Recently',
+            rank: 'Student',
+            totalXP: Math.floor(Math.random() * 2000), // Mock XP for now
+            learningStyle: ['Visual', 'Auditory', 'Kinesthetic'][Math.floor(Math.random() * 3)],
+            // classroom_id: classroomStudent.classroom_id,
+            // classroom_name: classroomStudent.classroom_name
+          };
+
+          // Add mock progress data
+          student.progress = {
+            total_xp: student.totalXP || 0,
+            login_streak: Math.floor(Math.random() * 15),
+            total_quiz_completed: Math.floor(Math.random() * 20),
+            tournaments_won: Math.floor(Math.random() * 5),
+            tournaments_entered: Math.floor(Math.random() * 10),
+            courses_completed: Math.floor(Math.random() * 8),
+            time_spent_hours: Math.floor(Math.random() * 50)
+          };
+
+          allStudents.push(student);
+        }
+
+        // Then, add subjects to students or add new students from subjects
+        for (const subject of subjects) {
+          if (subject.students) {
+            for (const backendStudent of subject.students) {
+              // Check if student already exists from classroom
+              const existingStudent = allStudents.find(s => s.id === backendStudent.id);
+              if (existingStudent) {
+                // Add subject to existing student
+                existingStudent.currentSubjects?.push(subject.name);
+              } else {
+                // Create new student from subject
+                const student: Student = {
+                  id: backendStudent.id,
+                  username: backendStudent.user.username,
+                  fname: backendStudent.user.fname,
+                  lname: backendStudent.user.lname,
+                  email: backendStudent.user.email,
+                  currentSubjects: [subject.name],
+                  lastActive: 'Recently',
+                  rank: 'Student',
+                  totalXP: Math.floor(Math.random() * 2000), // Mock XP for now
+                  learningStyle: ['Visual', 'Auditory', 'Kinesthetic'][Math.floor(Math.random() * 3)]
+                };
+
+                // Add mock progress data
+                student.progress = {
+                  total_xp: student.totalXP || 0,
+                  login_streak: Math.floor(Math.random() * 15),
+                  total_quiz_completed: Math.floor(Math.random() * 20),
+                  tournaments_won: Math.floor(Math.random() * 5),
+                  tournaments_entered: Math.floor(Math.random() * 10),
+                  courses_completed: Math.floor(Math.random() * 8),
+                  time_spent_hours: Math.floor(Math.random() * 50)
+                };
+
+                allStudents.push(student);
+              }
+            }
+          }
+        }
+
+        // Update cache
+        this.studentsCache = allStudents;
+        this.lastCacheUpdate = Date.now();
+
+        console.log(`✅ Found ${allStudents.length} students from ${subjects.length} subjects`);
+        return allStudents;
+      }
+
+      // Fallback to mock data if backend is not connected
+      console.log('⚠️ Backend not connected, using mock student data');
+      const mockStudents = this.generateMockStudents();
+      this.studentsCache = mockStudents;
+      this.lastCacheUpdate = Date.now();
+      return mockStudents;
+
+    } catch (error) {
+      console.error('❌ Failed to get students:', error);
+      // Return mock data as fallback
+      const mockStudents = this.generateMockStudents();
+      this.studentsCache = mockStudents;
+      this.lastCacheUpdate = Date.now();
+      return mockStudents;
+    }
+  }
+
+  /**
+   * Generate mock students for fallback
+   */
+  private generateMockStudents(): Student[] {
+    const mockStudents: Student[] = [
+      {
+        id: 1,
+        username: 'alice_smith',
+        fname: 'Alice',
+        lname: 'Smith',
+        email: 'alice.smith@school.edu',
+        totalXP: 1250,
+        rank: 'Scholar',
+        lastActive: 'Today',
+        currentSubjects: ['Mathematics', 'Science'],
+        learningStyle: 'Visual',
+        progress: {
+          total_xp: 1250,
+          login_streak: 7,
+          total_quiz_completed: 15,
+          tournaments_won: 2,
+          tournaments_entered: 8,
+          courses_completed: 3,
+          time_spent_hours: 25
+        }
+      },
+      {
+        id: 2,
+        username: 'bob_johnson',
+        fname: 'Bob',
+        lname: 'Johnson',
+        email: 'bob.johnson@school.edu',
+        totalXP: 890,
+        rank: 'Apprentice',
+        lastActive: 'Yesterday',
+        currentSubjects: ['English', 'History'],
+        learningStyle: 'Auditory',
+        progress: {
+          total_xp: 890,
+          login_streak: 3,
+          total_quiz_completed: 12,
+          tournaments_won: 1,
+          tournaments_entered: 5,
+          courses_completed: 2,
+          time_spent_hours: 18
+        }
+      }
+    ];
+
+    console.log('⚠️ Using mock student data');
+    return mockStudents;
+  }
+
+  /**
+   * Sync with backend and update local state
+   */
+  public async syncWithBackend(): Promise<boolean> {
+    try {
+      console.log('🔄 Syncing with backend...');
+      await this.initializeBackendConnection();
+
+      if (this.backendConnected) {
+        // Refresh student data
+        await this.getAllStudents();
+        console.log('✅ Backend sync completed successfully');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('❌ Backend sync failed:', error);
+      this.backendConnected = false;
+      return false;
+    }
+  }
+
+  /**
+   * Check if backend is connected
+   */
+  public isBackendConnected(): boolean {
+    return this.backendConnected;
+  }
+
+  /**
+   * Reconnect to backend
+   */
+  public async reconnectBackend(): Promise<boolean> {
+    try {
+      console.log('🔄 Reconnecting to backend...');
+      this.backendConnected = false;
+      return await this.syncWithBackend();
+    } catch (error) {
+      console.error('❌ Failed to reconnect to backend:', error);
+      return false;
+    }
+  }
+
+  // ============ CLASSROOM MANAGEMENT (Delegated to ClassroomService) ============
+
+  /**
+   * Get teacher's classrooms (delegates to classroom service)
+   */
+  public async getMyClassrooms(): Promise<any[]> {
+    return await teacherClassroomService.getMyClassrooms();
+  }
+
+  /**
+   * Get students enrolled in a specific subject (delegates to classroom service)
+   */
+  public async getStudentsInSubject(subjectId: number): Promise<Student[]> {
+    return await teacherClassroomService.getStudentsInSubject(subjectId);
+  }
+
+  /**
+   * Get students in a specific classroom (delegates to classroom service)
+   */
+  public async getStudentsInClassroom(classroomId: number): Promise<Student[]> {
+    return await teacherClassroomService.getStudentsInClassroom(classroomId);
+  }
+
+  /**
+   * Get students that are both in a classroom and enrolled in a subject (delegates to classroom service)
+   */
+  public async getStudentsInClassroomAndSubject(classroomId: number, subjectId: number): Promise<Student[]> {
+    return await teacherClassroomService.getStudentsInClassroomAndSubject(classroomId, subjectId);
+  }
+
+  /**
+   * Get available students for classroom assignment (delegates to classroom service)
+   */
+  public async getAvailableStudents(): Promise<Student[]> {
+    return await teacherClassroomService.getAvailableStudents();
+  }
+
+  /**
+   * Add student to classroom (delegates to classroom service)
+   */
+  public async addStudentToClass(studentId: number, classroomId: number): Promise<boolean> {
+    return await teacherClassroomService.addStudentToClassroom(studentId, classroomId);
+  }
+
+  /**
+   * Remove student from classroom (delegates to classroom service)
+   */
+  public async removeStudentFromClass(studentId: number, classroomId: number): Promise<boolean> {
+    return await teacherClassroomService.removeStudentFromClassroom(studentId, classroomId);
+  }
+
+  /**
+   * Search for students (delegates to classroom service)
+   */
+  public async searchStudents(query: string): Promise<Student[]> {
+    return await teacherClassroomService.searchStudents(query);
+  }
+
+  /**
+   * Generate class insights from student data
    */
   public generateClassInsights(students: Student[]): ClassInsights {
     const totalStudents = students.length;
-    const activeStudents = students.filter(s => 
-      s.lastActive && this.isRecentlyActive(s.lastActive)
-    ).length;
+    const activeStudents = students.filter(s => s.progress?.login_streak && s.progress.login_streak > 0).length;
 
-    const averageProgress = students.reduce((sum, s) => 
-      sum + (s.totalXP || 0), 0
-    ) / Math.max(totalStudents, 1);
+    // Calculate average progress based on XP and completion data
+    const averageProgress = students.length > 0 ?
+      Math.round(students.reduce((sum, s) => sum + (s.progress?.total_xp || 0), 0) / students.length / 10) : 0;
 
-    const topPerformers = [...students]
-      .sort((a, b) => (b.totalXP || 0) - (a.totalXP || 0))
-      .slice(0, 3);
+    // Identify top performers (students with high XP and completion rates)
+    const topPerformers = students
+      .filter(student => {
+        const xp = student.progress?.total_xp || 0;
+        const completed = student.progress?.courses_completed || 0;
+        return xp > 1000 || completed > 2;
+      })
+      .slice(0, Math.ceil(students.length * 0.2));
 
+    // Identify struggling students (students with low activity and completion)
     const strugglingStudents = students
-      .filter(s => (s.totalXP || 0) < averageProgress * 0.6)
-      .slice(0, 3);
+      .filter(student => {
+        const xp = student.progress?.total_xp || 0;
+        const streak = student.progress?.login_streak || 0;
+        const completed = student.progress?.courses_completed || 0;
+        return xp < 500 && streak < 3 && completed < 1;
+      })
+      .slice(0, Math.ceil(students.length * 0.15));
 
-    const subjectPerformance = this.calculateSubjectPerformance(students);
-    const recentTrends = this.calculateRecentTrends();
+    // Calculate subject performance from current subjects
+    const subjectPerformance: { [subject: string]: { averageScore: number; completionRate: number; studentsCount: number } } = {};
+
+    students.forEach(student => {
+      if (student.currentSubjects && student.currentSubjects.length > 0) {
+        student.currentSubjects.forEach(subject => {
+          if (!subjectPerformance[subject]) {
+            subjectPerformance[subject] = {
+              averageScore: 0,
+              completionRate: 0,
+              studentsCount: 0
+            };
+          }
+          subjectPerformance[subject].studentsCount++;
+          // Mock scoring based on student progress
+          const score = Math.min(100, Math.max(60, (student.progress?.total_xp || 0) / 20 + Math.random() * 20));
+          const completion = Math.min(100, (student.progress?.courses_completed || 0) * 33.33);
+          subjectPerformance[subject].averageScore += score;
+          subjectPerformance[subject].completionRate += completion;
+        });
+      }
+    });
+
+    // Average the scores and completion rates
+    Object.keys(subjectPerformance).forEach(subject => {
+      const data = subjectPerformance[subject];
+      data.averageScore = Math.round(data.averageScore / data.studentsCount);
+      data.completionRate = Math.round(data.completionRate / data.studentsCount);
+    });
+
+    // Generate recent trends (mock data for now)
+    const recentTrends = [
+      { period: 'This Week', engagement: 85, improvement: 12 },
+      { period: 'Last Week', engagement: 78, improvement: 8 },
+      { period: '2 Weeks Ago', engagement: 82, improvement: 15 },
+      { period: '3 Weeks Ago', engagement: 75, improvement: 5 }
+    ];
 
     return {
       totalStudents,
@@ -324,750 +1392,6 @@ class TeacherServiceClass {
     };
   }
 
-  /**
-   * Generate teacher analytics with real data
-   */
-  public generateTeacherAnalytics(students: Student[]): TeacherAnalytics {
-    const overview = {
-      totalStudents: students.length,
-      activeToday: students.filter(s => s.lastActive === 'Today').length,
-      averageEngagement: this.calculateAverageEngagement(students),
-      completionRate: this.calculateCompletionRate(students)
-    };
-
-    const trends = this.generateTrendData(students);
-    const subjects = this.generateSubjectData(students);
-
-    return {
-      overview,
-      trends,
-      subjects
-    };
-  }
-
-  /**
-   * Refresh cache
-   */
-  public refreshCache(): void {
-    this.studentsCache = [];
-    this.lastCacheUpdate = 0;
-  }
-
-  /**
-   * Add a student to the class
-   */
-  public async addStudentToClass(studentId: number): Promise<boolean> {
-    try {
-      this.classStudents.add(studentId);
-      
-      // Save to localStorage for persistence
-      const classStudentIds = Array.from(this.classStudents);
-      localStorage.setItem('teacher_class_students', JSON.stringify(classStudentIds));
-      
-      // Refresh cache to reflect changes
-      this.refreshCache();
-      
-      // Trigger custom event for UI refresh
-      window.dispatchEvent(new CustomEvent('classStudentsChanged', { 
-        detail: { action: 'added', studentId, totalStudents: classStudentIds.length } 
-      }));
-      
-      console.log(`Added student ${studentId} to class`);
-      return true;
-    } catch (error) {
-      console.error('Failed to add student to class:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Remove a student from the class
-   */
-  public async removeStudentFromClass(studentId: number): Promise<boolean> {
-    try {
-      this.classStudents.delete(studentId);
-      
-      // Save to localStorage for persistence
-      const classStudentIds = Array.from(this.classStudents);
-      localStorage.setItem('teacher_class_students', JSON.stringify(classStudentIds));
-      
-      // Refresh cache to reflect changes
-      this.refreshCache();
-      
-      // Trigger custom event for UI refresh
-      window.dispatchEvent(new CustomEvent('classStudentsChanged', { 
-        detail: { action: 'removed', studentId, totalStudents: classStudentIds.length } 
-      }));
-      
-      console.log(`Removed student ${studentId} from class`);
-      return true;
-    } catch (error) {
-      console.error('Failed to remove student from class:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get all available students (not in class yet)
-   */
-  public async getAvailableStudents(): Promise<Student[]> {
-    try {
-      // Search for users not in the current class
-      const allUsers: any[] = [];
-      const searchQueries = ['a', 'alex', 'john', 'maria', 'david', 'sarah', 'mike', 'anna', 'chris', 'lisa', 'emma', 'sophia', 'james', 'olivia', 'michael'];
-      
-      for (const query of searchQueries) {
-        try {
-          const searchResults = await this.searchUsers(query);
-          allUsers.push(...searchResults);
-          if (allUsers.length >= 50) break; // Reasonable limit
-        } catch (error) {
-          console.warn(`Search for "${query}" failed:`, error);
-        }
-      }
-
-      // Filter out duplicates and students already in class
-      const uniqueUsers = allUsers.filter((user, index, arr) => 
-        arr.findIndex(u => u.id === user.id) === index && 
-        !this.classStudents.has(user.id)
-      );
-
-      // Transform to Student format (simplified)
-      const availableStudents: Student[] = uniqueUsers.slice(0, 25).map(user => ({
-        ...user,
-        strengths: ['Potential learner'],
-        weaknesses: ['Not assessed yet'],
-        currentSubjects: [],
-        learningStyle: 'Unknown',
-        lastActive: 'Not in class',
-        rank: 'Unranked',
-        totalXP: 0
-      }));
-
-      return availableStudents;
-    } catch (error) {
-      console.error('Failed to get available students:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Save graded assignment and trigger Study Centre assignment generation
-   */
-  public async saveGradedAssignment(studentId: number, assignmentData: {
-    title: string;
-    grade: number;
-    maxPoints: number;
-    feedback: string;
-    gradingCriteria?: any[];
-    extractedText?: string;
-    uploadDate: string;
-    subject?: string;
-  }): Promise<boolean> {
-    try {
-      const saved = localStorage.getItem(`student_${studentId}_grades`) || '[]';
-      const grades = JSON.parse(saved);
-      
-      const newGrade = {
-        id: Date.now().toString(),
-        ...assignmentData,
-        gradedBy: 'K.A.N.A.',
-        gradedAt: new Date().toISOString()
-      };
-      
-      grades.unshift(newGrade); // Add to beginning of array
-      
-      // Keep only last 50 grades per student
-      if (grades.length > 50) {
-        grades.splice(50);
-      }
-      
-      localStorage.setItem(`student_${studentId}_grades`, JSON.stringify(grades));
-      
-      // Update student's overall grade average
-      await this.updateStudentGradeAverage(studentId, grades);
-      
-      console.log(`Saved grade for student ${studentId}: ${assignmentData.grade}/${assignmentData.maxPoints}`);
-      
-      // 🎯 NEW: Trigger Study Centre assignment generation based on K.A.N.A.'s analysis
-      if (assignmentData.feedback && assignmentData.feedback.length > 50) {
-        console.log('🤖 Triggering Study Centre assignment generation from K.A.N.A. analysis...');
-        
-        try {
-          // Store a flag that new assignments should be generated for this student
-          localStorage.setItem(`student_${studentId}_new_analysis`, JSON.stringify({
-            gradeId: newGrade.id,
-            analyzedAt: newGrade.gradedAt,
-            needsAssignments: true,
-            feedback: assignmentData.feedback,
-            subject: assignmentData.subject || this.extractSubjectFromTitle(assignmentData.title),
-            score: Math.round((assignmentData.grade / assignmentData.maxPoints) * 100)
-          }));
-          
-          console.log(`✅ Flagged student ${studentId} for Study Centre assignment generation`);
-        } catch (error) {
-          console.error('Error flagging student for assignment generation:', error);
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to save graded assignment:', error);
-      return false;
-    }
-  }
-
-  private extractSubjectFromTitle(title: string): string {
-    const subjects = ['Mathematics', 'Math', 'English', 'Science', 'History', 'Physics', 'Chemistry', 'Biology'];
-    for (const subject of subjects) {
-      if (title.toLowerCase().includes(subject.toLowerCase())) {
-        return subject;
-      }
-    }
-    return 'General';
-  }
-
-  /**
-   * Get graded assignments for a student
-   */
-  public async getStudentGrades(studentId: number): Promise<any[]> {
-    try {
-      const saved = localStorage.getItem(`student_${studentId}_grades`) || '[]';
-      return JSON.parse(saved);
-    } catch (error) {
-      console.error('Failed to get student grades:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Update student's overall grade average
-   */
-  private async updateStudentGradeAverage(studentId: number, grades: any[]): Promise<void> {
-    try {
-      if (grades.length === 0) return;
-      
-      const totalPoints = grades.reduce((sum, grade) => sum + grade.grade, 0);
-      const totalMaxPoints = grades.reduce((sum, grade) => sum + grade.maxPoints, 0);
-      const average = Math.round((totalPoints / totalMaxPoints) * 100);
-      
-      // Save the average for display in student profiles
-      localStorage.setItem(`student_${studentId}_grade_average`, average.toString());
-    } catch (error) {
-      console.error('Failed to update student grade average:', error);
-    }
-  }
-
-  /**
-   * Get student's overall grade average
-   */
-  public async getStudentGradeAverage(studentId: number): Promise<number> {
-    try {
-      const saved = localStorage.getItem(`student_${studentId}_grade_average`) || '85';
-      return parseInt(saved, 10);
-    } catch (error) {
-      console.error('Failed to get student grade average:', error);
-      return 85; // Default grade
-    }
-  }
-
-  /**
-   * Load class student IDs from localStorage
-   */
-  private loadClassStudents(): void {
-    try {
-      const saved = localStorage.getItem('teacher_class_students');
-      if (saved) {
-        const studentIds = JSON.parse(saved) as number[];
-        this.classStudents = new Set(studentIds);
-        console.log(`Loaded ${studentIds.length} students from saved class`);
-      }
-    } catch (error) {
-      console.warn('Failed to load saved class students:', error);
-      this.classStudents = new Set();
-    }
-  }
-
-  // Helper methods for data processing
-  private async getStudentActivity(userId: number): Promise<StudentActivity[]> {
-    const activities: StudentActivity[] = [];
-    const now = new Date();
-    
-    // Generate realistic activity based on user ID for consistency
-    const activityCount = 3 + (userId % 5);
-    const subjects = ['Mathematics', 'Science', 'History', 'English', 'Physics', 'Chemistry', 'Biology'];
-    const activityTypes: StudentActivity['type'][] = ['quiz', 'tournament', 'study', 'achievement', 'login'];
-    
-    for (let i = 0; i < activityCount; i++) {
-      const daysAgo = Math.floor((userId + i) % 14); // 0-13 days ago
-      const timestamp = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-      
-      activities.push({
-        id: `${userId}_${i}`,
-        type: activityTypes[(userId + i) % activityTypes.length],
-        title: this.getActivityTitle(activityTypes[(userId + i) % activityTypes.length]),
-        description: this.getActivityDescription(),
-        timestamp: timestamp.toISOString(),
-        score: 60 + ((userId + i) % 40), // 60-99
-        subject: subjects[(userId + i) % subjects.length],
-        duration: 15 + ((userId + i) % 45) // 15-59 minutes
-      });
-    }
-
-    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }
-
-  private generateStrengths(progress?: UserProgress, _stats?: UserStats): string[] {
-    const strengths = [];
-    
-    if ((progress?.login_streak || 0) > 7) strengths.push('Consistent daily learner');
-    if ((progress?.tournaments_won || 0) > 3) strengths.push('Competitive performer');
-    if ((progress?.total_quiz_completed || 0) > 50) strengths.push('Active quiz participant');
-    if ((progress?.courses_completed || 0) > 5) strengths.push('Course completer');
-    if ((progress?.time_spent_hours || 0) > 30) strengths.push('Dedicated studier');
-    if ((progress?.total_xp || 0) > 2000) strengths.push('High achiever');
-    
-    return strengths.length > 0 ? strengths : ['Eager to learn', 'Shows potential', 'Regular participant'];
-  }
-
-  private generateWeaknesses(progress?: UserProgress, _stats?: UserStats): string[] {
-    const weaknesses = [];
-    
-    if ((progress?.login_streak || 0) < 3) weaknesses.push('Inconsistent login pattern');
-    if ((progress?.tournaments_entered || 0) === 0) weaknesses.push('Avoids competitions');
-    if ((progress?.total_quiz_completed || 0) < 10) weaknesses.push('Limited quiz participation');
-    if ((progress?.time_spent_hours || 0) < 10) weaknesses.push('Needs more study time');
-    if ((progress?.courses_completed || 0) === 0) weaknesses.push('No completed courses');
-    
-    return weaknesses.length > 0 ? weaknesses : ['Room for improvement', 'Needs encouragement'];
-  }
-
-  private getCurrentSubjects(activities: StudentActivity[]): string[] {
-    const subjects = new Set<string>();
-    activities.forEach(activity => {
-      if (activity.subject) subjects.add(activity.subject);
-    });
-    
-    const subjectArray = Array.from(subjects);
-    return subjectArray.length > 0 ? subjectArray.slice(0, 3) : ['Mathematics', 'Science'];
-  }
-
-  private determineLearningStyle(progress?: UserProgress, _stats?: UserStats): string {
-    const styles = ['Visual', 'Auditory', 'Kinesthetic', 'Reading/Writing'];
-    
-    // Simple heuristic based on activities
-    if ((progress?.total_quiz_completed || 0) > 30) return 'Reading/Writing';
-    if ((progress?.tournaments_entered || 0) > 5) return 'Kinesthetic';
-    if ((progress?.time_spent_hours || 0) > 25) return 'Visual';
-    
-    return styles[Math.floor(Math.random() * styles.length)];
-  }
-
-  private getLastActiveTime(activities: StudentActivity[]): string {
-    if (activities.length === 0) return 'Over a week ago';
-    
-    const lastActivity = new Date(activities[0].timestamp);
-    const now = new Date();
-    const diffHours = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-    
-    if (diffHours < 2) return 'Just now';
-    if (diffHours < 24) return 'Today';
-    if (diffHours < 48) return 'Yesterday';
-    if (diffHours < 168) return 'This week';
-    return 'Over a week ago';
-  }
-
-  private isRecentlyActive(lastActive: string): boolean {
-    return ['Just now', 'Today', 'Yesterday', 'This week'].includes(lastActive);
-  }
-
-  private calculateAverageEngagement(students: Student[]): number {
-    const engagementScores = students.map(s => {
-      let score = 0;
-      if (s.lastActive === 'Just now' || s.lastActive === 'Today') score += 40;
-      else if (s.lastActive === 'Yesterday') score += 30;
-      else if (s.lastActive === 'This week') score += 20;
-      
-      score += Math.min((s.progress?.login_streak || 0) * 2, 30);
-      score += Math.min((s.progress?.total_quiz_completed || 0), 30);
-      
-      return Math.min(score, 100);
-    });
-    
-    return Math.round(engagementScores.reduce((sum, score) => sum + score, 0) / Math.max(students.length, 1));
-  }
-
-  private calculateCompletionRate(students: Student[]): number {
-    const completionScores = students.map(s => {
-      const completed = s.progress?.courses_completed || 0;
-      const attempted = Math.max(completed + 1, 3); // Assume some courses are available
-      return (completed / attempted) * 100;
-    });
-    
-    return Math.round(completionScores.reduce((sum, score) => sum + score, 0) / Math.max(students.length, 1));
-  }
-
-  private async generateIntelligentRecommendations(students: Student[]): Promise<KanaRecommendation[]> {
-    const recommendations: KanaRecommendation[] = [];
-    
-    // Analyze students with real grading data
-    const studentsWithGrades = await Promise.all(
-      students.map(async (student) => {
-        const grades = await this.getStudentGrades(student.id);
-        const gradeAverage = await this.getStudentGradeAverage(student.id);
-        return { ...student, grades, gradeAverage };
-      })
-    );
-    
-    // Analyze struggling students based on real grades
-    const strugglingStudents = studentsWithGrades.filter(s => s.gradeAverage < 70);
-    
-    if (strugglingStudents.length > 0) {
-      // Analyze common weak areas
-      const commonWeakAreas = new Map<string, number>();
-      strugglingStudents.forEach(student => {
-        student.grades.forEach((grade: any) => {
-          if (grade.improvement_areas) {
-            grade.improvement_areas.forEach((area: string) => {
-              commonWeakAreas.set(area, (commonWeakAreas.get(area) || 0) + 1);
-            });
-          }
-        });
-      });
-      
-      const topWeakAreas = Array.from(commonWeakAreas.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([area]) => area);
-
-      recommendations.push({
-        id: 'struggling_intervention',
-        type: 'intervention',
-        priority: 'high',
-        title: `${strugglingStudents.length} Students Need Additional Support`,
-        description: `Students with grades below 70% need targeted interventions. Common areas: ${topWeakAreas.join(', ')}`,
-        targetStudents: strugglingStudents.map(s => s.username),
-        actionItems: [
-          `Focus on common weak areas: ${topWeakAreas.join(', ')}`,
-          'Schedule individual assessment meetings',
-          'Provide personalized study plans based on K.A.N.A. analysis',
-          'Consider peer mentoring programs',
-          'Review learning objectives and adjust teaching pace',
-          'Offer additional office hours for targeted support'
-        ],
-        reasoning: `K.A.N.A. analysis shows ${strugglingStudents.length} students with grade averages below 70%. Common improvement areas identified: ${topWeakAreas.join(', ')}`,
-        estimatedImpact: 'High - Expected 15-25% improvement in grades',
-        timeframe: '2-3 weeks',
-        resources: ['K.A.N.A. detailed feedback reports', 'Personalized study materials', 'Progress tracking tools'],
-        generatedAt: new Date().toISOString()
-      });
-    }
-
-    // Analyze high performers for advanced opportunities
-    const topPerformers = studentsWithGrades.filter(s => s.gradeAverage >= 90);
-    
-    if (topPerformers.length > 0) {
-      recommendations.push({
-        id: 'advanced_opportunities',
-        type: 'curriculum',
-        priority: 'medium',
-        title: `Advanced Learning Opportunities for ${topPerformers.length} High Performers`,
-        description: `Students with 90%+ averages are ready for challenging content and leadership roles.`,
-        targetStudents: topPerformers.map(s => s.username),
-        actionItems: [
-          'Provide advanced problem sets and projects',
-          'Assign peer mentoring roles',
-          'Introduce independent research opportunities',
-          'Consider acceleration in strong subject areas',
-          'Offer leadership roles in group activities'
-        ],
-        reasoning: `K.A.N.A. analysis identifies ${topPerformers.length} students consistently performing at 90%+ who would benefit from enrichment`,
-        estimatedImpact: 'High - Maintains engagement and develops leadership skills',
-        timeframe: '1-2 weeks to implement',
-        resources: ['Advanced coursework materials', 'Research project templates', 'Peer mentoring guidelines'],
-        generatedAt: new Date().toISOString()
-      });
-    }
-
-    // Analyze subject-specific trends
-    const subjectPerformance = new Map<string, { scores: number[], students: string[] }>();
-    studentsWithGrades.forEach(student => {
-      student.grades.forEach((grade: any) => {
-        const subject = grade.title ? 
-          (grade.title.includes('Math') ? 'Mathematics' :
-           grade.title.includes('Science') || grade.title.includes('Technology') ? 'Science' :
-           grade.title.includes('English') || grade.title.includes('Essay') ? 'English' :
-           grade.title.includes('History') ? 'History' : 'General') : 'General';
-        
-        if (!subjectPerformance.has(subject)) {
-          subjectPerformance.set(subject, { scores: [], students: [] });
-        }
-        
-        const percentage = (grade.grade / grade.maxPoints) * 100;
-        subjectPerformance.get(subject)!.scores.push(percentage);
-        if (!subjectPerformance.get(subject)!.students.includes(student.username)) {
-          subjectPerformance.get(subject)!.students.push(student.username);
-        }
-      });
-    });
-
-    // Identify subjects needing attention
-    subjectPerformance.forEach((data, subject) => {
-      const averageScore = data.scores.reduce((sum, score) => sum + score, 0) / data.scores.length;
-      if (averageScore < 75 && data.students.length >= 2) {
-        recommendations.push({
-          id: `subject_intervention_${subject.toLowerCase()}`,
-          type: 'curriculum',
-          priority: 'medium',
-          title: `${subject} Performance Needs Attention`,
-          description: `Class average in ${subject} is ${Math.round(averageScore)}%. Consider curriculum adjustments.`,
-          targetStudents: data.students,
-          actionItems: [
-            `Review ${subject} teaching methodology`,
-            'Analyze common misconceptions in assignments',
-            'Provide additional practice materials',
-            'Consider breaking down complex concepts',
-            'Implement more interactive learning activities',
-            'Use K.A.N.A. feedback to identify specific gaps'
-          ],
-          reasoning: `K.A.N.A. analysis shows ${subject} class average of ${Math.round(averageScore)}% across ${data.students.length} students, indicating curriculum needs adjustment`,
-          estimatedImpact: 'Medium - Expected 10-15% improvement in subject scores',
-          timeframe: '3-4 weeks',
-          resources: [`${subject} curriculum review materials`, 'K.A.N.A. detailed subject analysis', 'Interactive learning tools'],
-          generatedAt: new Date().toISOString()
-        });
-      }
-    });
-
-    // Recent grading trends
-    const recentGrades = studentsWithGrades.flatMap(s => 
-      s.grades.filter((g: any) => {
-        const gradeDate = new Date(g.gradedAt || g.uploadDate);
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        return gradeDate > weekAgo;
-      }).map((g: any) => ({ ...g, studentName: `${s.fname} ${s.lname}` }))
-    );
-
-    if (recentGrades.length >= 3) {
-      const recentAverage = recentGrades.reduce((sum: number, g: any) => sum + (g.grade / g.maxPoints * 100), 0) / recentGrades.length;
-      
-      if (recentAverage < 75) {
-        recommendations.push({
-          id: 'recent_decline',
-          type: 'intervention',
-          priority: 'high',
-          title: 'Recent Performance Decline Detected',
-          description: `This week's average score is ${Math.round(recentAverage)}%. Immediate attention needed.`,
-          targetStudents: [...new Set(recentGrades.map((g: any) => g.studentName))],
-          actionItems: [
-            'Review this week\'s assignments and feedback',
-            'Identify if material difficulty increased suddenly',
-            'Check for external factors affecting performance',
-            'Provide immediate remedial support',
-            'Adjust upcoming lesson plans if needed',
-            'Schedule urgent check-ins with affected students'
-          ],
-          reasoning: `K.A.N.A. detected a significant drop in recent performance (${Math.round(recentAverage)}% this week vs historical averages)`,
-          estimatedImpact: 'Critical - Prevents further decline and addresses immediate issues',
-          timeframe: 'Immediate action needed',
-          resources: ['Recent assignment analysis', 'K.A.N.A. trend reports', 'Student support protocols'],
-          generatedAt: new Date().toISOString()
-        });
-      } else if (recentAverage > 85) {
-        recommendations.push({
-          id: 'recent_improvement',
-          type: 'class',
-          priority: 'low',
-          title: 'Positive Trend: Recent Performance Improvement',
-          description: `This week's average score is ${Math.round(recentAverage)}%. Keep up the excellent work!`,
-          targetStudents: [],
-          actionItems: [
-            'Acknowledge and celebrate the improvement',
-            'Identify what teaching strategies worked well',
-            'Consider replicating successful approaches',
-            'Maintain current momentum',
-            'Document best practices for future use'
-          ],
-          reasoning: `K.A.N.A. analysis shows strong recent performance (${Math.round(recentAverage)}% this week), indicating effective teaching methods`,
-          estimatedImpact: 'Positive - Maintains high performance and identifies successful strategies',
-          timeframe: 'Ongoing monitoring',
-          resources: ['Performance celebration materials', 'Best practices documentation'],
-          generatedAt: new Date().toISOString()
-        });
-      }
-    }
-
-    return recommendations;
-  }
-
-  private getActivityTitle(type: StudentActivity['type']): string {
-    const titles = {
-      quiz: ['Completed Mathematics Quiz', 'Finished Science Assessment', 'Took History Quiz', 'Completed English Test'],
-      tournament: ['Participated in Math Tournament', 'Joined Science Competition', 'Competed in Knowledge Bowl'],
-      study: ['Studied Physics Chapter', 'Reviewed Chemistry Notes', 'Practiced Problem Sets'],
-      achievement: ['Earned Study Streak Badge', 'Unlocked Achievement', 'Reached New Level'],
-      login: ['Daily Login', 'Started Study Session', 'Began Learning Activity']
-    };
-    
-    const typeArray = titles[type];
-    return typeArray[Math.floor(Math.random() * typeArray.length)];
-  }
-
-  private getActivityDescription(): string {
-    const descriptions = [
-      'Demonstrated strong understanding of core concepts',
-      'Showed improvement in problem-solving skills',
-      'Participated actively and asked good questions',
-      'Completed all required tasks thoroughly',
-      'Helped peers understand difficult concepts',
-      'Made significant progress on learning objectives'
-    ];
-    return descriptions[Math.floor(Math.random() * descriptions.length)];
-  }
-
-  private calculateSubjectPerformance(students: Student[]): { [subject: string]: { averageScore: number; completionRate: number; studentsCount: number; } } {
-    const subjects = ['Mathematics', 'Science', 'History', 'English', 'Physics', 'Chemistry', 'Biology'];
-    const performance: any = {};
-    
-    subjects.forEach(subject => {
-      const studentsInSubject = students.filter(s => s.currentSubjects?.includes(subject));
-      const avgXP = studentsInSubject.reduce((sum, s) => sum + (s.totalXP || 0), 0) / Math.max(studentsInSubject.length, 1);
-      
-      performance[subject] = {
-        averageScore: Math.max(50, Math.min(95, Math.round(60 + (avgXP / 100)))),
-        completionRate: Math.max(60, Math.min(100, Math.round(70 + (studentsInSubject.length * 2)))),
-        studentsCount: studentsInSubject.length
-      };
-    });
-    
-    return performance;
-  }
-
-  private calculateRecentTrends(): { period: string; engagement: number; improvement: number; }[] {
-    const trends: { period: string; engagement: number; improvement: number; }[] = [];
-    const periods = ['This Week', 'Last Week', '2 Weeks Ago', '3 Weeks Ago'];
-    
-    periods.forEach((period, index) => {
-      const baseEngagement = 70 - (index * 5);
-      const variance = Math.floor(Math.random() * 20) - 10;
-      
-      trends.push({
-        period,
-        engagement: Math.max(30, Math.min(100, baseEngagement + variance)),
-        improvement: Math.floor(Math.random() * 40) - 20 // Can be negative
-      });
-    });
-    
-    return trends;
-  }
-
-  private generateTrendData(students: Student[]): { date: string; engagement: number; performance: number; participation: number; }[] {
-    const trends: { date: string; engagement: number; performance: number; participation: number; }[] = [];
-    const now = new Date();
-    
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const activeCount = students.filter(s => s.lastActive === 'Today' || s.lastActive === 'Just now').length;
-      const baseScore = 60 + (activeCount / students.length) * 30;
-      
-      trends.push({
-        date: date.toISOString().split('T')[0],
-        engagement: Math.round(baseScore + Math.random() * 20 - 10),
-        performance: Math.round(baseScore + Math.random() * 15 - 5),
-        participation: Math.round(baseScore + Math.random() * 25 - 10)
-      });
-    }
-    
-    return trends;
-  }
-
-  private generateSubjectData(students: Student[]): { name: string; students: number; avgScore: number; improvement: number; }[] {
-    const subjects = ['Mathematics', 'Science', 'History', 'English', 'Physics'];
-    return subjects.map(subject => {
-      const studentsInSubject = students.filter(s => s.currentSubjects?.includes(subject));
-      const avgXP = studentsInSubject.reduce((sum, s) => sum + (s.totalXP || 0), 0) / Math.max(studentsInSubject.length, 1);
-      
-      return {
-        name: subject,
-        students: studentsInSubject.length,
-        avgScore: Math.max(65, Math.min(95, Math.round(70 + (avgXP / 100)))),
-        improvement: Math.floor(Math.random() * 30) - 15
-      };
-    });
-  }
-
-  private getSimulatedProgress(userId: number): UserProgress {
-    const base = userId * 17 + 123; // Consistent pseudo-random
-    return {
-      total_xp: 500 + (base % 4500),
-      current_rank: {
-        id: 1 + (base % 4),
-        name: ['Novice', 'Apprentice', 'Expert', 'Master'][base % 4],
-        tier: ['Bronze', 'Silver', 'Gold', 'Platinum'][base % 4],
-        level: 1 + (base % 15),
-        required_xp: 1000 + (base % 3000),
-        emoji: ['🥉', '🥈', '🥇', '💎'][base % 4]
-      },
-      login_streak: base % 45,
-      total_quiz_completed: base % 120,
-      tournaments_won: base % 15,
-      tournaments_entered: base % 30,
-      courses_completed: base % 20,
-      time_spent_hours: base % 250
-    };
-  }
-
-  private getSimulatedStats(userId: number): UserStats {
-    const progress = this.getSimulatedProgress(userId);
-    return {
-      total_xp: progress.total_xp,
-      current_rank: progress.current_rank?.name || 'Novice',
-      stats: {
-        login_streak: progress.login_streak,
-        total_quiz_completed: progress.total_quiz_completed,
-        tournaments_won: progress.tournaments_won,
-        tournaments_entered: progress.tournaments_entered,
-        courses_completed: progress.courses_completed,
-        time_spent_hours: progress.time_spent_hours
-      }
-    };
-  }
-
-  private getDefaultProgress(): UserProgress {
-    return {
-      total_xp: 750,
-      current_rank: {
-        id: 1,
-        name: 'Apprentice',
-        tier: 'Bronze',
-        level: 3,
-        required_xp: 1000,
-        emoji: '🥉'
-      },
-      login_streak: 5,
-      total_quiz_completed: 15,
-      tournaments_won: 1,
-      tournaments_entered: 4,
-      courses_completed: 2,
-      time_spent_hours: 25
-    };
-  }
-
-  private getDefaultStats(): UserStats {
-    const progress = this.getDefaultProgress();
-    return {
-      total_xp: progress.total_xp,
-      current_rank: progress.current_rank?.name || 'Apprentice',
-      stats: {
-        login_streak: progress.login_streak,
-        total_quiz_completed: progress.total_quiz_completed,
-        tournaments_won: progress.tournaments_won,
-        tournaments_entered: progress.tournaments_entered,
-        courses_completed: progress.courses_completed,
-        time_spent_hours: progress.time_spent_hours
-      }
-    };
-  }
 }
 
 export const teacherService = TeacherServiceClass.getInstance();

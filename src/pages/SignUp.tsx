@@ -50,6 +50,7 @@ export const SignUp = () => {
   // Get redirect parameter from URL
   const searchParams = new URLSearchParams(location.search);
   const redirectTo = searchParams.get('redirect') || '/townsquare';
+  const roleIntent = searchParams.get('role'); // Get intended role from URL
 
   // Set login mode based on current route
   useEffect(() => {
@@ -141,7 +142,6 @@ export const SignUp = () => {
           setError(data.detail || 'Google authentication failed');
         }
       } catch (error) {
-        console.error('Error during Google authentication:', error);
         setError('Network error during Google authentication. Please try again.');
       } finally {
         setIsLoading(false);
@@ -418,8 +418,8 @@ export const SignUp = () => {
             {/* Show error message if exists */}
             {error && (
               <div className={`text-sm mb-4 text-center border rounded-lg p-3 ${isPreloading
-                  ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
-                  : 'text-red-500 bg-red-500/10 border-red-500/20'
+                ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                : 'text-red-500 bg-red-500/10 border-red-500/20'
                 }`}>
                 {error}
                 {isPreloading && (

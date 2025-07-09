@@ -11,6 +11,9 @@ const crypto = require('crypto');
 const fsPromises = fs.promises;
 const { evaluate } = require('mathjs');
 const { generateSVGGraph } = require('./utils/svgGraph');
+// Import QuizService
+const QuizService = require('./services/quizService');
+
 let generateChartJSGraph = null;
 try {
   generateChartJSGraph = require('./utils/chartjsGraph').generateChartJSGraph;
@@ -53,9 +56,6 @@ Key characteristics:
   When the user requests a graph, IMMEDIATELY call the generate_graph_data tool with:
   - functionStr: the mathematical expression (e.g., "y = x^2", "sin(x)", "log(x)")
   - xMin: default -10 (or user specified)
-  - xMax: default 10 (or user specified)  
-  - step: default 1 (or user specified)
-  
   Do NOT just explain the function - USE THE TOOL to generate the actual graph.
 
 - Tool User: You can also generate text and analyze images/notes.
@@ -141,13 +141,16 @@ console.log('DEBUG: Tournament routes enabled');
 
 // --- API CLIENTS ---
 
-let genAI, geminiModel;
+let genAI, geminiModel, quizService;
 if (process.env.GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
+  quizService = new QuizService(process.env.GOOGLE_API_KEY);
   console.log('DEBUG: Google AI SDK initialized.');
+  console.log('DEBUG: Quiz Service initialized.');
 } else {
   console.error('FATAL: GOOGLE_API_KEY not found. AI services will not work.');
+  quizService = new QuizService(); // Initialize without API key for fallback
 }
 
 // --- DATABASE (JSON file) ---
@@ -555,7 +558,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
     // Generate more data points for smoother curves
     // Use smaller step size for better curve resolution
     const actualStep = Math.min(step, (xMax - xMin) / 100); // At least 100 points for smooth curves
-    
+
     for (let x = xMin; x <= xMax; x += actualStep) {
       try {
         const scope = { x: x };
@@ -593,7 +596,7 @@ app.post('/api/chat', async (req, res) => {
     const conversation = getOrCreateConversation(conversationId);
     const clientHistory = Array.isArray(history) ? history : [];
 
-    // If there's a specific PDF context URL from a past paper, fetch and add it.
+    // If there's a specific PDF context from a past paper, fetch and add it.
     if (pdfContextUrl) {
       try {
         console.log(`DEBUG: Fetching PDF context from URL: ${pdfContextUrl}`);
@@ -672,18 +675,18 @@ app.post('/api/chat', async (req, res) => {
 
     const result = await chat.sendMessage(message);
     const response = result.response;
-    
+
     // Check all parts for function calls, not just the first one
     const parts = response.candidates?.[0]?.content?.parts || [];
     const functionCall = parts.find(part => part.functionCall)?.functionCall;
-    
+
     const userMessage = Array.isArray(message) ? message.find(p => p.text)?.text || '' : message;
     const isGraphRequest = /\b(plot|graph)\b/i.test(userMessage);
 
     if (isGraphRequest && functionCall && functionCall.name === 'generate_graph_data') {
       const { functionStr, xMin, xMax, step } = functionCall.args;
       console.log(`DEBUG: Processing graph request for: ${functionStr}`);
-      
+
       try {
         const graphData = await generateGraphData(functionStr, xMin, xMax, step);
 
@@ -779,6 +782,233 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
   } catch (error) {
     console.error('Error in /generate-quiz:', error);
     res.status(500).json({ error: 'Failed to generate quiz: ' + error.message });
+  }
+});
+
+// New Quiz Generation Endpoints using QuizService
+
+/**
+ * Generate quiz based on description and optional context
+ * POST /api/kana/generate-quiz-by-description
+ */
+app.post('/api/kana/generate-quiz-by-description', async (req, res) => {
+  try {
+    const {
+      description,
+      numQuestions = 5,
+      difficulty = 'medium',
+      subject = 'General',
+      studentLevel = 'intermediate',
+      weaknessAreas = [],
+      context = ''
+    } = req.body;
+
+    // Validate required fields
+    if (!description || description.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Description is required for quiz generation',
+        message: 'Please provide a description of what the quiz should cover'
+      });
+    }
+
+    console.log(`🧠 Quiz generation request: "${description}" - ${numQuestions} questions, ${difficulty} difficulty`);
+
+    // Generate quiz using QuizService
+    const quiz = await quizService.generateQuiz(description, {
+      numQuestions: parseInt(numQuestions),
+      difficulty,
+      subject,
+      studentLevel,
+      weaknessAreas: Array.isArray(weaknessAreas) ? weaknessAreas : [],
+      context
+    });
+
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+      return res.status(500).json({
+        error: 'Failed to generate quiz questions',
+        message: 'The quiz generation service was unable to create questions. Please try again.'
+      });
+    }
+
+    console.log(`✅ Quiz generated successfully: ${quiz.questions.length} questions`);
+
+    res.json({
+      success: true,
+      quiz: quiz,
+      metadata: {
+        generatedBy: quiz.generatedBy,
+        questionCount: quiz.questions.length,
+        estimatedTime: quiz.timeLimitMinutes,
+        createdAt: quiz.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in quiz generation by description:', error);
+    res.status(500).json({
+      error: 'Quiz generation failed',
+      message: error.message || 'An unexpected error occurred during quiz generation',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * Generate quiz for educational improvement (compatible with modules.py)
+ * POST /api/kana/generate-improvement-quiz
+ */
+app.post('/api/kana/generate-improvement-quiz', async (req, res) => {
+  try {
+    const {
+      assignment_id,
+      student_id,
+      feedback,
+      weakness_areas = [],
+      subject = 'General',
+      grade = 'intermediate',
+      numQuestions = 5,
+      context = ''
+    } = req.body;
+
+    // Validate required fields
+    if (!feedback || feedback.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Feedback is required for improvement quiz generation',
+        message: 'Please provide teacher feedback to generate targeted improvement questions'
+      });
+    }
+
+    console.log(`🎯 Improvement quiz request for student ${student_id}, assignment ${assignment_id}`);
+
+    // Create description from feedback and weakness areas
+    const weaknessText = weakness_areas.length > 0 ? weakness_areas.join(', ') : 'general understanding';
+    const description = `Generate an improvement quiz based on teacher feedback: "${feedback}". Focus on helping the student improve in: ${weaknessText}`;
+
+    // Generate quiz using QuizService
+    const quiz = await quizService.generateQuiz(description, {
+      numQuestions: parseInt(numQuestions),
+      difficulty: 'medium',
+      subject: subject,
+      studentLevel: grade,
+      weaknessAreas: weakness_areas,
+      context: `Teacher Feedback: ${feedback}\n${context}`
+    });
+
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+      return res.status(500).json({
+        error: 'Failed to generate improvement quiz',
+        message: 'Unable to create quiz questions based on the provided feedback'
+      });
+    }
+
+    // Format response to match modules.py expectations
+    const formattedQuiz = {
+      id: quiz.id,
+      assignment_id: assignment_id,
+      student_id: student_id,
+      title: `Improvement Quiz - Assignment Review`,
+      description: `This quiz is designed to help you improve in areas where you can grow. Focus on the concepts and take your time!`,
+      questions: quiz.questions.map(q => ({
+        id: q.id,
+        question: q.question,
+        options: q.options,
+        correct_answer: q.correctAnswer,
+        explanation: q.explanation,
+        difficulty: q.difficulty,
+        topic: q.topic,
+        weakness_area: q.weaknessArea
+      })),
+      weakness_areas: weakness_areas,
+      created_at: quiz.createdAt,
+      max_attempts: 3,
+      time_limit_minutes: quiz.timeLimitMinutes,
+      attempts: [],
+      generated_by: quiz.generatedBy,
+      kana_available: quiz.generatedBy === 'kana_ai'
+    };
+
+    console.log(`✅ Improvement quiz generated: ${formattedQuiz.questions.length} questions for ${weaknessText}`);
+
+    res.json(formattedQuiz);
+
+  } catch (error) {
+    console.error('❌ Error in improvement quiz generation:', error);
+    res.status(500).json({
+      error: 'Improvement quiz generation failed',
+      message: error.message || 'Failed to generate quiz based on feedback',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * Get quiz by ID (for retrieving generated quizzes)
+ * GET /api/kana/quiz/:quizId
+ */
+app.get('/api/kana/quiz/:quizId', async (req, res) => {
+  try {
+    const { quizId } = req.params;
+
+    // Note: In a real implementation, you'd store quizzes in a database
+    // For now, this is a placeholder for the quiz retrieval functionality
+
+    res.status(404).json({
+      error: 'Quiz not found',
+      message: 'Quiz storage and retrieval will be implemented with database integration'
+    });
+
+  } catch (error) {
+    console.error('❌ Error retrieving quiz:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve quiz',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Chat endpoint that can generate quizzes (compatibility with existing chat system)
+ * POST /api/kana/chat
+ */
+app.post('/api/kana/chat', async (req, res) => {
+  try {
+    const { message, mode, type, conversationId = 'default' } = req.body;
+
+    // Check if this is a quiz generation request
+    if (mode === 'quiz_generation' || type === 'educational_quiz') {
+      console.log('🧠 Quiz generation via chat endpoint');
+
+      // Extract quiz parameters from message
+      const quizRequest = typeof message === 'string' ? message : JSON.stringify(message);
+
+      // Generate quiz using QuizService
+      const quiz = await quizService.generateQuiz(quizRequest, {
+        numQuestions: 5,
+        difficulty: 'medium',
+        subject: 'General'
+      });
+
+      return res.json({
+        success: true,
+        type: 'quiz_generation',
+        kanaResponse: `I've generated a ${quiz.questions.length}-question quiz for you.`,
+        quiz: quiz,
+        generatedBy: quiz.generatedBy
+      });
+    }
+
+    // If not a quiz request, return error (this endpoint is specifically for quiz generation)
+    res.status(400).json({
+      error: 'Invalid request',
+      message: 'This endpoint is specifically for quiz generation. Use mode="quiz_generation" or type="educational_quiz"'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in kana chat quiz endpoint:', error);
+    res.status(500).json({
+      error: 'Quiz generation failed',
+      message: error.message
+    });
   }
 });
 
@@ -942,241 +1172,137 @@ const startServer = async () => {
             textContent = await extractTextFromFile('application/pdf', pdfBuffer);
           } catch (pdfError) {
             console.error('Error extracting text from PDF:', pdfError);
-            return res.status(400).json({ error: 'Failed to extract text from PDF' });
+            return res.status(500).json({ error: 'Failed to extract text from PDF' });
           }
         }
 
-        // Create analysis prompt based on mode
-        let prompt;
-        
-        if (isGradingMode) {
-          // Grading mode - comprehensive assessment with scores
-          prompt = `You are K.A.N.A., an AI grading assistant for "${assignment_title || 'Student Assignment'}". ${student_context ? `Context: ${student_context}` : ''}
+        // Generate analysis prompt for PDF content
+        const analysisPrompt = isGradingMode
+          ? `Grade this student assignment based on the following criteria:
+             Assignment: ${assignment_title}
+             Max Points: ${max_points}
+             Grading Rubric: ${grading_rubric}
+             
+             Student Work:
+             ${textContent}
+             
+             Provide a detailed analysis including:
+             **GRADE BREAKDOWN**
+             Points Earned: X/${max_points}
+             Letter Grade: [A-F]
+             Percentage: X%
+             
+             **DETAILED FEEDBACK**
+             [Provide specific feedback on the work]
+             
+             **LEARNING STRENGTHS**
+             • [List observed strengths]
+             
+             **GROWTH OPPORTUNITIES**
+             • [List areas for improvement]
+             
+             **STUDY SUGGESTIONS**
+             • [Provide specific recommendations]`
+          : `Analyze this student work and provide educational insights:
+             
+             Student Context: ${student_context || 'Not provided'}
+             Content: ${textContent}
+             
+             Please provide:
+             **LEARNING ANALYSIS**
+             [Overall assessment of understanding]
+             
+             **LEARNING STRENGTHS**
+             • [List observed strengths]
+             
+             **GROWTH OPPORTUNITIES**
+             • [List areas for improvement]
+             
+             **STUDY SUGGESTIONS**
+             • [Provide specific recommendations]`;
 
-ASSIGNMENT DETAILS:
-- Title: ${assignment_title || 'Student Work'}
-- Maximum Points: ${max_points || 100}
-- Grading Rubric: ${grading_rubric || 'Standard academic assessment'}
-
-Please provide a structured grading assessment in this EXACT format:
-
-**GRADE SUMMARY**
-Letter Grade: [A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F]
-Points Earned: [X/${max_points || 100}]
-Percentage: [XX%]
-
-**CONTENT OVERVIEW**
-Subject: [Identify the academic subject]
-Level: [Academic level assessment]
-Work Type: [Essay, homework, project, etc.]
-
-**PERFORMANCE ASSESSMENT**
-Strengths:
-• [Specific strength 1]
-• [Specific strength 2]
-• [Specific strength 3]
-
-Areas for Improvement:
-• [Specific area 1]
-• [Specific area 2]
-• [Specific area 3]
-
-**DETAILED FEEDBACK**
-Content Quality: [Assessment of understanding and accuracy]
-Organization: [Structure and presentation evaluation]
-Technical Skills: [Subject-specific skills demonstrated]
-
-**RECOMMENDATIONS**
-Next Steps:
-1. [Specific action item]
-2. [Specific action item]
-3. [Specific action item]
-
-**TEACHER NOTES**
-[Brief summary for gradebook/records]
-
-Document content:
-${textContent}`;
-        } else {
-          // Analysis only mode - educational insights without grading
-          prompt = `You are K.A.N.A., an educational AI assistant providing learning analysis. ${student_context ? `Context: ${student_context}` : ''}
-
-Please analyze this student work and provide educational insights in this EXACT format:
-
-**LEARNING ANALYSIS**
-Subject Area: [Identify the academic subject]
-Academic Level: [Estimated grade level]
-Content Type: [Type of work submitted]
-
-**UNDERSTANDING ASSESSMENT**
-Concepts Demonstrated:
-• [Concept 1 - level of understanding]
-• [Concept 2 - level of understanding]
-• [Concept 3 - level of understanding]
-
-Learning Strengths:
-• [Strength 1]
-• [Strength 2]
-• [Strength 3]
-
-Growth Opportunities:
-• [Area for development 1]
-• [Area for development 2]
-• [Area for development 3]
-
-**EDUCATIONAL INSIGHTS**
-Study Suggestions:
-1. [Specific study recommendation]
-2. [Specific study recommendation]
-3. [Specific study recommendation]
-
-Resources to Explore:
-• [Resource type 1]
-• [Resource type 2]
-• [Resource type 3]
-
-**ENCOURAGEMENT**
-[Positive, motivating message for the student]
-
-Document content:
-${textContent}`;
-        }
-
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent(analysisPrompt);
         analysisResult = result.response.text();
-      }
-      // Handle image analysis
-      else if (image_data) {
-        const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        // Convert base64 to proper format for Gemini
-        const imageData = {
-          inlineData: {
-            data: image_data,
-            mimeType: "image/jpeg"
-          }
-        };
+      } else if (image_data) {
+        // Handle image analysis
+        try {
+          const imageBuffer = Buffer.from(image_data, 'base64');
+          const imagePart = {
+            inlineData: {
+              data: image_data,
+              mimeType: 'image/jpeg' // Assume JPEG, could be made dynamic
+            }
+          };
 
-        // Create analysis prompt based on mode
-        let prompt;
-        
-        if (isGradingMode) {
-          prompt = `You are K.A.N.A., an AI grading assistant for "${assignment_title || 'Student Assignment'}". ${student_context ? `Context: ${student_context}` : ''}
+          const analysisPrompt = isGradingMode
+            ? `Grade this student assignment based on the following criteria:
+               Assignment: ${assignment_title}
+               Max Points: ${max_points}
+               Grading Rubric: ${grading_rubric}
+               
+               Please analyze the image and provide:
+               **GRADE BREAKDOWN**
+               Points Earned: X/${max_points}
+               Letter Grade: [A-F]
+               Percentage: X%
+               
+               **DETAILED FEEDBACK**
+               [Provide specific feedback on the work]
+               
+               **LEARNING STRENGTHS**
+               • [List observed strengths]
+               
+               **GROWTH OPPORTUNITIES**
+               • [List areas for improvement]
+               
+               **STUDY SUGGESTIONS**
+               • [Provide specific recommendations]`
+            : `Analyze this student work image and provide educational insights:
+               
+               Student Context: ${student_context || 'Not provided'}
+               
+               Please provide:
+               **LEARNING ANALYSIS**
+               [Overall assessment of understanding]
+               
+               **LEARNING STRENGTHS**
+               • [List observed strengths]
+               
+               **GROWTH OPPORTUNITIES**
+               • [List areas for improvement]
+               
+               **STUDY SUGGESTIONS**
+               • [Provide specific recommendations]`;
 
-ASSIGNMENT DETAILS:
-- Title: ${assignment_title || 'Student Work'}  
-- Maximum Points: ${max_points || 100}
-- Grading Rubric: ${grading_rubric || 'Standard academic assessment'}
+          const result = await model.generateContent([analysisPrompt, imagePart]);
+          analysisResult = result.response.text();
 
-Analyze this image of student work and provide grading assessment in this EXACT format:
-
-**GRADE SUMMARY**
-Letter Grade: [A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F]
-Points Earned: [X/${max_points || 100}]
-Percentage: [XX%]
-
-**VISUAL CONTENT OVERVIEW**
-What I Can See: [Description of work in image]
-Subject: [Academic subject identified]
-Work Type: [Type of assignment visible]
-
-**PERFORMANCE ASSESSMENT**
-Strengths Observed:
-• [Specific strength 1]
-• [Specific strength 2]
-• [Specific strength 3]
-
-Areas for Improvement:
-• [Specific area 1]
-• [Specific area 2]
-• [Specific area 3]
-
-**DETAILED FEEDBACK**
-Content Accuracy: [Assessment of correctness]
-Presentation: [Neatness, organization, clarity]
-Technical Skills: [Subject-specific skills shown]
-
-**RECOMMENDATIONS**
-Next Steps:
-1. [Specific action item]
-2. [Specific action item]
-3. [Specific action item]
-
-**TEACHER NOTES**
-[Brief summary for gradebook/records]`;
-        } else {
-          prompt = `You are K.A.N.A., an educational AI assistant providing learning analysis. ${student_context ? `Context: ${student_context}` : ''}
-
-Analyze this image of student work and provide educational insights in this EXACT format:
-
-**LEARNING ANALYSIS**
-What I Can See: [Description of work in image]
-Subject Area: [Academic subject identified]
-Academic Level: [Estimated grade level]
-
-**UNDERSTANDING ASSESSMENT**
-Concepts Demonstrated:
-• [Concept 1 - level shown]
-• [Concept 2 - level shown]
-• [Concept 3 - level shown]
-
-Learning Strengths:
-• [Strength 1]
-• [Strength 2]
-• [Strength 3]
-
-Growth Opportunities:
-• [Area for development 1]
-• [Area for development 2]
-• [Area for development 3]
-
-**EDUCATIONAL INSIGHTS**
-Study Suggestions:
-1. [Specific study recommendation]
-2. [Specific study recommendation]
-3. [Specific study recommendation]
-
-Resources to Explore:
-• [Resource type 1]
-• [Resource type 2]
-• [Resource type 3]
-
-**ENCOURAGEMENT**
-[Positive, motivating message for the student]`;
+        } catch (imageError) {
+          console.error('Error analyzing image:', imageError);
+          return res.status(500).json({ error: 'Failed to analyze image' });
         }
-
-        // Generate content with image and prompt
-        const result = await visionModel.generateContent([prompt, imageData]);
-        analysisResult = result.response.text();
       }
 
-      console.log(`DEBUG: K.A.N.A. analysis completed successfully for ${task_type || analysis_type}`);
-
-      // Parse structured data from the analysis for frontend compatibility
+      // Parse the analysis result
       const knowledgeGaps = parseKnowledgeGaps(analysisResult);
       const recommendations = parseRecommendations(analysisResult);
       const strengths = parseStrengths(analysisResult);
       const confidence = parseConfidenceFromAnalysis(analysisResult);
       const gradingData = parseGradingFromAnalysis(analysisResult);
 
-      // Structure the response based on mode
+      // Prepare response data
       const responseData = {
-        success: true,
         analysis: analysisResult,
-        kanaResponse: analysisResult,
-        analysis_type: analysis_type,
-        task_type: task_type,
-        student_context: student_context,
-        content_type: pdf_data || pdf_text ? 'pdf' : 'image',
-        grading_mode: isGradingMode,
-        
+        success: true,
+
         // Frontend-compatible structured fields
         knowledge_gaps: knowledgeGaps,
         recommendations: recommendations,
         student_strengths: strengths,
         strengths: strengths, // For compatibility with newer frontend versions
         confidence: confidence,
-        
+
         // Add extracted text for frontend display
         extracted_text: pdf_text || (pdf_data ? 'Text extracted from PDF' : 'Text extracted from image')
       };
@@ -1188,14 +1314,14 @@ Resources to Explore:
         responseData.max_points = gradingData.maxPoints || max_points;
         responseData.letter_grade = gradingData.letterGrade;
         responseData.percentage = gradingData.percentage;
-        
+
         // Parse improvement areas from grading analysis
         responseData.improvement_areas = parseKnowledgeGaps(analysisResult);
         responseData.areas_for_improvement = parseKnowledgeGaps(analysisResult);
-        
+
         // Overall feedback from the analysis
-        responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() || 
-                                       analysisResult.substring(0, 200) + '...';
+        responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() ||
+          analysisResult.substring(0, 200) + '...';
       }
 
       // Add assignment details if in grading mode
@@ -1211,9 +1337,9 @@ Resources to Explore:
 
     } catch (error) {
       console.error('Error in /kana-direct:', error);
-      res.status(500).json({ 
-        error: 'Failed to analyze content', 
-        details: error.message 
+      res.status(500).json({
+        error: 'Failed to analyze content',
+        details: error.message
       });
     }
   });
@@ -1222,10 +1348,6 @@ Resources to Explore:
     console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
   });
 };
-
-startServer();
-
-// Note: All endpoints have been moved before startServer() for proper registration
 
 // New endpoint for Chainlink Functions - Daily Quiz Generation
 app.post('/api/kana/generate-daily-quiz', async (req, res) => {
@@ -1521,20 +1643,15 @@ function getClassificationConfidence(message, classification) {
   return Math.min(0.95, 0.6 + (currentCount / maxCount) * 0.35);
 }
 
-// Initialize ElizaOS agents on startup
-initializeElizaAgents();
-
-console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
-
 // Helper functions to parse structured data from K.A.N.A.'s formatted analysis
 function parseKnowledgeGaps(analysisText) {
   const gaps = [];
   const lines = analysisText.split('\n');
   let inGapsSection = false;
-  
+
   for (const line of lines) {
-    if (line.includes('Growth Opportunities:') || line.includes('Areas for Improvement:') || 
-        line.includes('Knowledge Gaps:') || line.includes('Areas for development')) {
+    if (line.includes('Growth Opportunities:') || line.includes('Areas for Improvement:') ||
+      line.includes('Knowledge Gaps:') || line.includes('Areas for development')) {
       inGapsSection = true;
       continue;
     }
@@ -1552,10 +1669,10 @@ function parseRecommendations(analysisText) {
   const recommendations = [];
   const lines = analysisText.split('\n');
   let inRecommendationsSection = false;
-  
+
   for (const line of lines) {
-    if (line.includes('Study Suggestions:') || line.includes('Recommendations:') || 
-        line.includes('Next Steps:') || line.includes('Teaching suggestions:')) {
+    if (line.includes('Study Suggestions:') || line.includes('Recommendations:') ||
+      line.includes('Next Steps:') || line.includes('Teaching suggestions:')) {
       inRecommendationsSection = true;
       continue;
     }
@@ -1573,10 +1690,10 @@ function parseStrengths(analysisText) {
   const strengths = [];
   const lines = analysisText.split('\n');
   let inStrengthsSection = false;
-  
+
   for (const line of lines) {
-    if (line.includes('Learning Strengths:') || line.includes('Strengths:') || 
-        line.includes('Strengths Observed:')) {
+    if (line.includes('Learning Strengths:') || line.includes('Strengths:') ||
+      line.includes('Strengths Observed:')) {
       inStrengthsSection = true;
       continue;
     }
@@ -1594,15 +1711,15 @@ function parseConfidenceFromAnalysis(analysisText) {
   // Extract a confidence score based on the depth and structure of the analysis
   const hasDetailedSections = analysisText.includes('**') && analysisText.includes('•');
   const wordCount = analysisText.split(' ').length;
-  const hasSpecificConcepts = analysisText.toLowerCase().includes('understanding') || 
-                              analysisText.toLowerCase().includes('demonstrates') ||
-                              analysisText.toLowerCase().includes('concepts');
-  
+  const hasSpecificConcepts = analysisText.toLowerCase().includes('understanding') ||
+    analysisText.toLowerCase().includes('demonstrates') ||
+    analysisText.toLowerCase().includes('concepts');
+
   let confidence = 70; // Base confidence
   if (hasDetailedSections) confidence += 10;
   if (wordCount > 200) confidence += 10;
   if (hasSpecificConcepts) confidence += 10;
-  
+
   return Math.min(95, confidence);
 }
 
@@ -1610,7 +1727,7 @@ function parseGradingFromAnalysis(analysisText) {
   const gradeMatch = analysisText.match(/Points Earned:\s*(\d+)\/(\d+)/);
   const letterGradeMatch = analysisText.match(/Letter Grade:\s*([A-F][+-]?)/);
   const percentageMatch = analysisText.match(/Percentage:\s*(\d+)%/);
-  
+
   return {
     score: gradeMatch ? parseInt(gradeMatch[1]) : null,
     maxPoints: gradeMatch ? parseInt(gradeMatch[2]) : null,
@@ -1618,3 +1735,10 @@ function parseGradingFromAnalysis(analysisText) {
     percentage: percentageMatch ? parseInt(percentageMatch[1]) : null
   };
 }
+
+// Initialize ElizaOS agents on startup
+initializeElizaAgents();
+
+console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
+
+startServer();

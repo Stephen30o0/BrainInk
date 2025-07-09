@@ -29,6 +29,15 @@ except ImportError:
 import requests
 from dotenv import load_dotenv
 
+# Import quiz router from the modules file
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'BrainInk-Backend', 'users_micro', 'Endpoints'))
+try:
+    from modules import router as quiz_router
+except ImportError:
+    print("Warning: Quiz router not found. Will create local quiz endpoints.")
+    quiz_router = None
+
 load_dotenv()
 
 # Configure logging
@@ -52,6 +61,13 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
+
+# Include quiz router if available
+if quiz_router:
+    app.include_router(quiz_router, prefix="/study-area")
+    print("✅ Quiz router included successfully")
+else:
+    print("⚠️ Quiz router not available")
 
 # Environment variables
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/brainink_teacher")
