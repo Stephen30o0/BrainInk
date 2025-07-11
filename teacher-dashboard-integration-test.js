@@ -30,7 +30,7 @@ global.localStorage = mockLocalStorage as any;
 global.fetch = jest.fn();
 
 // Test configuration
-const MOCK_BACKEND_URL = 'http://localhost:8000';
+const MOCK_BACKEND_URL = 'https://brainink-backend.onrender.com';
 
 describe('Teacher Dashboard Integration', () => {
   beforeEach(() => {

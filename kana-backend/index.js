@@ -24,6 +24,12 @@ try {
 // Import tournament routes
 const tournamentRoutes = require('./routes/tournaments');
 
+// Import syllabus routes
+const syllabusRoutes = require('./routes/syllabus');
+
+// Import syllabus integration routes
+const { router: syllabusIntegrationRoutes, initializeConversationContexts } = require('./routes/syllabusIntegration');
+
 // Import and initialize database
 const { testConnection, initializeTables } = require('./database');
 
@@ -131,13 +137,57 @@ app.use('/api/kana/images', express.static(IMAGES_DIR));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/kana/uploads', express.static(UPLOADS_DIR));
 
+// Serve textbook files for syllabus
+const TEXTBOOKS_DIR = path.join(__dirname, 'uploads', 'textbooks');
+if (!fs.existsSync(TEXTBOOKS_DIR)) {
+  fs.mkdirSync(TEXTBOOKS_DIR, { recursive: true });
+}
+app.use('/textbooks', express.static(TEXTBOOKS_DIR));
+app.use('/api/kana/textbooks', express.static(TEXTBOOKS_DIR));
+
 console.log(`DEBUG: Serving static files from ${STUDY_MATERIALS_DIR} at /study_material_files and /api/kana/study_material_files`);
 console.log(`DEBUG: Serving static files from ${IMAGES_DIR} at /images and /api/kana/images`);
 console.log(`DEBUG: Serving graph files from ${UPLOADS_DIR} at /uploads and /api/kana/uploads`);
+console.log(`DEBUG: Serving textbook files from ${TEXTBOOKS_DIR} at /textbooks and /api/kana/textbooks`);
 
 // Tournament routes
 app.use('/api/tournaments', tournamentRoutes);
 console.log('DEBUG: Tournament routes enabled');
+
+// Syllabus routes
+app.use('/api/syllabus', syllabusRoutes);
+console.log('DEBUG: Syllabus routes enabled');
+
+// Syllabus integration routes
+app.use('/api/kana/syllabus', syllabusIntegrationRoutes);
+console.log('DEBUG: Syllabus integration routes enabled');
+
+// Add K.A.N.A. syllabus processing routes (alias for compatibility)
+app.use('/api/kana', syllabusRoutes);
+console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
+
+// Debug route to check if endpoint exists
+app.get('/api/debug/routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach(function (middleware) {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach(function (handler) {
+        if (handler.route) {
+          routes.push({
+            path: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  res.json({ routes, timestamp: new Date().toISOString() });
+});
 
 // --- API CLIENTS ---
 
@@ -549,7 +599,7 @@ async function generateGraphData(functionStr, xMin = -10, xMax = 10, step = 1) {
     // Clean and normalize the expression for mathjs
     expression = expression
       .replace(/\^/g, '**') // Handle exponents (e.g., x^2 -> x**2)
-      .replace(/\*\*/g, '^') // Convert back to mathjs exponent syntax
+      .replace(/\*\*|\\/g, '^') // Convert back to mathjs exponent syntax
       .replace(/(\d+\.?\d*)\s*([a-zA-Z(])/g, '$1 * $2') // Handle implicit multiplication
       .replace(/\)\(/g, ') * ('); // Handle multiplication between parentheses
 
@@ -759,14 +809,16 @@ app.post('/api/clear-note-context', (req, res) => {
 });
 
 app.post('/api/kana/generate-quiz', async (req, res) => {
-  const { sourceMaterialId, difficulty, numQuestions } = req.body;
-  if (!sourceMaterialId || !difficulty || !numQuestions) {
-    return res.status(400).json({ error: 'sourceMaterialId, difficulty, and numQuestions are required.' });
-  }
-
   try {
+    const { sourceMaterialId, difficulty, numQuestions } = req.body;
+    if (!sourceMaterialId || !difficulty || !numQuestions) {
+      return res.status(400).json({ error: 'sourceMaterialId, difficulty, and numQuestions are required.' });
+    }
+
     const material = studyMaterialsDb.find(m => m.id === sourceMaterialId);
-    if (!material) return res.status(404).json({ error: 'Source material not found.' });
+    if (!material) {
+      return res.status(404).json({ error: 'Study material not found.' });
+    }
 
     const fileBuffer = await fsPromises.readFile(material.filePath);
     const textContent = await extractTextFromFile(material.mimetype, fileBuffer);
@@ -1082,6 +1134,10 @@ const generateGraphImage = async (data, title, xLabel, yLabel) => {
 const startServer = async () => {
   await loadDb();
   await initializeDatabase();
+
+  // Initialize syllabus integration with conversation contexts
+  initializeConversationContexts(conversationContexts);
+
   const fileToGenerativePart = (filePath, mimeType) => {
     return {
       inlineData: {

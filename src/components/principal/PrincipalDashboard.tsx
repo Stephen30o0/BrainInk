@@ -14,7 +14,8 @@ import { TeacherManagement } from './TeacherManagement';
 import { StudentManagement } from './StudentManagement';
 import { ClassroomManagement } from './ClassroomManagement';
 import { PrincipalSettings } from './PrincipalSettings';
-type PrincipalDashboardTab = 'overview' | 'analytics' | 'invitations' | 'access-codes' | 'subjects' | 'teachers' | 'students' | 'classrooms' | 'settings';
+import { PrincipalSyllabus } from './PrincipalSyllabus';
+type PrincipalDashboardTab = 'overview' | 'analytics' | 'invitations' | 'access-codes' | 'subjects' | 'syllabus' | 'teachers' | 'students' | 'classrooms' | 'settings';
 
 interface PrincipalDashboardProps {
     userStatus?: any;
@@ -242,6 +243,10 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
 
                         {activeTab === 'subjects' && (
                             <SubjectManagement schoolData={schoolData} onRefresh={handleRefreshData} />
+                        )}
+
+                        {activeTab === 'syllabus' && (
+                            <PrincipalSyllabus />
                         )}
 
                         {activeTab === 'teachers' && (

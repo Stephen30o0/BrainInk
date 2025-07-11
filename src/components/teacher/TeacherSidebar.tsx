@@ -11,7 +11,8 @@ import {
   LogOut,
   UserPlus,
   FileText,
-  CheckSquare
+  CheckSquare,
+  Map
 } from 'lucide-react';
 
 interface TeacherSidebarProps {
@@ -61,6 +62,12 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
       label: 'Grading Dashboard',
       icon: CheckSquare,
       description: 'Grade Assignments'
+    },
+    {
+      id: 'syllabus',
+      label: 'Syllabus Management',
+      icon: Map,
+      description: 'Manage Curriculum'
     },
     {
       id: 'ai-suggestions',
@@ -119,8 +126,8 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${isActive
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
               >
                 <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />

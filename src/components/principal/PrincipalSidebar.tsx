@@ -15,7 +15,8 @@ import {
     Building,
     Menu,
     X,
-    ChevronLeft
+    ChevronLeft,
+    Map
 } from 'lucide-react';
 
 interface PrincipalSidebarProps {
@@ -81,6 +82,12 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
             label: 'Subjects',
             icon: BookOpen,
             description: 'Curriculum management'
+        },
+        {
+            id: 'syllabus',
+            label: 'Syllabus Management',
+            icon: Map,
+            description: 'Curriculum syllabuses'
         },
         {
             id: 'teachers',
@@ -200,8 +207,8 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
                                     key={item.id}
                                     onClick={() => handleTabChange(item.id)}
                                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all group relative ${isActive
-                                            ? 'bg-white bg-opacity-20 text-white border border-white border-opacity-30'
-                                            : 'text-gray-300 hover:bg-white hover:bg-opacity-10 hover:text-white'
+                                        ? 'bg-white bg-opacity-20 text-white border border-white border-opacity-30'
+                                        : 'text-gray-300 hover:bg-white hover:bg-opacity-10 hover:text-white'
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     title={isCollapsed ? item.label : undefined}
                                 >

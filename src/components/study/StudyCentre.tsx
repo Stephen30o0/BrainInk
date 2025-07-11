@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Brain,
@@ -20,9 +21,12 @@ import {
   Sparkles,
   X,
   MessageSquare,
-  Eye
+  Eye,
+  Link
 } from 'lucide-react';
 import { studentService, type StudentDashboard, type StudentAssignment, type LearningPathItem, type StudyAnalytics } from '../../services/studentService';
+import { syllabusService, type SyllabusWithProgress } from '../../services/syllabusService';
+import { userRoleService, type UserRoleResponse } from '../../services/userRoleService';
 import { QuizButton } from '../quiz/QuizButton';
 
 interface StudyCentreProps {
@@ -32,10 +36,14 @@ interface StudyCentreProps {
 export const StudyCentre: React.FC<StudyCentreProps> = ({
   currentUser
 }) => {
+  const navigate = useNavigate();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [enhancedUser, setEnhancedUser] = useState<UserRoleResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'assignments' | 'analytics' | 'learning'>('dashboard');
   const [dashboard, setDashboard] = useState<StudentDashboard | null>(null);
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [learningPath, setLearningPath] = useState<LearningPathItem[]>([]);
+  const [syllabuses, setSyllabuses] = useState<SyllabusWithProgress[]>([]);
   const [analytics, setAnalytics] = useState<StudyAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +55,206 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
   }>({ isOpen: false, assignment: null });
 
   useEffect(() => {
-    loadStudentData();
-  }, []);
+    const checkAuthorization = async () => {
+      try {
+        console.log('🔍 Checking student authorization with enhanced service...');
+        console.log('👤 Current user prop:', currentUser);
+        console.log('🗝️ LocalStorage access_token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
+        console.log('🗝️ LocalStorage token length:', localStorage.getItem('access_token')?.length || 0);
+
+        // Try to authenticate using the token-based service first
+        // This doesn't require a currentUser prop - it uses the token in localStorage
+        console.log('🔑 Checking for authentication token...');
+
+        if (!userRoleService.hasAuthToken()) {
+          console.log('❌ No authentication token found');
+
+          // If no token and no currentUser prop, deny access
+          if (!currentUser) {
+            console.log('❌ No token and no current user prop');
+            setIsAuthorized(false);
+            return;
+          }
+
+          // Fall back to basic prop-based authorization if no token
+          console.log('🔄 No token available, using prop-based authorization...');
+          const userRoles = currentUser.roles || currentUser.role || [];
+          const isStudent = Array.isArray(userRoles)
+            ? userRoles.some(role => typeof role === 'string' && role.toLowerCase() === 'student')
+            : currentUser.is_student || false;
+
+          if (!isStudent) {
+            console.log('❌ User is not a student (prop check)');
+            setIsAuthorized(false);
+            return;
+          }
+
+          console.log('✅ Student authorization successful (prop-based)');
+          setIsAuthorized(true);
+          return;
+        }
+
+        console.log('🔑 Token found, attempting API authentication...');
+        const authResult = await userRoleService.validateAuthorization('student');
+
+        if (authResult.error) {
+          console.error('❌ Authorization service error:', authResult.error);
+
+          // If API fails and we don't have a currentUser prop, deny access
+          if (!currentUser) {
+            console.log('❌ No API access and no current user prop');
+            setIsAuthorized(false);
+            return;
+          }
+
+          // Fall back to basic prop-based authorization if API fails
+          console.log('🔄 Falling back to prop-based authorization...');
+          const userRoles = currentUser.roles || currentUser.role || [];
+          const isStudent = Array.isArray(userRoles)
+            ? userRoles.some(role => typeof role === 'string' && role.toLowerCase() === 'student')
+            : currentUser.is_student || false;
+
+          if (!isStudent) {
+            console.log('❌ User is not a student (fallback check)');
+            setIsAuthorized(false);
+            return;
+          }
+
+          console.log('✅ Student authorization successful (fallback)');
+          setIsAuthorized(true);
+          return;
+        }
+
+        if (!authResult.isAuthorized || !authResult.userInfo) {
+          console.log('❌ User is not authorized as student');
+          console.log('📋 User roles:', authResult.userInfo?.roles || []);
+          console.log('🎓 Is student:', authResult.userInfo?.is_student || false);
+          setIsAuthorized(false);
+          return;
+        }
+
+        // Store enhanced user data for use throughout the component
+        setEnhancedUser(authResult.userInfo);
+
+        console.log('✅ Student authorization successful');
+        console.log('👤 Enhanced user data:', {
+          user_id: authResult.userInfo.user_id,
+          username: authResult.userInfo.username,
+          full_name: authResult.userInfo.full_name,
+          roles: authResult.userInfo.roles,
+          school_info: authResult.userInfo.school_info
+        });
+
+        setIsAuthorized(true);
+
+        // Show a brief notification about the enhanced data loading
+        setNotification('✅ User authentication verified with enhanced role data');
+        setTimeout(() => setNotification(null), 3000);
+
+      } catch (error) {
+        console.error('❌ Error during authorization check:', error);
+        setIsAuthorized(false);
+        setEnhancedUser(null);
+      }
+    };
+
+    checkAuthorization();
+  }, [currentUser]);
+
+  // Second useEffect for loading data after authorization
+  useEffect(() => {
+    if (isAuthorized) {
+      loadStudentData();
+      // Also load syllabuses immediately for progress persistence
+      loadLearningPath();
+    }
+  }, [isAuthorized]);
+
+  // Show loading while checking authorization
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-700 font-medium">Verifying Access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if not authorized
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-xl p-8 shadow-lg border text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
+            <p className="text-gray-600 mb-6">
+              Only students can access this Study Centre.
+            </p>
+
+            {/* Enhanced error information */}
+            {enhancedUser && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+                <h3 className="text-sm font-medium text-blue-800 mb-2">Your Account Information:</h3>
+                <div className="text-sm text-blue-700 space-y-1">
+                  <p><span className="font-medium">Name:</span> {enhancedUser.full_name || enhancedUser.username}</p>
+                  <p><span className="font-medium">Email:</span> {enhancedUser.email}</p>
+                  <p><span className="font-medium">Roles:</span> {enhancedUser.roles.join(', ')}</p>
+                  {enhancedUser.school_info && (
+                    <div className="mt-2">
+                      <p className="font-medium">School Access:</p>
+                      <ul className="ml-4 space-y-1">
+                        {enhancedUser.school_info.principal_school && (
+                          <li>• Principal at {enhancedUser.school_info.principal_school.school_name}</li>
+                        )}
+                        {enhancedUser.school_info.teacher_schools?.map(school => (
+                          <li key={school.school_id}>• Teacher at {school.school_name}</li>
+                        ))}
+                        {enhancedUser.school_info.student_schools?.map(school => (
+                          <li key={school.school_id}>• Student at {school.school_name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2 text-sm text-gray-500 justify-center">
+                <GraduationCap className="w-4 h-4" />
+                <span>If you are a student, please contact your administrator</span>
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-gray-500 justify-center">
+                <Brain className="w-4 h-4" />
+                <span>Teachers can access the Teacher Dashboard</span>
+              </div>
+            </div>
+            <div className="space-y-3 mt-6">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Refresh Page
+              </button>
+              {enhancedUser && (enhancedUser.is_teacher || enhancedUser.is_principal) && (
+                <button
+                  onClick={() => navigate('/teacher')}
+                  className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  Go to Teacher Dashboard
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const loadStudentData = async () => {
     try {
@@ -87,11 +293,17 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
 
   const loadLearningPath = async () => {
     try {
+      // Load traditional learning path
       const pathData = await studentService.getLearningPath();
       setLearningPath(pathData.learning_path || []);
+
+      // Load syllabus-based learning paths
+      const syllabusData = await syllabusService.getStudentSyllabuses();
+      setSyllabuses(syllabusData || []);
     } catch (error) {
       console.error('❌ Failed to load learning path:', error);
       setLearningPath([]); // Set empty array instead of keeping stale data
+      setSyllabuses([]);
       setNotification('Unable to load learning path from backend');
       setTimeout(() => setNotification(null), 5000);
     }
@@ -133,7 +345,7 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
     setActiveTab(tab);
 
     // Load data specific to the tab
-    if (tab === 'learning' && learningPath.length === 0) {
+    if (tab === 'learning' && learningPath.length === 0 && syllabuses.length === 0) {
       await loadLearningPath();
     } else if (tab === 'analytics' && !analytics) {
       await loadAnalytics();
@@ -252,11 +464,29 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
                 <Brain className="w-8 h-8 text-blue-600" />
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Study Centre</h1>
-                  <p className="text-sm text-gray-600">Your personalized learning dashboard</p>
+                  <p className="text-sm text-gray-600">
+                    {enhancedUser?.school_info?.student_schools?.[0] ?
+                      `${enhancedUser.school_info.student_schools[0].school_name} • Your personalized learning dashboard` :
+                      'Your personalized learning dashboard'
+                    }
+                  </p>
                 </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* User Info Section */}
+              {enhancedUser && (
+                <div className="hidden md:flex items-center space-x-3 px-4 py-2 bg-gray-50 rounded-lg border">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <GraduationCap className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="text-sm">
+                    <p className="font-medium text-gray-900">{enhancedUser.full_name || enhancedUser.username}</p>
+                    <p className="text-gray-500">Student ID: {enhancedUser.school_info?.student_schools?.[0]?.student_id || enhancedUser.user_id}</p>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={refreshData}
                 disabled={refreshing}
@@ -309,7 +539,7 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
             dashboard={dashboard}
             assignments={assignments}
             learningPath={learningPath}
-            currentUser={currentUser}
+            currentUser={enhancedUser || currentUser}
             getStatusColor={getStatusColor}
             formatDate={formatDate}
           />
@@ -318,7 +548,7 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
         {activeTab === 'assignments' && (
           <AssignmentsTab
             assignments={assignments}
-            currentUser={currentUser}
+            currentUser={enhancedUser || currentUser}
             getStatusColor={getStatusColor}
             formatDate={formatDate}
             openFeedbackModal={openFeedbackModal}
@@ -336,6 +566,8 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
         {activeTab === 'learning' && (
           <LearningPathTab
             learningPath={learningPath}
+            syllabuses={syllabuses}
+            setSyllabuses={setSyllabuses}
           />
         )}
       </div>
@@ -510,7 +742,7 @@ const DashboardTab: React.FC<{
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold mb-2">
-              Welcome back, {dashboard?.student_info?.name || currentUser?.name || currentUser?.username || 'Student'}!
+              Welcome back, {dashboard?.student_info?.name || currentUser?.full_name || currentUser?.name || currentUser?.username || 'Student'}!
             </h2>
             <p className="text-blue-100 mb-4">
               Ready to continue your learning journey? You're making great progress!
@@ -948,7 +1180,77 @@ const AnalyticsTab: React.FC<{
 // Learning Path Tab Component
 const LearningPathTab: React.FC<{
   learningPath: LearningPathItem[];
-}> = ({ learningPath }) => {
+  syllabuses: SyllabusWithProgress[];
+  setSyllabuses: React.Dispatch<React.SetStateAction<SyllabusWithProgress[]>>;
+}> = ({ learningPath, syllabuses, setSyllabuses }) => {
+  const [expandedSyllabus, setExpandedSyllabus] = useState<number | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
+
+  const markWeekComplete = async (syllabusId: number, weekNumber: number) => {
+    try {
+      console.log(`✅ Marking week ${weekNumber} as complete for syllabus ${syllabusId}...`);
+      console.log('📊 Current syllabuses state:', syllabuses.map(s => ({
+        id: s.syllabus.id,
+        title: s.syllabus.title,
+        completed_weeks: s.progress?.completed_weeks || []
+      })));
+
+      const result = await syllabusService.markWeekComplete(syllabusId, weekNumber);
+
+      if (result.success) {
+        console.log('🔄 Updating local state with result:', result);
+
+        // Update local state with the response data
+        setSyllabuses(prev => prev.map(s => {
+          if (s.syllabus.id === syllabusId) {
+            return {
+              ...s,
+              progress: {
+                id: s.progress?.id || 0,
+                student_id: s.progress?.student_id || 0,
+                syllabus_id: syllabusId,
+                completed_weeks: result.completed_weeks,
+                progress_percentage: result.progress_percentage,
+                current_week: Math.max(...result.completed_weeks, s.progress?.current_week || 1),
+                last_accessed: new Date().toISOString(),
+                created_date: s.progress?.created_date || new Date().toISOString(),
+                updated_date: new Date().toISOString()
+              }
+            };
+          }
+          return s;
+        }));
+
+        console.log(`✅ Week ${weekNumber} marked as complete successfully`);
+        console.log('📊 Updated completed weeks:', result.completed_weeks);
+
+        // Show success message
+        alert(`Week ${weekNumber} marked as complete! Progress: ${result.progress_percentage}%`);
+
+      } else {
+        console.warn(`⚠️ Week ${weekNumber} was already completed`);
+        alert(result.message || 'Week was already completed');
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to mark week complete:', error);
+      alert(`Failed to mark week complete: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Group syllabuses by subject
+  const syllabusesGroupedBySubject = syllabuses.reduce((groups, syllabusWithProgress) => {
+    const subject = syllabusWithProgress.syllabus.subject_name || 'Unknown Subject';
+    if (!groups[subject]) {
+      groups[subject] = [];
+    }
+    groups[subject].push(syllabusWithProgress);
+    return groups;
+  }, {} as Record<string, SyllabusWithProgress[]>);
+
+  const subjects = Object.keys(syllabusesGroupedBySubject);
+
   return (
     <div className="space-y-8">
       <div>
@@ -956,90 +1258,397 @@ const LearningPathTab: React.FC<{
         <p className="text-gray-600">Follow structured learning paths to master different subjects</p>
       </div>
 
-      {learningPath.length === 0 ? (
+      {/* Subject Selection */}
+      {subjects.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center space-x-2">
+            <BookOpen className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Subjects & Syllabuses</h3>
+          </div>
+
+          {/* Subject Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {subjects.map((subject) => {
+              const subjectSyllabuses = syllabusesGroupedBySubject[subject];
+              const totalSyllabuses = subjectSyllabuses.length;
+              const completedSyllabuses = subjectSyllabuses.filter(s =>
+                s.progress?.progress_percentage === 100
+              ).length;
+              const avgProgress = totalSyllabuses > 0
+                ? Math.round(subjectSyllabuses.reduce((sum, s) =>
+                  sum + (s.progress?.progress_percentage || 0), 0
+                ) / totalSyllabuses)
+                : 0;
+
+              return (
+                <div
+                  key={subject}
+                  className={`bg-white rounded-xl p-6 shadow-sm border-2 cursor-pointer transition-all hover:shadow-md ${selectedSubject === subject
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  onClick={() => setSelectedSubject(selectedSubject === subject ? null : subject)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{subject}</h4>
+                        <p className="text-sm text-gray-600">{totalSyllabuses} syllabus{totalSyllabuses !== 1 ? 'es' : ''}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-900">{avgProgress}%</div>
+                      <div className="text-xs text-gray-500">{completedSyllabuses}/{totalSyllabuses} completed</div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${avgProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>{subjectSyllabuses.reduce((sum, s) => sum + (s.progress?.completed_weeks?.length || 0), 0)} weeks completed</span>
+                    <span>{subjectSyllabuses.reduce((sum, s) => sum + (s.syllabus.term_length_weeks || 0), 0)} total weeks</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Selected Subject Details */}
+          {selectedSubject && (
+            <div className="bg-white rounded-xl p-6 shadow-sm border">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <GraduationCap className="w-6 h-6 text-blue-600" />
+                  <h4 className="text-xl font-semibold text-gray-900">{selectedSubject}</h4>
+                </div>
+                <button
+                  onClick={() => setSelectedSubject(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Syllabuses in Selected Subject */}
+              <div className="space-y-4">
+                {syllabusesGroupedBySubject[selectedSubject].map((syllabusWithProgress) => {
+                  const { syllabus, progress } = syllabusWithProgress;
+                  const isExpanded = expandedSyllabus === syllabus.id;
+
+                  return (
+                    <div key={syllabus.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h5 className="text-lg font-semibold text-gray-900 mb-2">{syllabus.title}</h5>
+                          <p className="text-gray-600 mb-3">{syllabus.description}</p>
+                          <div className="flex items-center space-x-6 text-sm text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-4 h-4" />
+                              <span>{syllabus.term_length_weeks} weeks</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <CheckCircle className="w-4 h-4" />
+                              <span>{progress?.completed_weeks?.length || 0} completed</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Activity className="w-4 h-4" />
+                              <span>Week {progress?.current_week || 1}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right space-y-2">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${syllabus.status === 'active' ? 'bg-green-100 text-green-800' :
+                            syllabus.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                            {syllabus.status}
+                          </span>
+                          <button
+                            onClick={() => setExpandedSyllabus(isExpanded ? null : syllabus.id)}
+                            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                          >
+                            {isExpanded ? 'Hide weeks' : 'Show weeks'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Progress</span>
+                          <span className="text-sm text-gray-500">{progress?.progress_percentage || 0}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${progress?.progress_percentage || 0}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Weekly Content */}
+                      {isExpanded && syllabus.weekly_plans && (
+                        <div className="space-y-3 border-t pt-6">
+                          <h5 className="text-sm font-medium text-gray-900">Weekly Learning Plan</h5>
+                          {syllabus.weekly_plans.map((week) => {
+                            const isCompleted = progress?.completed_weeks?.includes(week.week_number) || false;
+                            const isCurrent = progress?.current_week === week.week_number;
+                            const isWeekExpanded = expandedWeek === week.id;
+
+                            return (
+                              <div key={week.id} className={`rounded-lg border-2 transition-all ${isCompleted ? 'bg-green-50 border-green-200' :
+                                isCurrent ? 'bg-blue-50 border-blue-200' :
+                                  'bg-gray-50 border-gray-200'
+                                }`}>
+                                <div className="p-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3 mb-2">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${isCompleted ? 'bg-green-100 text-green-800' :
+                                          isCurrent ? 'bg-blue-100 text-blue-800' :
+                                            'bg-gray-100 text-gray-600'
+                                          }`}>
+                                          {isCompleted ? <CheckCircle className="w-4 h-4" /> : week.week_number}
+                                        </div>
+                                        <div className="flex-1">
+                                          <h6 className="font-medium text-gray-900">Week {week.week_number}: {week.title}</h6>
+                                          <p className="text-sm text-gray-600">{week.description}</p>
+                                        </div>
+                                        <button
+                                          onClick={() => setExpandedWeek(isWeekExpanded ? null : week.id)}
+                                          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                        >
+                                          {isWeekExpanded ? 'Less' : 'More'}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Week Completion Button */}
+                                    <div className="ml-4 flex items-center space-x-2">
+                                      {isCompleted ? (
+                                        <div className="flex items-center px-3 py-1 bg-green-100 text-green-700 text-sm rounded-lg">
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          Completed
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => markWeekComplete(syllabus.id, week.week_number)}
+                                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors font-medium"
+                                          title={`Mark Week ${week.week_number} as Complete`}
+                                        >
+                                          Mark Complete
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Learning Objectives - Always Visible */}
+                                  {week.learning_objectives.length > 0 && (
+                                    <div className="mt-3 ml-11">
+                                      <p className="text-xs font-medium text-gray-700 mb-1">Learning Objectives:</p>
+                                      <ul className="text-xs text-gray-600 space-y-1">
+                                        {week.learning_objectives.slice(0, isWeekExpanded ? undefined : 2).map((objective, idx) => (
+                                          <li key={idx} className="flex items-start space-x-2">
+                                            <Target className="w-3 h-3 mt-0.5 text-gray-400 flex-shrink-0" />
+                                            <span>{objective}</span>
+                                          </li>
+                                        ))}
+                                        {!isWeekExpanded && week.learning_objectives.length > 2 && (
+                                          <li className="text-blue-600 text-xs font-medium">
+                                            +{week.learning_objectives.length - 2} more objectives...
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Expanded Week Content */}
+                                {isWeekExpanded && (
+                                  <div className="border-t bg-white p-4 space-y-4">
+                                    {/* Topics Covered */}
+                                    {week.content_topics && week.content_topics.length > 0 && (
+                                      <div>
+                                        <h6 className="text-sm font-medium text-gray-900 mb-2">Topics Covered:</h6>
+                                        <ul className="text-sm text-gray-600 space-y-1">
+                                          {week.content_topics.map((topic: string, idx: number) => (
+                                            <li key={idx} className="flex items-start space-x-2">
+                                              <BookOpen className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                                              <span>{topic}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                    {/* Assignments */}
+                                    {week.assignments && week.assignments.length > 0 && (
+                                      <div>
+                                        <h6 className="text-sm font-medium text-gray-900 mb-2">Assignments:</h6>
+                                        <ul className="text-sm text-gray-600 space-y-1">
+                                          {week.assignments.map((assignment: string, idx: number) => (
+                                            <li key={idx} className="flex items-start space-x-2">
+                                              <FileText className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                                              <span>{assignment}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                    {/* Resources */}
+                                    {week.resources && week.resources.length > 0 && (
+                                      <div>
+                                        <h6 className="text-sm font-medium text-gray-900 mb-2">Resources:</h6>
+                                        <ul className="text-sm text-gray-600 space-y-1">
+                                          {week.resources.map((resource: string, idx: number) => (
+                                            <li key={idx} className="flex items-start space-x-2">
+                                              <Link className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                                              <span>{resource}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+
+                                    {/* Textbook Information */}
+                                    {week.textbook_chapters && (
+                                      <div>
+                                        <h6 className="text-sm font-medium text-gray-900 mb-2">Textbook Reference:</h6>
+                                        <div className="flex items-start space-x-2 text-sm text-gray-600">
+                                          <BookOpen className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                                          <div>
+                                            <div>{week.textbook_chapters}</div>
+                                            {week.textbook_pages && (
+                                              <div className="text-xs text-gray-500">{week.textbook_pages}</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Traditional Learning Paths */}
+      {learningPath.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center space-x-2">
+            <Trophy className="w-5 h-5 text-yellow-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Skill-based Paths</h3>
+          </div>
+
+          <div className="grid gap-6">
+            {learningPath.map((path) => (
+              <div key={path.id} className="bg-white rounded-xl p-6 shadow-sm border">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <Sparkles className="w-6 h-6 text-yellow-600" />
+                      <h3 className="text-xl font-semibold text-gray-900">{path.title}</h3>
+                    </div>
+                    <p className="text-gray-600 mb-4">{path.description}</p>
+                    <div className="flex items-center space-x-6 text-sm text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <Target className="w-4 h-4" />
+                        <span>{path.total_items || 0} items</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Clock className="w-4 h-4" />
+                        <span>{path.estimated_duration || 'Unknown'} duration</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Award className="w-4 h-4" />
+                        <span>{path.difficulty_level || 'Mixed'} level</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${path.priority === 'high' ? 'bg-red-100 text-red-800' :
+                      path.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                      {path.priority} priority
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Progress</span>
+                    <span className="text-sm text-gray-500">{path.progress || 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-yellow-600 h-2 rounded-full"
+                      style={{ width: `${path.progress || 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Learning Items */}
+                {path.items && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-900">Learning Items</h4>
+                    {path.items.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${item.completed ? 'bg-green-100' : 'bg-gray-200'
+                            }`}>
+                            {item.completed && <CheckCircle className="w-4 h-4 text-green-600" />}
+                          </div>
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-900">{item.title}</h5>
+                            <p className="text-xs text-gray-500">{item.type}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-500">{item.estimated_time}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {learningPath.length === 0 && syllabuses.length === 0 && (
         <div className="text-center py-12">
           <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No learning paths available</h3>
           <p className="text-gray-600 mb-6">
-            Learning paths will be created based on your assignments and progress.
+            Learning paths will be created based on your assignments and syllabuses.
           </p>
           <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
             Explore Subjects
           </button>
-        </div>
-      ) : (
-        <div className="grid gap-6">
-          {learningPath.map((path) => (
-            <div key={path.id} className="bg-white rounded-xl p-6 shadow-sm border">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <GraduationCap className="w-6 h-6 text-blue-600" />
-                    <h3 className="text-xl font-semibold text-gray-900">{path.title}</h3>
-                  </div>
-                  <p className="text-gray-600 mb-4">{path.description}</p>
-                  <div className="flex items-center space-x-6 text-sm text-gray-500">
-                    <div className="flex items-center space-x-1">
-                      <Target className="w-4 h-4" />
-                      <span>{path.total_items || 0} items</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{path.estimated_duration || 'Unknown'} duration</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Award className="w-4 h-4" />
-                      <span>{path.difficulty_level || 'Mixed'} level</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${path.priority === 'high' ? 'bg-red-100 text-red-800' :
-                    path.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                    {path.priority} priority
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Progress</span>
-                  <span className="text-sm text-gray-500">{path.progress || 0}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: `${path.progress || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Learning Items */}
-              {path.items && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-medium text-gray-900">Learning Items</h4>
-                  {path.items.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${item.completed ? 'bg-green-100' : 'bg-gray-200'
-                          }`}>
-                          {item.completed && <CheckCircle className="w-4 h-4 text-green-600" />}
-                        </div>
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-900">{item.title}</h5>
-                          <p className="text-xs text-gray-500">{item.type}</p>
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-500">{item.estimated_time}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       )}
     </div>

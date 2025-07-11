@@ -11,3 +11,4 @@ export { AISuggestions } from './AISuggestions';
 export { TeacherSettings } from './TeacherSettings';
 export { UploadAnalyze } from './UploadAnalyze';
 export { TeacherSidebar } from './TeacherSidebar';
+export { TeacherSyllabus } from './TeacherSyllabus';
