@@ -229,6 +229,15 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
                 <GraduationCap className="w-4 h-4" />
                 <span>If you are a student, please contact your administrator</span>
               </div>
+              <div className="flex justify-center">
+                <button
+                  onClick={() => navigate('/invitations')}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                >
+                  <GraduationCap className="w-4 h-4" />
+                  <span>Check Invitations</span>
+                </button>
+              </div>
               <div className="flex items-center space-x-2 text-sm text-gray-500 justify-center">
                 <Brain className="w-4 h-4" />
                 <span>Teachers can access the Teacher Dashboard</span>

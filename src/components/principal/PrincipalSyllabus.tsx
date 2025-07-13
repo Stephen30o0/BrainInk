@@ -288,28 +288,30 @@ export const PrincipalSyllabus: React.FC = () => {
     }
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Syllabus Management</h1>
-                    <p className="text-gray-600 mt-1">Manage and oversee all school syllabuses</p>
-                </div>
-                <div className="flex space-x-2">
-                    <button
-                        onClick={testConnection}
-                        className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                        <span>Test Backend</span>
-                    </button>
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                    >
-                        <Plus className="w-5 h-5" />
-                        <span>Create Syllabus</span>
-                    </button>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Syllabus Management</h1>
+                        <p className="text-gray-600 mt-1">Manage and oversee all school syllabuses</p>
+                    </div>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={testConnection}
+                            className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            <span>Test Backend</span>
+                        </button>
+                        <button
+                            onClick={() => setShowCreateModal(true)}
+                            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                            <Plus className="w-5 h-5" />
+                            <span>Create Syllabus</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -320,35 +322,39 @@ export const PrincipalSyllabus: React.FC = () => {
                         label: 'Total Syllabuses',
                         value: syllabuses.length,
                         icon: BookOpen,
-                        color: 'text-blue-600 bg-blue-50'
+                        color: 'bg-blue-100',
+                        textColor: 'text-blue-600'
                     },
                     {
                         label: 'Active',
                         value: syllabuses.filter(s => s.status === 'active').length,
                         icon: CheckCircle,
-                        color: 'text-green-600 bg-green-50'
+                        color: 'bg-green-100',
+                        textColor: 'text-green-600'
                     },
                     {
                         label: 'In Development',
                         value: syllabuses.filter(s => s.status === 'draft').length,
                         icon: Edit3,
-                        color: 'text-yellow-600 bg-yellow-50'
+                        color: 'bg-yellow-100',
+                        textColor: 'text-yellow-600'
                     },
                     {
                         label: 'Total Subjects',
                         value: subjects.length,
                         icon: FileText,
-                        color: 'text-purple-600 bg-purple-50'
+                        color: 'bg-purple-100',
+                        textColor: 'text-purple-600'
                     }
                 ].map((stat, index) => (
-                    <div key={index} className="bg-white rounded-xl p-6 shadow-sm border">
+                    <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">{stat.label}</p>
                                 <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                             </div>
-                            <div className={`p-3 rounded-lg ${stat.color}`}>
-                                <stat.icon className="w-6 h-6" />
+                            <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center`}>
+                                <stat.icon className={`w-6 h-6 ${stat.textColor}`} />
                             </div>
                         </div>
                     </div>
@@ -356,7 +362,7 @@ export const PrincipalSyllabus: React.FC = () => {
             </div>
 
             {/* Filters and Search */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-4">
                     {/* Search */}
                     <div className="relative flex-1 max-w-md">
@@ -366,7 +372,7 @@ export const PrincipalSyllabus: React.FC = () => {
                             placeholder="Search syllabuses..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
 
@@ -375,7 +381,7 @@ export const PrincipalSyllabus: React.FC = () => {
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="all">All Status</option>
                             <option value="active">Active</option>
@@ -387,7 +393,7 @@ export const PrincipalSyllabus: React.FC = () => {
                         <select
                             value={filterSubject}
                             onChange={(e) => setFilterSubject(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="all">All Subjects</option>
                             {subjects.map(subject => (
@@ -401,7 +407,7 @@ export const PrincipalSyllabus: React.FC = () => {
             </div>
 
             {/* Syllabuses List */}
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
                 {filteredSyllabuses.length === 0 ? (
                     <div className="text-center py-12">
                         <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -424,7 +430,7 @@ export const PrincipalSyllabus: React.FC = () => {
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 border-b">
+                            <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
                                     <th className="text-left py-3 px-6 font-medium text-gray-900">Syllabus</th>
                                     <th className="text-left py-3 px-6 font-medium text-gray-900">Subject</th>

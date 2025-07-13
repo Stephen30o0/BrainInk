@@ -104,9 +104,9 @@ export const PrincipalOverview: React.FC<PrincipalOverviewProps> = ({
         return (
             <div className="space-y-6">
                 {[...Array(3)].map((_, i) => (
-                    <div key={i} className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 animate-pulse">
-                        <div className="h-4 bg-white bg-opacity-20 rounded w-1/3 mb-4"></div>
-                        <div className="h-8 bg-white bg-opacity-20 rounded w-2/3"></div>
+                    <div key={i} className="bg-white rounded-xl shadow-sm p-6 animate-pulse border border-gray-200">
+                        <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+                        <div className="h-8 bg-gray-200 rounded w-2/3"></div>
                     </div>
                 ))}
             </div>
@@ -117,131 +117,123 @@ export const PrincipalOverview: React.FC<PrincipalOverviewProps> = ({
         <div className="space-y-8">
             {/* School Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 bg-opacity-20 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-cyan-200 text-sm">Total Students</p>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-gray-500 text-sm">Total Students</p>
+                            <p className="text-2xl font-bold text-gray-900">
                                 {schoolData?.user_counts?.total_students || schoolData?.total_students || 0}
                             </p>
-                            <p className="text-cyan-300 text-xs mt-1">
-                                <span className="flex items-center">
-                                    <TrendingUp className="w-3 h-3 mr-1" />
-                                    +{schoolData?.user_counts?.recent_students || 0} recent
-                                </span>
+                            <p className="text-blue-600 text-xs mt-1 flex items-center">
+                                <TrendingUp className="w-3 h-3 mr-1" />
+                                +{schoolData?.user_counts?.recent_students || 0} recent
                             </p>
                         </div>
-                        <div className="w-12 h-12 bg-cyan-500 bg-opacity-30 rounded-lg flex items-center justify-center">
-                            <GraduationCap className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <GraduationCap className="w-6 h-6 text-blue-600" />
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 bg-opacity-20 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-green-200 text-sm">Teachers</p>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-gray-500 text-sm">Teachers</p>
+                            <p className="text-2xl font-bold text-gray-900">
                                 {schoolData?.user_counts?.total_teachers || schoolData?.total_teachers || 0}
                             </p>
-                            <p className="text-green-300 text-xs mt-1">
-                                <span className="flex items-center">
-                                    <TrendingUp className="w-3 h-3 mr-1" />
-                                    +{schoolData?.user_counts?.recent_teachers || 0} recent
-                                </span>
+                            <p className="text-green-600 text-xs mt-1 flex items-center">
+                                <TrendingUp className="w-3 h-3 mr-1" />
+                                +{schoolData?.user_counts?.recent_teachers || 0} recent
                             </p>
                         </div>
-                        <div className="w-12 h-12 bg-green-500 bg-opacity-30 rounded-lg flex items-center justify-center">
-                            <Users className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <Users className="w-6 h-6 text-green-600" />
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-purple-500 to-pink-500 bg-opacity-20 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-purple-200 text-sm">Classrooms</p>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-gray-500 text-sm">Classrooms</p>
+                            <p className="text-2xl font-bold text-gray-900">
                                 {schoolData?.infrastructure?.total_classrooms || schoolData?.total_classrooms || 0}
                             </p>
-                            <p className="text-purple-300 text-xs mt-1">
-                                <span className="flex items-center">
-                                    <Building className="w-3 h-3 mr-1" />
-                                    All active
-                                </span>
+                            <p className="text-purple-600 text-xs mt-1 flex items-center">
+                                <Building className="w-3 h-3 mr-1" />
+                                All active
                             </p>
                         </div>
-                        <div className="w-12 h-12 bg-purple-500 bg-opacity-30 rounded-lg flex items-center justify-center">
-                            <Building className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <Building className="w-6 h-6 text-purple-600" />
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-orange-500 to-red-500 bg-opacity-20 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-orange-200 text-sm">Subjects</p>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-gray-500 text-sm">Subjects</p>
+                            <p className="text-2xl font-bold text-gray-900">
                                 {schoolData?.total_subjects || 0}
                             </p>
-                            <p className="text-orange-300 text-xs mt-1">
-                                <span className="flex items-center">
-                                    <BookOpen className="w-3 h-3 mr-1" />
-                                    Active courses
-                                </span>
+                            <p className="text-orange-600 text-xs mt-1 flex items-center">
+                                <BookOpen className="w-3 h-3 mr-1" />
+                                Active courses
                             </p>
                         </div>
-                        <div className="w-12 h-12 bg-orange-500 bg-opacity-30 rounded-lg flex items-center justify-center">
-                            <BookOpen className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <BookOpen className="w-6 h-6 text-orange-600" />
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <button
                         onClick={() => {
                             // Navigate to invitations tab
                             window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'invitations' }));
                         }}
-                        className="flex items-center justify-center p-4 bg-blue-500 bg-opacity-20 hover:bg-opacity-30 rounded-lg text-blue-300 transition-all group"
+                        className="flex items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700 transition-all group border border-blue-200"
                     >
                         <UserPlus className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                        <span>Invite Teachers</span>
+                        <span className="font-medium">Invite Teachers</span>
                     </button>
                     <button
                         onClick={() => {
                             // Navigate to classrooms tab
                             window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'classrooms' }));
                         }}
-                        className="flex items-center justify-center p-4 bg-purple-500 bg-opacity-20 hover:bg-opacity-30 rounded-lg text-purple-300 transition-all group"
+                        className="flex items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-purple-700 transition-all group border border-purple-200"
                     >
                         <Building className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                        <span>Manage Classrooms</span>
+                        <span className="font-medium">Manage Classrooms</span>
                     </button>
                     <button
                         onClick={() => {
                             // Navigate to analytics tab
                             window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'analytics' }));
                         }}
-                        className="flex items-center justify-center p-4 bg-green-500 bg-opacity-20 hover:bg-opacity-30 rounded-lg text-green-300 transition-all group"
+                        className="flex items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-lg text-green-700 transition-all group border border-green-200"
                     >
                         <TrendingUp className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                        <span>View Analytics</span>
+                        <span className="font-medium">View Analytics</span>
                     </button>
                 </div>
             </div>
 
             {/* Recent Activity */}
-            <div className="md:col-span-2 bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
                     <button
                         onClick={loadOverviewData}
-                        className="text-sm text-gray-300 hover:text-white transition-colors"
+                        className="text-sm text-gray-500 hover:text-gray-700 transition-colors font-medium"
                     >
                         Refresh
                     </button>

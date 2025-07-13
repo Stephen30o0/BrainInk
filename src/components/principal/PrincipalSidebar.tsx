@@ -37,19 +37,30 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
     onToggle
 }) => {
     const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-            if (window.innerWidth < 1024) {
+        const checkScreenSize = () => {
+            const width = window.innerWidth;
+            const newIsMobile = width < 768;
+            const newIsTablet = width >= 768 && width < 1024;
+
+            setIsMobile(newIsMobile);
+            setIsTablet(newIsTablet);
+
+            // Only auto-collapse on mobile screens, keep expanded on tablet and desktop
+            if (newIsMobile) {
                 setIsCollapsed(true);
+            } else {
+                // Always show full sidebar on tablet and desktop
+                setIsCollapsed(false);
             }
         };
 
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
+        checkScreenSize();
+        window.addEventListener('resize', checkScreenSize);
+        return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
     const sidebarItems = [
@@ -123,16 +134,28 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
     };
 
     const toggleCollapse = () => {
-        setIsCollapsed(!isCollapsed);
+        // Allow manual toggle on desktop and tablet, but not on mobile
+        if (!isMobile) {
+            setIsCollapsed(!isCollapsed);
+        }
     };
 
-    const sidebarWidth = isCollapsed ? 'w-16' : 'w-64';
-    const sidebarClasses = `
-        fixed left-0 top-0 h-full bg-white bg-opacity-10 backdrop-blur-md border-r border-white border-opacity-20 z-50 
-        transition-all duration-300 ease-in-out
-        ${sidebarWidth}
-        ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
-    `;
+    // Responsive sidebar width and positioning
+    const getSidebarClasses = () => {
+        if (isMobile) {
+            return `
+                fixed left-0 top-0 h-full bg-white shadow-xl border-r border-gray-200 z-50 
+                transition-all duration-300 ease-in-out w-64
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+            `;
+        }
+
+        const width = isCollapsed ? 'w-20' : 'w-72'; // Increased from w-64 to w-72
+        return `
+            fixed left-0 top-0 h-full bg-white shadow-lg border-r border-gray-200 z-40
+            transition-all duration-300 ease-in-out ${width}
+        `;
+    };
 
     return (
         <>
@@ -148,56 +171,63 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
             {isMobile && (
                 <button
                     onClick={onToggle}
-                    className="fixed top-4 left-4 z-60 p-2 bg-white bg-opacity-10 backdrop-blur-md rounded-lg border border-white border-opacity-20 text-white"
+                    className="fixed top-4 left-4 z-60 p-3 bg-white shadow-lg rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all"
                 >
-                    {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                    {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
             )}
 
             {/* Sidebar */}
-            <div className={sidebarClasses}>
-                <div className="p-6 h-full flex flex-col">
+            <div className={getSidebarClasses()}>
+                <div className={`h-full flex flex-col ${isCollapsed && !isMobile ? 'px-3 py-6' : 'p-6'}`}>
                     {/* Header */}
-                    <div className="mb-8">
+                    <div className={`${isCollapsed && !isMobile ? 'mb-6' : 'mb-8'}`}>
                         {/* Collapse Toggle for Desktop */}
                         {!isMobile && (
                             <button
                                 onClick={toggleCollapse}
-                                className="absolute top-4 right-4 p-1 text-gray-400 hover:text-white transition-colors"
+                                className={`absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all ${isCollapsed ? 'right-2' : 'right-4'}`}
+                                title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                             >
-                                <ChevronLeft className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+                                <ChevronLeft className={`w-5 h-5 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
                             </button>
                         )}
 
                         {/* School Info */}
-                        <div className="flex items-center space-x-3 mb-4">
-                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <Shield className="w-6 h-6 text-white" />
+                        <div className={`flex items-center mb-4 ${isCollapsed && !isMobile ? 'justify-center' : 'space-x-3'}`}>
+                            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                                <School className="w-7 h-7 text-white" />
                             </div>
-                            {!isCollapsed && (
-                                <div className="min-w-0">
-                                    <h2 className="text-lg font-bold text-white truncate">Principal Portal</h2>
-                                    <p className="text-sm text-gray-300 truncate">School Management</p>
+                            {(!isCollapsed || isMobile) && (
+                                <div className="min-w-0 ml-3">
+                                    <h2 className="text-xl font-bold text-gray-900 truncate">Principal Portal</h2>
+                                    <p className="text-sm text-gray-500 truncate">School Management</p>
                                 </div>
                             )}
                         </div>
 
                         {/* School Stats */}
-                        {!isCollapsed && schoolData && (
-                            <div className="bg-white bg-opacity-5 rounded-lg p-3 border border-white border-opacity-10">
-                                <h3 className="font-medium text-white text-sm mb-1 truncate">
+                        {(!isCollapsed || isMobile) && schoolData && (
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                                <h3 className="font-semibold text-gray-900 text-sm mb-2 truncate">
                                     {schoolData.school_info?.name || schoolData.name || 'Unknown School'}
                                 </h3>
-                                <div className="flex items-center space-x-4 text-xs text-gray-300">
-                                    <span>{schoolData.user_counts?.total_students || schoolData.total_students || 0} Students</span>
-                                    <span>{schoolData.user_counts?.total_teachers || schoolData.total_teachers || 0} Teachers</span>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="bg-white rounded-lg p-2 text-center">
+                                        <div className="font-bold text-blue-600">{schoolData.user_counts?.total_students || schoolData.total_students || 0}</div>
+                                        <div className="text-gray-500">Students</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 text-center">
+                                        <div className="font-bold text-green-600">{schoolData.user_counts?.total_teachers || schoolData.total_teachers || 0}</div>
+                                        <div className="text-gray-500">Teachers</div>
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Navigation Items */}
-                    <nav className="space-y-2 flex-1 overflow-y-auto">
+                    <nav className={`flex-1 overflow-y-auto ${isCollapsed && !isMobile ? 'space-y-2' : 'space-y-2'}`}>
                         {sidebarItems.map((item) => {
                             const Icon = item.icon;
                             const isActive = activeTab === item.id;
@@ -206,27 +236,45 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
                                 <button
                                     key={item.id}
                                     onClick={() => handleTabChange(item.id)}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all group relative ${isActive
-                                        ? 'bg-white bg-opacity-20 text-white border border-white border-opacity-30'
-                                        : 'text-gray-300 hover:bg-white hover:bg-opacity-10 hover:text-white'
-                                        } ${isCollapsed ? 'justify-center' : ''}`}
-                                    title={isCollapsed ? item.label : undefined}
+                                    className={`w-full flex items-center transition-all duration-200 group relative rounded-xl
+                                        ${isCollapsed && !isMobile
+                                            ? 'p-3 justify-center'
+                                            : 'px-4 py-3'
+                                        }
+                                        ${isActive
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm'
+                                        }`}
+                                    title={isCollapsed && !isMobile ? item.label : undefined}
                                 >
-                                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                                        }`} />
-                                    {!isCollapsed && (
+                                    <Icon className={`flex-shrink-0 transition-colors duration-200
+                                        ${isCollapsed && !isMobile ? 'w-6 h-6' : 'w-5 h-5'}
+                                        ${(!isCollapsed || isMobile) ? 'mr-3' : ''}
+                                        ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`}
+                                    />
+                                    {(!isCollapsed || isMobile) && (
                                         <div className="flex-1 text-left min-w-0">
                                             <div className="font-medium truncate">{item.label}</div>
-                                            <div className="text-xs opacity-75 truncate">{item.description}</div>
+                                            {!isMobile && !isCollapsed && (
+                                                <div className="text-xs text-gray-500 truncate mt-0.5">{item.description}</div>
+                                            )}
+                                            {isMobile && (
+                                                <div className="text-xs text-gray-500 truncate">{item.description}</div>
+                                            )}
                                         </div>
                                     )}
 
+                                    {/* Active indicator for collapsed state */}
+                                    {isCollapsed && !isMobile && isActive && (
+                                        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-blue-600 rounded-l-full"></div>
+                                    )}
+
                                     {/* Tooltip for collapsed state */}
-                                    {isCollapsed && (
-                                        <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                                    {isCollapsed && !isMobile && (
+                                        <div className="absolute left-full ml-3 px-4 py-3 bg-gray-900 text-white text-sm rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-lg">
                                             <div className="font-medium">{item.label}</div>
-                                            <div className="text-xs opacity-75">{item.description}</div>
-                                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                            <div className="text-xs opacity-75 mt-1">{item.description}</div>
+                                            <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 w-3 h-3 bg-gray-900 rotate-45"></div>
                                         </div>
                                     )}
                                 </button>
@@ -234,43 +282,19 @@ export const PrincipalSidebar: React.FC<PrincipalSidebarProps> = ({
                         })}
                     </nav>
 
-                    {/* Quick Stats */}
-                    {!isCollapsed && schoolData && (
-                        <div className="mt-6 space-y-3">
-                            <h4 className="text-sm font-medium text-gray-300 uppercase tracking-wider">Quick Stats</h4>
-
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-300">Active Codes</span>
-                                    <span className="text-white font-medium">{schoolData.active_access_codes || 0}</span>
-                                </div>
-
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-300">Subjects</span>
-                                    <span className="text-white font-medium">{schoolData.total_subjects || 0}</span>
-                                </div>
-
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-300">Enrollment</span>
-                                    <div className="flex items-center space-x-1">
-                                        <TrendingUp className="w-3 h-3 text-green-400" />
-                                        <span className="text-green-400 font-medium">+12%</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Logout Button */}
-                    <div className="mt-6 pt-4 border-t border-white border-opacity-10">
+                    <div className="mt-6 pt-4 border-t border-gray-200">
                         <button
                             onClick={onLogout}
-                            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-red-500 bg-opacity-20 text-red-300 hover:bg-opacity-30 hover:text-red-200 transition-all ${isCollapsed ? 'justify-center' : ''
+                            className={`w-full flex items-center transition-all duration-200 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 hover:shadow-md
+                                ${isCollapsed && !isMobile
+                                    ? 'p-3 justify-center'
+                                    : 'px-4 py-3 space-x-3'
                                 }`}
-                            title={isCollapsed ? 'Logout' : undefined}
+                            title={isCollapsed && !isMobile ? 'Logout' : undefined}
                         >
-                            <LogOut className="w-5 h-5 flex-shrink-0" />
-                            {!isCollapsed && <span>Logout</span>}
+                            <LogOut className={`flex-shrink-0 ${isCollapsed && !isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+                            {(!isCollapsed || isMobile) && <span className="font-medium">Logout</span>}
                         </button>
                     </div>
                 </div>

@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     Mail,
-    Send,
-    Users,
+    UserPlus,
     UserCheck,
     X,
     Clock,
     CheckCircle,
     AlertCircle,
-    RefreshCw,
-    Plus
+    GraduationCap
 } from 'lucide-react';
 import { principalService } from '../../services/principalService';
 
@@ -118,7 +116,7 @@ export const InvitationManager: React.FC = () => {
             case 'accepted':
                 return <CheckCircle className="w-4 h-4 text-green-500" />;
             case 'expired':
-                return <AlertCircle className="w-4 h-4 text-red-500" />;
+                return <X className="w-4 h-4 text-red-500" />;
             default:
                 return <Mail className="w-4 h-4 text-gray-500" />;
         }
@@ -128,13 +126,13 @@ export const InvitationManager: React.FC = () => {
         const status = getInvitationStatus(invitation);
         switch (status) {
             case 'pending':
-                return 'text-yellow-500 bg-yellow-500/20';
+                return 'text-yellow-700 bg-yellow-100 border-yellow-200';
             case 'accepted':
-                return 'text-green-500 bg-green-500/20';
+                return 'text-green-700 bg-green-100 border-green-200';
             case 'expired':
-                return 'text-red-500 bg-red-500/20';
+                return 'text-red-700 bg-red-100 border-red-200';
             default:
-                return 'text-gray-500 bg-gray-500/20';
+                return 'text-gray-500 bg-gray-100 border-gray-200';
         }
     };
 
@@ -149,131 +147,106 @@ export const InvitationManager: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Invitation Manager</h2>
-                    <p className="text-gray-400">Send invitations to teachers and students</p>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Invitation Management</h2>
+                        <p className="text-gray-600 mt-1">Send invitations to teachers and students to join your school</p>
+                    </div>
+                    <button
+                        onClick={() => setShowInviteForm(true)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                        <span>Send Invitation</span>
+                    </button>
                 </div>
-                <button
-                    onClick={() => setShowInviteForm(true)}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    Send Invitation
-                </button>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
-                    <p className="text-red-400">{error}</p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                        <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                        <p className="text-red-700 font-medium">{error}</p>
+                    </div>
                 </div>
             )}
 
             {/* Statistics */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-white">{stats.total}</div>
-                    <div className="text-sm text-gray-400">Total Invitations</div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                    <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+                    <div className="text-sm text-gray-500">Total Invitations</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-yellow-500">{stats.pending}</div>
-                    <div className="text-sm text-gray-400">Pending</div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                    <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+                    <div className="text-sm text-gray-500">Pending</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-green-500">{stats.accepted}</div>
-                    <div className="text-sm text-gray-400">Accepted</div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                    <div className="text-2xl font-bold text-green-600">{stats.accepted}</div>
+                    <div className="text-sm text-gray-500">Accepted</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-purple-500">{stats.teachers}</div>
-                    <div className="text-sm text-gray-400">Teachers</div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                    <div className="text-2xl font-bold text-blue-600">{stats.teachers}</div>
+                    <div className="text-sm text-gray-500">Teachers</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-blue-500">{stats.students}</div>
-                    <div className="text-sm text-gray-400">Students</div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                    <div className="text-2xl font-bold text-purple-600">{stats.students}</div>
+                    <div className="text-sm text-gray-500">Students</div>
                 </div>
             </div>
 
             {/* Invitation Form Modal */}
             {showInviteForm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white">Send Invitation</h3>
+                            <h3 className="text-lg font-semibold text-gray-900">Send Invitation</h3>
                             <button
                                 onClick={() => setShowInviteForm(false)}
-                                className="text-gray-400 hover:text-white"
+                                className="text-gray-400 hover:text-gray-600"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-
                         <form onSubmit={handleSendInvitation} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">
-                                    Email Address
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                                 <input
                                     type="email"
                                     value={inviteForm.email}
                                     onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="user@example.com"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Enter email address"
                                     required
                                 />
                             </div>
-
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">
-                                    Role
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                                 <select
                                     value={inviteForm.role}
                                     onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as 'teacher' | 'student' })}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 >
                                     <option value="teacher">Teacher</option>
                                     <option value="student">Student</option>
                                 </select>
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">
-                                    Personal Message (Optional)
-                                </label>
-                                <textarea
-                                    value={inviteForm.message}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, message: e.target.value })}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    rows={3}
-                                    placeholder="Welcome to our school!"
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
+                            <div className="flex justify-end space-x-3">
                                 <button
                                     type="button"
                                     onClick={() => setShowInviteForm(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSending}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
                                 >
-                                    {isSending ? (
-                                        <div className="flex items-center justify-center gap-2">
-                                            <RefreshCw className="w-4 h-4 animate-spin" />
-                                            Sending...
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center gap-2">
-                                            <Send className="w-4 h-4" />
-                                            Send Invitation
-                                        </div>
-                                    )}
+                                    {isSending ? 'Sending...' : 'Send Invitation'}
                                 </button>
                             </div>
                         </form>
@@ -282,72 +255,60 @@ export const InvitationManager: React.FC = () => {
             )}
 
             {/* Invitations List */}
-            <div className="bg-gray-800/50 rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-gray-700">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-white">Recent Invitations</h3>
-                        <button
-                            onClick={loadInvitations}
-                            className="text-gray-400 hover:text-white transition-colors"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                        </button>
-                    </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900">All Invitations</h3>
                 </div>
 
                 {isLoading ? (
                     <div className="p-8 text-center">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-400">Loading invitations...</p>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-500">Loading invitations...</p>
                     </div>
                 ) : invitations.length === 0 ? (
                     <div className="p-8 text-center">
-                        <Mail className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-400 mb-2">No invitations sent yet</p>
-                        <p className="text-sm text-gray-500">Send your first invitation to get started</p>
+                        <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500">No invitations sent yet</p>
+                        <p className="text-gray-400 text-sm">Click "Send Invitation" to get started</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-700">
+                    <div className="divide-y divide-gray-200">
                         {invitations.map((invitation) => (
-                            <div key={invitation.id} className="p-4 hover:bg-gray-700/30 transition-colors">
+                            <div key={invitation.id} className="p-4 hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
-                                            {invitation.invitation_type === 'teacher' ? (
-                                                <Users className="w-5 h-5 text-gray-300" />
-                                            ) : (
-                                                <UserCheck className="w-5 h-5 text-gray-300" />
-                                            )}
+                                    <div className="flex items-center space-x-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${invitation.invitation_type === 'teacher' ? 'bg-blue-100' : 'bg-purple-100'}`}>
+                                            {invitation.invitation_type === 'teacher' ?
+                                                <UserCheck className="w-4 h-4 text-blue-600" /> :
+                                                <GraduationCap className="w-4 h-4 text-purple-600" />
+                                            }
                                         </div>
                                         <div>
-                                            <div className="text-white font-medium">{invitation.email}</div>
-                                            <div className="text-sm text-gray-400 capitalize">
-                                                {invitation.invitation_type} • Sent {new Date(invitation.invited_date).toLocaleDateString()}
+                                            <div className="font-medium text-gray-900">{invitation.email}</div>
+                                            <div className="text-sm text-gray-500">
+                                                {invitation.invitation_type.charAt(0).toUpperCase() + invitation.invitation_type.slice(1)} •
+                                                Sent {new Date(invitation.invited_date).toLocaleDateString()}
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="flex items-center gap-3">
-                                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getStatusColor(invitation)}`}>
+                                    <div className="flex items-center space-x-3">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(invitation)}`}>
                                             {getStatusIcon(invitation)}
-                                            <span className="capitalize">{getInvitationStatus(invitation)}</span>
-                                        </div>
-
-                                        {getInvitationStatus(invitation) === 'pending' && (
-                                            <div className="flex gap-1">
+                                            <span className="ml-1">{getInvitationStatus(invitation)}</span>
+                                        </span>
+                                        {invitation.is_active && !invitation.is_used && (
+                                            <div className="flex space-x-2">
                                                 <button
                                                     onClick={() => handleResendInvitation(invitation.id)}
-                                                    className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
-                                                    title="Resend invitation"
+                                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                                 >
-                                                    <RefreshCw className="w-4 h-4" />
+                                                    Resend
                                                 </button>
                                                 <button
                                                     onClick={() => handleCancelInvitation(invitation.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-400 transition-colors"
-                                                    title="Cancel invitation"
+                                                    className="text-red-600 hover:text-red-800 text-sm font-medium"
                                                 >
-                                                    <X className="w-4 h-4" />
+                                                    Cancel
                                                 </button>
                                             </div>
                                         )}

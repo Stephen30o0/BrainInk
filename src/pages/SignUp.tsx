@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { Brain, Lock, Mail, User, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
 import { apiService } from '../services/apiService';
+import { ForgotPasswordModal } from '../components/auth/ForgotPasswordModal';
 
 // Define the Google API interface
 interface GoogleAccountsType {
@@ -45,6 +46,7 @@ export const SignUp = () => {
   const [error, setError] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
   const [googleError, setGoogleError] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
 
   // Get redirect parameter from URL
@@ -538,6 +540,19 @@ export const SignUp = () => {
                 </>
               )}
             </button>
+
+            {/* Forgot Password Button - Only show in login mode */}
+            {isLogin && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-primary/70 hover:text-primary text-sm transition-colors duration-300 font-pixel"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            )}
           </form>
 
           {/* Features */}
@@ -559,6 +574,12 @@ export const SignUp = () => {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+      />
     </div>
   );
 };

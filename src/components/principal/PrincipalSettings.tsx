@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    School,
     Save,
-    RefreshCw,
-    Bell,
-    Shield,
-    Database
+    AlertCircle,
+    CheckCircle
 } from 'lucide-react';
 import { backendIntegration } from '../../services/backendIntegration';
 
@@ -100,8 +97,8 @@ export const PrincipalSettings: React.FC<PrincipalSettingsProps> = ({
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 text-white animate-spin" />
-                <span className="ml-3 text-white">Loading settings...</span>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                <span className="text-gray-700 font-medium">Loading settings...</span>
             </div>
         );
     }
@@ -109,288 +106,164 @@ export const PrincipalSettings: React.FC<PrincipalSettingsProps> = ({
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">School Settings</h2>
-                    <p className="text-gray-300">Configure your school's settings and preferences</p>
-                </div>
-
-                <button
-                    onClick={saveSettings}
-                    disabled={saveLoading}
-                    className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white transition-all"
-                >
-                    {saveLoading ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">School Settings</h2>
+                        <p className="text-gray-600 mt-1">Manage your school's configuration and preferences</p>
+                    </div>
+                    <button
+                        onClick={saveSettings}
+                        disabled={saveLoading}
+                        className="flex items-center space-x-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white transition-all font-medium"
+                    >
                         <Save className="w-4 h-4" />
-                    )}
-                    <span>{saveLoading ? 'Saving...' : 'Save Changes'}</span>
-                </button>
+                        <span>{saveLoading ? 'Saving...' : 'Save Changes'}</span>
+                    </button>
+                </div>
             </div>
 
             {/* Status Messages */}
             {error && (
-                <div className="bg-red-500 bg-opacity-20 border border-red-500 border-opacity-30 rounded-lg p-4">
-                    <p className="text-red-300">{error}</p>
-                    <button
-                        onClick={() => setError(null)}
-                        className="mt-2 text-red-400 hover:text-red-300 text-sm"
-                    >
-                        Dismiss
-                    </button>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                        <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                        <p className="text-red-700 font-medium">{error}</p>
+                    </div>
                 </div>
             )}
 
             {success && (
-                <div className="bg-green-500 bg-opacity-20 border border-green-500 border-opacity-30 rounded-lg p-4">
-                    <p className="text-green-300">{success}</p>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                        <p className="text-green-700 font-medium">{success}</p>
+                    </div>
                 </div>
             )}
 
             {/* School Information */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <School className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">School Information</h3>
-                </div>
-
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">School Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            School Name
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">School Name</label>
                         <input
                             type="text"
                             value={schoolSettings.name}
                             onChange={(e) => setSchoolSettings({ ...schoolSettings, name: e.target.value })}
-                            className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Email Address
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                         <input
                             type="email"
                             value={schoolSettings.email}
                             onChange={(e) => setSchoolSettings({ ...schoolSettings, email: e.target.value })}
-                            className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
-
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Address
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
                         <textarea
                             value={schoolSettings.address}
                             onChange={(e) => setSchoolSettings({ ...schoolSettings, address: e.target.value })}
                             rows={3}
-                            className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Phone Number
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
                         <input
                             type="tel"
                             value={schoolSettings.phone}
                             onChange={(e) => setSchoolSettings({ ...schoolSettings, phone: e.target.value })}
-                            className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Website
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
                         <input
                             type="url"
                             value={schoolSettings.website}
                             onChange={(e) => setSchoolSettings({ ...schoolSettings, website: e.target.value })}
-                            placeholder="https://yourschool.com"
-                            className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                 </div>
             </div>
 
             {/* Notification Settings */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
-                        <Bell className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Notification Preferences</h3>
-                </div>
-
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h3>
                 <div className="space-y-4">
-                    {Object.entries(notificationSettings).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg">
-                            <div>
-                                <p className="text-white font-medium capitalize">
-                                    {key.replace(/_/g, ' ')}
-                                </p>
-                                <p className="text-gray-300 text-sm">
-                                    {key === 'email_notifications' && 'Receive notifications via email'}
-                                    {key === 'new_student_alerts' && 'Get notified when new students join'}
-                                    {key === 'grade_updates' && 'Receive updates when grades are submitted'}
-                                    {key === 'assignment_reminders' && 'Get reminders about assignment deadlines'}
-                                    {key === 'weekly_reports' && 'Receive weekly performance reports'}
-                                </p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={value}
-                                    onChange={(e) => setNotificationSettings({
-                                        ...notificationSettings,
-                                        [key]: e.target.checked
-                                    })}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-gray-200 bg-opacity-20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-sm font-medium text-gray-900">Email Notifications</label>
+                            <p className="text-sm text-gray-500">Receive email notifications for important events</p>
                         </div>
-                    ))}
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={notificationSettings.email_notifications}
+                                onChange={(e) => setNotificationSettings({ ...notificationSettings, email_notifications: e.target.checked })}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-sm font-medium text-gray-900">New Student Alerts</label>
+                            <p className="text-sm text-gray-500">Get notified when new students join</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={notificationSettings.new_student_alerts}
+                                onChange={(e) => setNotificationSettings({ ...notificationSettings, new_student_alerts: e.target.checked })}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
             {/* Security Settings */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-lg flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Security & Privacy</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg">
-                            <div>
-                                <p className="text-white font-medium">Email Verification</p>
-                                <p className="text-gray-300 text-sm">Require email verification for new users</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={securitySettings.require_email_verification}
-                                    onChange={(e) => setSecuritySettings({
-                                        ...securitySettings,
-                                        require_email_verification: e.target.checked
-                                    })}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-gray-200 bg-opacity-20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 bg-white bg-opacity-5 rounded-lg">
-                            <div>
-                                <p className="text-white font-medium">Auto-approve Teachers</p>
-                                <p className="text-gray-300 text-sm">Automatically approve teacher registrations</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={securitySettings.auto_approve_teachers}
-                                    onChange={(e) => setSecuritySettings({
-                                        ...securitySettings,
-                                        auto_approve_teachers: e.target.checked
-                                    })}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-gray-200 bg-opacity-20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Security Settings</h3>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Data Retention (days)
-                            </label>
+                            <label className="text-sm font-medium text-gray-900">Require Email Verification</label>
+                            <p className="text-sm text-gray-500">New users must verify their email address</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
                             <input
-                                type="number"
-                                value={securitySettings.student_data_retention}
-                                onChange={(e) => setSecuritySettings({
-                                    ...securitySettings,
-                                    student_data_retention: parseInt(e.target.value) || 365
-                                })}
-                                className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                type="checkbox"
+                                checked={securitySettings.require_email_verification}
+                                onChange={(e) => setSecuritySettings({ ...securitySettings, require_email_verification: e.target.checked })}
+                                className="sr-only peer"
                             />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Backup Frequency
-                            </label>
-                            <select
-                                value={securitySettings.backup_frequency}
-                                onChange={(e) => setSecuritySettings({
-                                    ...securitySettings,
-                                    backup_frequency: e.target.value
-                                })}
-                                className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
                     </div>
                 </div>
             </div>
 
             {/* System Information */}
-            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                        <Database className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">System Information</h3>
-                </div>
-
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">System Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">School ID:</span>
-                            <span className="text-white font-mono">{schoolData?.id || 'Unknown'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">Created:</span>
-                            <span className="text-white">
-                                {schoolData?.created_date ? new Date(schoolData.created_date).toLocaleDateString() : 'Unknown'}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">Status:</span>
-                            <span className={`${schoolData?.is_active ? 'text-green-400' : 'text-red-400'}`}>
-                                {schoolData?.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">School ID</label>
+                        <p className="text-gray-900 font-mono">{schoolData?.id || 'N/A'}</p>
                     </div>
-
-                    <div className="space-y-3">
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">Total Users:</span>
-                            <span className="text-white">{(schoolData?.total_students || 0) + (schoolData?.total_teachers || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">Storage Used:</span>
-                            <span className="text-white">2.4 GB / 10 GB</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-300">Last Backup:</span>
-                            <span className="text-white">Today, 3:00 AM</span>
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Created Date</label>
+                        <p className="text-gray-900">{schoolData?.created_date ? new Date(schoolData.created_date).toLocaleDateString() : 'N/A'}</p>
                     </div>
                 </div>
             </div>

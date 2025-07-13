@@ -131,10 +131,10 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                    <p className="text-white">Loading Principal Dashboard...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-700 font-medium">Loading Principal Dashboard...</p>
                 </div>
             </div>
         );
@@ -142,21 +142,21 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
-                <div className="text-center bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-8 max-w-md">
-                    <div className="text-red-400 text-6xl mb-4">⚠️</div>
-                    <h2 className="text-xl font-bold text-white mb-4">Access Error</h2>
-                    <p className="text-gray-300 mb-6">{error}</p>
-                    <div className="space-y-2">
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+                <div className="text-center bg-white rounded-xl shadow-lg p-8 max-w-md w-full border border-gray-200">
+                    <div className="text-red-500 text-6xl mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">Access Error</h2>
+                    <p className="text-gray-600 mb-6">{error}</p>
+                    <div className="space-y-3">
                         <button
                             onClick={() => navigate('/dashboard')}
-                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
                         >
                             Back to Dashboard
                         </button>
                         <button
                             onClick={handleLogout}
-                            className="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                            className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
                         >
                             Logout
                         </button>
@@ -167,7 +167,7 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <div className="min-h-screen bg-gray-50">
             <div className="flex">
                 {/* Sidebar */}
                 <PrincipalSidebar
@@ -180,37 +180,31 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
                 />
 
                 {/* Main Content */}
-                <div className="flex-1 lg:ml-64 transition-all duration-300">
-                    <div className="p-4 md:p-8 mt-16 md:mt-0">
+                <div className="flex-1 transition-all duration-300 ease-in-out ml-0 lg:ml-20 xl:ml-72">
+                    <div className="p-4 sm:p-6 md:p-8 pt-20 lg:pt-4">
                         {/* Header */}
-                        <div className="mb-8">
-                            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                                Principal Dashboard
-                            </h1>
-                            {schoolData && (
-                                <p className="text-gray-300 text-sm md:text-base">
-                                    Managing {schoolData.school_info?.name || schoolData.name} • {schoolData.user_counts?.total_students || 0} Students • {schoolData.user_counts?.total_teachers || 0} Teachers
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Backend Connection Status */}
-                        <div className="mb-6">
-                            <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-4 border border-white border-opacity-20">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div className="flex items-center space-x-3">
-                                        <div className={`w-3 h-3 rounded-full ${backendStatus.connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-                                        <span className="text-white font-medium">
-                                            {backendStatus.connected ? 'Backend Connected' : 'Backend Disconnected'}
-                                        </span>
-                                        <span className="text-gray-300 text-sm hidden md:inline">
-                                            • School: {schoolData?.school_info?.name || schoolData?.name || 'Unknown'}
-                                            • Role: Principal
+                        <div className="mb-6 md:mb-8 bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-200">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                                        Principal Dashboard
+                                    </h1>
+                                    {schoolData && (
+                                        <p className="text-gray-600 text-sm md:text-base">
+                                            Managing {schoolData.school_info?.name || schoolData.name} • {schoolData.user_counts?.total_students || 0} Students • {schoolData.user_counts?.total_teachers || 0} Teachers
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                                    <div className="flex items-center space-x-2">
+                                        <div className={`w-2 h-2 rounded-full ${backendStatus.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                        <span className="text-sm text-gray-600">
+                                            {backendStatus.connected ? 'Connected' : 'Disconnected'}
                                         </span>
                                     </div>
                                     <button
                                         onClick={handleRefreshData}
-                                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                                        className="px-3 py-2 md:px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors font-medium w-full sm:w-auto"
                                     >
                                         Refresh Data
                                     </button>
@@ -219,51 +213,56 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
                         </div>
 
                         {/* Tab Content */}
-                        {activeTab === 'overview' && (
-                            <PrincipalOverview schoolData={schoolData} />
-                        )}
+                        <div className="space-y-6">
+                            {activeTab === 'overview' && (
+                                <PrincipalOverview schoolData={schoolData} />
+                            )}
 
-                        {activeTab === 'analytics' && (
-                            <SchoolAnalytics schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'analytics' && (
+                                <SchoolAnalytics schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
 
-                        {activeTab === 'invitations' && (
-                            <InvitationManager />
-                        )}
+                            {activeTab === 'invitations' && (
+                                <InvitationManager />
+                            )}
 
-                        {activeTab === 'access-codes' && (
-                            <div className="space-y-6">
-                                <h2 className="text-2xl font-bold text-white">Access Code Management</h2>
-                                <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 border border-white border-opacity-20">
-                                    <p className="text-gray-300">Access code system has been replaced with email invitations.</p>
-                                    <p className="text-gray-300 mt-2">Use the Invitations tab to invite teachers and students.</p>
+                            {activeTab === 'access-codes' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-200">
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Code Management</h2>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <p className="text-blue-800 font-medium">Information</p>
+                                            <p className="text-blue-700 mt-1">Access code system has been replaced with email invitations.</p>
+                                            <p className="text-blue-700">Use the Invitations tab to invite teachers and students.</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeTab === 'subjects' && (
-                            <SubjectManagement schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'subjects' && (
+                                <SubjectManagement schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
 
-                        {activeTab === 'syllabus' && (
-                            <PrincipalSyllabus />
-                        )}
+                            {activeTab === 'syllabus' && (
+                                <PrincipalSyllabus />
+                            )}
 
-                        {activeTab === 'teachers' && (
-                            <TeacherManagement schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'teachers' && (
+                                <TeacherManagement schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
 
-                        {activeTab === 'students' && (
-                            <StudentManagement schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'students' && (
+                                <StudentManagement schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
 
-                        {activeTab === 'classrooms' && (
-                            <ClassroomManagement schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'classrooms' && (
+                                <ClassroomManagement schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
 
-                        {activeTab === 'settings' && (
-                            <PrincipalSettings schoolData={schoolData} onRefresh={handleRefreshData} />
-                        )}
+                            {activeTab === 'settings' && (
+                                <PrincipalSettings schoolData={schoolData} onRefresh={handleRefreshData} />
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

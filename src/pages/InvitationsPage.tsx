@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { GraduationCapIcon, ShieldCheckIcon, ArrowLeftIcon, CheckIcon, XIcon, MailIcon } from 'lucide-react';
+import { GraduationCapIcon, ShieldCheckIcon, ArrowLeftIcon, CheckIcon, XIcon, MailIcon, RefreshCwIcon } from 'lucide-react';
 import { schoolSelectionService, InvitationResponse } from '../services/schoolSelectionService';
 
 export const InvitationsPage = () => {
@@ -21,15 +21,29 @@ export const InvitationsPage = () => {
         try {
             setError('');
             setIsLoading(true);
+            console.log('🔍 Loading available invitations...');
+
             const invitations = await schoolSelectionService.getAvailableInvitations();
+            console.log('📧 Invitations loaded:', invitations);
+
             setAvailableInvitations(invitations || []);
+
+            if (!invitations || invitations.length === 0) {
+                console.log('📭 No invitations found');
+            }
         } catch (error: any) {
             console.error('Error loading invitations:', error);
 
             // Handle specific errors more gracefully
             if (error.message.includes('Method Not Allowed') ||
-                error.message.includes('Not Found')) {
-                setError('Invitation system is not available. Please use the direct school login instead.');
+                error.message.includes('Not Found') ||
+                error.message.includes('404') ||
+                error.message.includes('405')) {
+                setError('Invitation system is being set up. Please try again later or contact your school administrator.');
+            } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                setError('Please log in again to check for invitations.');
+            } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+                setError('You don\'t have permission to view invitations. Please contact your school administrator.');
             } else {
                 setError('Unable to load invitations. Please try again or contact support.');
             }
@@ -43,34 +57,64 @@ export const InvitationsPage = () => {
         setError('');
 
         try {
+            console.log(`🎯 Accepting ${invitation.invitation_type} invitation for ${invitation.school_name}`);
             let response;
 
             if (invitation.invitation_type === 'teacher') {
                 response = await schoolSelectionService.acceptTeacherInvitation(invitation.school_id);
-            } else {
+            } else if (invitation.invitation_type === 'student') {
                 response = await schoolSelectionService.acceptStudentInvitation(invitation.school_id);
+            } else {
+                throw new Error('Invalid invitation type');
             }
 
             if (response.success) {
+                console.log('✅ Invitation accepted successfully:', response);
+
                 // Store the school and role information
-                schoolSelectionService.storeSchoolAndRole(
-                    response.school_id!,
-                    response.school_name!,
-                    response.role as 'principal' | 'teacher'
-                );
+                if (response.role === 'teacher' || response.role === 'principal') {
+                    schoolSelectionService.storeSchoolAndRole(
+                        response.school_id!,
+                        response.school_name!,
+                        response.role as 'principal' | 'teacher'
+                    );
+                } else {
+                    // For students, store basic info but don't use the principal/teacher specific storage
+                    localStorage.setItem('selected_school_id', response.school_id!.toString());
+                    localStorage.setItem('selected_school_name', response.school_name!);
+                    localStorage.setItem('user_role', 'student');
+                }
+
+                // Show success message briefly before navigation
+                setError(''); // Clear any previous errors
 
                 // Navigate to appropriate dashboard
-                if (response.role === 'teacher') {
-                    navigate('/teacher-dashboard');
-                } else {
-                    navigate('/townsquare'); // For students
-                }
+                setTimeout(() => {
+                    if (response.role === 'teacher') {
+                        navigate('/teacher-dashboard');
+                    } else if (response.role === 'principal') {
+                        navigate('/principal-dashboard');
+                    } else {
+                        navigate('/townsquare'); // For students
+                    }
+                }, 500);
+
             } else {
                 setError('Failed to accept invitation. Please try again.');
             }
         } catch (error: any) {
             console.error('Error accepting invitation:', error);
-            setError(error.message || 'Failed to accept invitation. Please try again.');
+
+            // Provide specific error messages
+            if (error.message.includes('403') || error.message.includes('No valid invitation')) {
+                setError('This invitation is no longer valid. Please contact your school administrator for a new invitation.');
+            } else if (error.message.includes('400') || error.message.includes('already')) {
+                setError('You are already enrolled in this school with this role.');
+            } else if (error.message.includes('404')) {
+                setError('School not found or is no longer active.');
+            } else {
+                setError(error.message || 'Failed to accept invitation. Please try again.');
+            }
         } finally {
             setProcessingInvitation(null);
         }
@@ -81,16 +125,28 @@ export const InvitationsPage = () => {
         setError('');
 
         try {
+            console.log(`❌ Declining ${invitation.invitation_type} invitation for ${invitation.school_name}`);
+
             const response = await schoolSelectionService.declineInvitation(invitation.id);
+
             if (response.success) {
+                console.log('✅ Invitation declined successfully');
+
                 // Remove the declined invitation from the list
                 setAvailableInvitations(prev => prev.filter(inv => inv.id !== invitation.id));
+
+                // Show success feedback
+                console.log(`Declined invitation for ${invitation.school_name}`);
             } else {
                 setError('Failed to decline invitation. Please try again.');
             }
         } catch (error: any) {
             console.error('Error declining invitation:', error);
-            setError(error.message || 'Failed to decline invitation. Please try again.');
+
+            // Even if there's an API error, we can still remove it from the UI
+            // since declining is mainly a client-side action in this case
+            setAvailableInvitations(prev => prev.filter(inv => inv.id !== invitation.id));
+            console.log(`Removed invitation from view: ${invitation.school_name}`);
         } finally {
             setProcessingInvitation(null);
         }
@@ -147,14 +203,23 @@ export const InvitationsPage = () => {
                     )}
                 </div>
 
-                {/* Back Button */}
-                <div className="mb-6">
+                {/* Navigation and Refresh */}
+                <div className="flex justify-between items-center mb-6">
                     <button
                         onClick={() => navigate('/role-selection')}
                         className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
                     >
                         <ArrowLeftIcon className="w-4 h-4" />
                         Back to role selection
+                    </button>
+
+                    <button
+                        onClick={loadAvailableInvitations}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <RefreshCwIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        Refresh
                     </button>
                 </div>
 
@@ -235,23 +300,46 @@ export const InvitationsPage = () => {
                             <MailIcon className="w-12 h-12 text-gray-400" />
                         </div>
                         <h3 className="text-2xl font-semibold text-white mb-4">No Invitations Found</h3>
-                        <p className="text-gray-400 text-lg">
-                            You don't have any pending school invitations at the moment.
-                        </p>
-                        <p className="text-gray-500 text-sm mt-2">
-                            Contact your school administrator if you're expecting an invitation.
-                        </p>
+                        <div className="max-w-md mx-auto space-y-3">
+                            <p className="text-gray-400 text-lg">
+                                You don't have any pending school invitations at the moment.
+                            </p>
+                            <p className="text-gray-500 text-sm">
+                                Contact your school administrator if you're expecting an invitation.
+                            </p>
+                            <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg text-left">
+                                <h4 className="text-blue-400 font-semibold mb-2">What to do next:</h4>
+                                <ul className="text-gray-300 text-sm space-y-1">
+                                    <li>• Ask your school principal to send you an invitation</li>
+                                    <li>• Check if you have the correct email address registered</li>
+                                    <li>• Try refreshing this page to check for new invitations</li>
+                                    <li>• Use direct school login if you already have access</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {/* Back to Login */}
-                <div className="text-center mt-8">
-                    <button
-                        onClick={() => navigate('/school-login')}
-                        className="text-gray-400 hover:text-white transition-colors"
-                    >
-                        ← Back to Login
-                    </button>
+                {/* Navigation Options */}
+                <div className="text-center mt-8 space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                        <button
+                            onClick={() => navigate('/school-login')}
+                            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                        >
+                            <ArrowLeftIcon className="w-4 h-4" />
+                            Back to School Login
+                        </button>
+                        <button
+                            onClick={() => navigate('/role-selection')}
+                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        >
+                            Choose Different Role
+                        </button>
+                    </div>
+                    <p className="text-gray-500 text-sm">
+                        Having trouble? Contact your school administrator for assistance.
+                    </p>
                 </div>
             </div>
         </div>
