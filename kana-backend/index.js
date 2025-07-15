@@ -203,6 +203,23 @@ if (process.env.GOOGLE_API_KEY) {
   quizService = new QuizService(); // Initialize without API key for fallback
 }
 
+// --- Gemini API Retry Helper ---
+async function callGeminiWithRetry(payload, maxRetries = 3, delay = 2000) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await geminiModel.generateContent(payload);
+    } catch (error) {
+      const status = error.status || error.response?.status;
+      if (status === 503 && attempt < maxRetries - 1) {
+        await new Promise(res => setTimeout(res, delay * (attempt + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Gemini AI service is overloaded. Please try again later.');
+}
+
 // --- DATABASE (JSON file) ---
 
 const DB_PATH = path.join(__dirname, 'study_materials.json');
@@ -865,15 +882,18 @@ app.post('/api/kana/generate-quiz-by-description', async (req, res) => {
 
     console.log(`🧠 Quiz generation request: "${description}" - ${numQuestions} questions, ${difficulty} difficulty`);
 
-    // Generate quiz using QuizService
-    const quiz = await quizService.generateQuiz(description, {
-      numQuestions: parseInt(numQuestions),
-      difficulty,
-      subject,
-      studentLevel,
-      weaknessAreas: Array.isArray(weaknessAreas) ? weaknessAreas : [],
-      context
-    });
+    // Generate quiz using Gemini with retry logic
+    let quiz;
+    try {
+      quiz = await callGeminiWithRetry(
+        `Generate a quiz: ${description}\nQuestions: ${numQuestions}\nDifficulty: ${difficulty}\nSubject: ${subject}\nStudent Level: ${studentLevel}\nWeakness Areas: ${Array.isArray(weaknessAreas) ? weaknessAreas.join(', ') : ''}\nContext: ${context}`
+      );
+    } catch (error) {
+      console.error('Gemini quiz generation failed:', error.message);
+      return res.status(503).json({
+        error: 'Gemini AI service is overloaded. Please try again later.'
+      });
+    }
 
     if (!quiz || !quiz.questions || quiz.questions.length === 0) {
       return res.status(500).json({
