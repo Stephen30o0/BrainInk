@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, User, Send, Brain, CheckCircle, AlertCircle, Loader2, Users, Eye, X } from 'lucide-react';
+import { Upload, FileText, User, Send, Brain, CheckCircle, AlertCircle, Loader2, Users, Eye, X, Image } from 'lucide-react';
 import { teacherService, Student } from '../../services/teacherService';
 import { gradesAssignmentsService } from '../../services/gradesAssignmentsService';
 
@@ -81,6 +81,11 @@ export const UploadAnalyze: React.FC = () => {
   const [maxPoints, setMaxPoints] = useState<number>(100);
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradingRubric, setGradingRubric] = useState<string>('');
+
+  // Image selection state
+  const [selectImageModal, setSelectImageModal] = useState(false);
+  const [savedImages, setSavedImages] = useState<any[]>([]);
+  const [loadingSavedImages, setLoadingSavedImages] = useState(false);
 
   // Format analysis text for better readability
   const formatAnalysisText = (text: string): JSX.Element => {
@@ -875,6 +880,214 @@ export const UploadAnalyze: React.FC = () => {
     }
   };
 
+  // Load saved images for selection
+  const loadSavedImages = async () => {
+    try {
+      setLoadingSavedImages(true);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Please log in to view saved images');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        page: '1',
+        per_page: '50' // Load more images for selection
+      });
+
+      if (selectedSubject) {
+        params.append('subject_id', selectedSubject);
+      }
+
+      const response = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/my-images?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded saved images data:', data);
+        console.log('First image structure:', data.images?.[0]);
+
+        // Fetch image data URLs for display
+        const imagesWithDataUrls = await Promise.all(
+          (data.images || []).map(async (image: any) => {
+            try {
+              const fileResponse = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/${image.id}/file`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+
+              if (fileResponse.ok) {
+                const blob = await fileResponse.blob();
+                const dataUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+                return { ...image, dataUrl };
+              } else {
+                console.warn(`Failed to load image ${image.id}:`, fileResponse.status);
+                return { ...image, dataUrl: null };
+              }
+            } catch (error) {
+              console.warn(`Error loading image ${image.id}:`, error);
+              return { ...image, dataUrl: null };
+            }
+          })
+        );
+
+        setSavedImages(imagesWithDataUrls);
+      } else {
+        setError('Failed to load saved images');
+      }
+    } catch (error) {
+      console.error('Failed to load saved images:', error);
+      setError('Failed to load saved images');
+    } finally {
+      setLoadingSavedImages(false);
+    }
+  };
+
+  // Handle selecting a saved image for analysis
+  const handleSelectSavedImage = async (image: any) => {
+    console.log('Selected image object:', image);
+
+    if (!selectedStudent) {
+      setError('Please select a student first');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      setError('');
+
+      // Use the proper API endpoint to get the image
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Please log in to access images');
+      }
+
+      console.log('Fetching image using API endpoint for image ID:', image.id);
+
+      // Use the new file endpoint to get the actual image file
+      const fileUrl = `https://brainink-backend.onrender.com/study-area/images-management/${image.id}/file`;
+      console.log('Fetching image file from:', fileUrl);
+
+      let response, blob, file;
+
+      try {
+        response = await fetch(fileUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image file: ${response.status} ${response.statusText}`);
+        }
+
+        blob = await response.blob();
+        console.log('Fetched blob:', { type: blob.type, size: blob.size });
+      } catch (fetchError) {
+        throw new Error(`Image fetch failed: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+      }
+
+      // Determine the correct MIME type based on the file extension or force image type
+      let mimeType = blob.type;
+      if (!mimeType.startsWith('image/')) {
+        // If blob type is not an image, try to determine from filename or default to jpeg
+        const filename = image.original_filename || image.description || 'image.jpg';
+        if (filename.toLowerCase().includes('.png')) {
+          mimeType = 'image/png';
+        } else if (filename.toLowerCase().includes('.gif')) {
+          mimeType = 'image/gif';
+        } else if (filename.toLowerCase().includes('.webp')) {
+          mimeType = 'image/webp';
+        } else {
+          mimeType = 'image/jpeg'; // Default to JPEG
+        }
+        console.log(`Corrected MIME type from ${blob.type} to ${mimeType}`);
+      }
+
+      file = new File([blob], image.original_filename || image.description || 'selected-image.jpg', {
+        type: mimeType
+      });
+
+      console.log('Processing selected image:', {
+        filename: file.name,
+        type: file.type,
+        size: file.size,
+        originalBlobType: blob.type
+      });
+
+      let result;
+      try {
+        result = await processFile(file);
+      } catch (processError) {
+        throw new Error(`Image processing failed: ${processError instanceof Error ? processError.message : 'Unknown error'}`);
+      }
+      const newResult = {
+        ...result,
+        targetStudent: selectedStudent
+      };
+
+      setAnalysisResults([newResult]);
+      setSelectImageModal(false);
+
+      // Handle grading if in grading mode
+      if (assignmentType === 'grading' && selectedAssignment) {
+        const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
+        if (assignment) {
+          const studentsList = filteredStudents.length > 0 ? filteredStudents : students;
+          const student = studentsList.find(s => s.username === selectedStudent);
+
+          if (student) {
+            if (gradingMode === 'auto' && result.grade !== undefined) {
+              try {
+                await gradesAssignmentsService.createGrade({
+                  assignment_id: assignment.id,
+                  student_id: student.id,
+                  points_earned: result.grade,
+                  feedback: result.overallFeedback || result.analysis
+                });
+
+                window.dispatchEvent(new CustomEvent('studentGradesUpdated', {
+                  detail: {
+                    studentUsername: selectedStudent,
+                    classroomId: selectedClassroom,
+                    subjectId: selectedSubject,
+                    assignmentId: selectedAssignment
+                  }
+                }));
+              } catch (error) {
+                console.error('❌ Failed to submit auto grade:', error);
+                setError(`Failed to submit grade for ${student.username}`);
+              }
+            } else if (gradingMode === 'manual') {
+              const studentKey = student.id.toString();
+              setManualGrades(prev => ({
+                ...prev,
+                [studentKey]: {
+                  grade: result.grade || 0,
+                  feedback: result.overallFeedback || result.analysis
+                }
+              }));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to process selected image:', error);
+      console.error('Image object:', image);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process selected image';
+      setError(`Failed to process selected image: ${errorMessage}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (loadingStudents) {
     return (
       <div className="p-6">
@@ -896,9 +1109,18 @@ export const UploadAnalyze: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-900">Upload & Analyze</h2>
           <p className="text-gray-600 mt-1">AI-powered analysis and grading of student work with K.A.N.A.</p>
         </div>
-        <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
-          <Brain className="w-5 h-5 text-blue-600" />
-          <span className="text-blue-800 font-medium">K.A.N.A. {assignmentType === 'grading' ? 'Grading' : 'Analysis'}</span>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => window.location.hash = '#image-gallery'}
+            className="flex items-center px-3 py-2 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg transition-colors text-sm"
+          >
+            <Image className="w-4 h-4 mr-2" />
+            Manage Images
+          </button>
+          <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
+            <Brain className="w-5 h-5 text-blue-600" />
+            <span className="text-blue-800 font-medium">K.A.N.A. {assignmentType === 'grading' ? 'Grading' : 'Analysis'}</span>
+          </div>
         </div>
       </div>
 
@@ -1266,9 +1488,22 @@ export const UploadAnalyze: React.FC = () => {
 
               {/* File Upload Area */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Files (Images & PDFs)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Upload Files (Images & PDFs)
+                  </label>
+                  <button
+                    onClick={() => {
+                      setSelectImageModal(true);
+                      loadSavedImages();
+                    }}
+                    className="flex items-center px-3 py-1 text-sm bg-green-100 hover:bg-green-200 text-green-800 rounded-lg transition-colors"
+                    title="Choose from previously uploaded images"
+                  >
+                    <Image className="w-4 h-4 mr-1" />
+                    Select Picture
+                  </button>
+                </div>
                 <div
                   className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
                   onDrop={handleDrop}
@@ -1281,6 +1516,9 @@ export const UploadAnalyze: React.FC = () => {
                   </p>
                   <p className="text-sm text-gray-500">
                     Supports PNG, JPG, JPEG images and PDF documents
+                  </p>
+                  <p className="text-sm text-blue-600 mt-2">
+                    Or use the "Select Picture" button above to choose from saved images
                   </p>
                   <input
                     id="file-upload"
@@ -1843,6 +2081,124 @@ export const UploadAnalyze: React.FC = () => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Select Picture Modal */}
+      {selectImageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Select Saved Picture</h3>
+              <button
+                onClick={() => setSelectImageModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+              {loadingSavedImages ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="flex items-center space-x-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <span className="text-gray-600">Loading saved images...</span>
+                  </div>
+                </div>
+              ) : savedImages.length === 0 ? (
+                <div className="text-center py-12">
+                  <Image className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Saved Images</h3>
+                  <p className="text-gray-600 mb-4">
+                    You haven't uploaded any images yet. Upload your first image to get started.
+                  </p>
+                  <button
+                    onClick={() => setSelectImageModal(false)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                  >
+                    Close and Upload
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {savedImages.map((image) => (
+                    <div key={image.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                      {/* Image Preview */}
+                      <div className="aspect-square bg-gray-100 relative group">
+                        <img
+                          src={image.dataUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RDlERCIvPgo8L3N2Zz4K'}
+                          alt={image.description || 'Saved image'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            console.log('Image failed to load for ID:', image.id);
+                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RD lERCIvPgo8L3N2Zz4K';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
+                          <button
+                            onClick={() => handleSelectSavedImage(image)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                          >
+                            Select This Image
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Image Info */}
+                      <div className="p-4">
+                        <h4 className="font-medium text-gray-900 truncate mb-1">
+                          {image.description || 'Untitled Image'}
+                        </h4>
+
+                        {image.tags && (
+                          <div className="mb-2">
+                            <div className="flex flex-wrap gap-1">
+                              {image.tags.split(',').slice(0, 3).map((tag: string, index: number) => (
+                                <span
+                                  key={index}
+                                  className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                                >
+                                  {tag.trim()}
+                                </span>
+                              ))}
+                              {image.tags.split(',').length > 3 && (
+                                <span className="text-xs text-gray-500">
+                                  +{image.tags.split(',').length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {image.subject_name && (
+                          <div className="mb-2">
+                            <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                              {image.subject_name}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="text-xs text-gray-500 mb-3">
+                          {new Date(image.upload_date).toLocaleDateString()}
+                        </div>
+
+                        <button
+                          onClick={() => handleSelectSavedImage(image)}
+                          className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
+                        >
+                          Select for Analysis
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
