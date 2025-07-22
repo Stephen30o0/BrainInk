@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Star, ArrowRight, Sparkles, BookOpen, Trophy, Brain, Zap } from 'lucide-react';
+import { Star, ArrowRight, Sparkles, BookOpen, Trophy, Brain, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface PixelButtonProps {
@@ -331,6 +331,115 @@ const XpCounter = ({
     </div>;
 };
 
+// Slideshow Component
+const HeroSlideshow = () => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  
+  // Placeholder images - replace these with your actual image paths
+  const slides = [
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png',
+    '/Screenshot_2025-05-05_141452-removebg-preview.png'
+  ];
+
+  // Auto-rotate slides
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 4000); // Change slide every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [slides.length]);
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
+  };
+
+  return (
+    <div className="relative w-full h-full bg-gradient-to-br from-purple-900/20 to-cyan-900/20 rounded-lg overflow-hidden border border-cyan-500/30">
+      {/* Slideshow Container */}
+      <div className="relative w-full h-full">
+        {/* Slides */}
+        <div className="relative w-full h-full overflow-hidden">
+          {slides.map((slide, index) => (
+            <div
+              key={index}
+              className={`absolute inset-0 transition-all duration-500 ease-in-out ${
+                index === currentSlide 
+                  ? 'opacity-100 transform translate-x-0' 
+                  : index < currentSlide 
+                    ? 'opacity-0 transform -translate-x-full' 
+                    : 'opacity-0 transform translate-x-full'
+              }`}
+            >
+              <img
+                src={slide}
+                alt={`Slide ${index + 1}`}
+                className="w-full h-full object-cover"
+              />
+              {/* Neon overlay effect */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-purple-500/10"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Navigation Arrows */}
+        <button
+          onClick={prevSlide}
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/60 hover:bg-black/80 text-cyan-400 p-2 rounded-full border border-cyan-500/30 transition-all duration-300 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/25 z-10"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        
+        <button
+          onClick={nextSlide}
+          className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/60 hover:bg-black/80 text-cyan-400 p-2 rounded-full border border-cyan-500/30 transition-all duration-300 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/25 z-10"
+        >
+          <ChevronRight size={20} />
+        </button>
+
+        {/* Slide Indicators */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                index === currentSlide 
+                  ? 'bg-cyan-400 shadow-lg shadow-cyan-500/50' 
+                  : 'bg-gray-600 hover:bg-gray-400'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Slide Counter */}
+        <div className="absolute top-4 right-4 bg-black/60 text-cyan-400 px-3 py-1 rounded-full text-sm font-pixel border border-cyan-500/30 z-10">
+          {currentSlide + 1} / {slides.length}
+        </div>
+
+        {/* Glitch effect overlay */}
+        <div className="absolute inset-0 opacity-30 bg-gradient-to-r from-transparent via-cyan-500/5 to-transparent animate-pulse pointer-events-none"></div>
+      </div>
+    </div>
+  );
+};
+
 export const HeroSection = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [xp, setXp] = useState(0);
@@ -372,7 +481,7 @@ export const HeroSection = () => {
             <h1 className="text-3xl md:text-5xl mb-6">
               <span className="text-cyan-400">WELCOME TO THE</span> <br />
               <span className="text-green-400 inline-block mt-2 text-4xl md:text-6xl">
-                INKVERSE
+                BRAININK
               </span>
             </h1>            <p className="text-gray-300 mb-8 text-sm leading-relaxed">
               Master any subject. Challenge yourself. <br />
@@ -405,61 +514,13 @@ export const HeroSection = () => {
           </div>
 
           <div className={`w-full md:w-1/2 mt-12 md:mt-0 transition-all duration-1000 transform ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-20 opacity-0'}`}>
-            <div className="relative">
-              {/* Interactive campus visualization */}
-              <div className="w-full aspect-square bg-gradient-to-br from-black to-blue-950 rounded-lg border-2 border-cyan-500/30 overflow-hidden group">
-                {/* Interactive elements */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-64 h-64">
-                    {/* Main building - interactive on hover */}
-                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32">
-                      <div className="w-full h-full bg-cyan-500/20 border border-cyan-500/50 group-hover:bg-cyan-500/40 transition-all duration-300 cursor-pointer flex items-center justify-center">
-                        <Brain size={32} className="text-cyan-400 opacity-50 group-hover:opacity-100" />
-                      </div>
-
-                      {/* Connecting lines */}
-                      {Array.from({
-                      length: 8
-                    }).map((_, i) => <div key={i} className="absolute bg-cyan-500/30" style={{
-                      width: i % 2 === 0 ? '2px' : '80px',
-                      height: i % 2 === 0 ? '80px' : '2px',
-                      left: i % 4 < 2 ? '-40px' : 'auto',
-                      right: i % 4 >= 2 ? '-40px' : 'auto',
-                      top: [0, 3].includes(i % 4) ? '-40px' : 'auto',
-                      bottom: [1, 2].includes(i % 4) ? '-40px' : 'auto'
-                    }} />)}
-                    </div>
-
-                    {/* Knowledge nodes */}
-                    {Array.from({
-                    length: 5
-                  }).map((_, i) => {
-                    const angle = i / 5 * Math.PI * 2;
-                    const x = Math.cos(angle) * 100;
-                    const y = Math.sin(angle) * 100;
-                    return <div key={i} className="absolute w-12 h-12 bg-green-500/20 border border-green-500/50 cursor-pointer hover:bg-green-500/40 transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center" style={{
-                      left: `calc(50% + ${x}px)`,
-                      top: `calc(50% + ${y}px)`
-                    }} onClick={() => setXp(prev => prev + 2)}>
-                          {i % 5 === 0 ? <Sparkles size={16} className="text-green-400" /> : i % 5 === 1 ? <BookOpen size={16} className="text-green-400" /> : i % 5 === 2 ? <Trophy size={16} className="text-green-400" /> : i % 5 === 3 ? <Brain size={16} className="text-green-400" /> : <Zap size={16} className="text-green-400" />}
-                        </div>;
-                  })}
-                  </div>
-                </div>
-
-                {/* Particles */}
-                {Array.from({
-                length: 30
-              }).map((_, i) => <div key={i} className="absolute w-1 h-1 bg-cyan-500 rounded-full" style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                opacity: 0.3 + Math.random() * 0.7
-              }} />)}
-              </div>
-
+            <div className="relative h-96 md:h-[500px]">
+              {/* Hero Slideshow */}
+              <HeroSlideshow />
+              
               {/* Decorative elements */}
-              <div className="absolute -top-4 -right-4 w-8 h-8 bg-pink-500"></div>
-              <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-green-500"></div>
+              <div className="absolute -top-4 -right-4 w-8 h-8 bg-pink-500 z-30"></div>
+              <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-green-500 z-30"></div>
             </div>
           </div>
         </div>
