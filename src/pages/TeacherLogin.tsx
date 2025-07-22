@@ -14,8 +14,8 @@ export const TeacherLogin = () => {
       localStorage.setItem('user_role', 'teacher');
       navigate('/teacher-dashboard');
     } else {
-      // User not authenticated, redirect to login with teacher role intent
-      navigate('/login?redirect=/teacher-dashboard&role=teacher');
+      // User not authenticated, redirect to school login
+      navigate('/school-login');
     }
   }, [navigate]);
 

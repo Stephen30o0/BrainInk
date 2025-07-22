@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { HudNavigation } from './components/HudNavigation';
+import { SimpleHeader } from './components/SimpleHeader';
+import { HeaderSlideshow } from './components/HeaderSlideshow';
+import { WhoIsThisForSection } from './components/WhoIsThisForSection';
+import { MissionVisionSection } from './components/MissionVisionSection';
+import { FeaturesSection } from './components/FeaturesSection';
 import { HeroSection } from './components/HeroSection';
 import { KanaSection } from './components/KanaSection';
-import { KnowledgeVerse } from './components/KnowledgeVerse';
+import { PlatformComparisonTable } from './components/PlatformComparisonTable';
 import { QuestSection } from './components/QuestSection';
 import { ArenaSection } from './components/ArenaSection';
 import { CreatorSection } from './components/CreatorSection';
@@ -54,7 +58,7 @@ export function App() {
           <AudioProvider>
             <WalletProvider>
               <Router>
-                <div className="bg-[#0a0a1a] text-white min-h-screen w-full overflow-x-hidden font-pixel">
+                <div className="bg-white text-gray-900 min-h-screen w-full overflow-x-hidden font-pixel">
                   {isLoading ? (
                     <LoadingScreen />
                   ) : (
@@ -63,35 +67,15 @@ export function App() {
                         path="/"
                         element={
                           <>
-                            <HudNavigation />
-                            <main className="relative w-full">
-                              <HeroSection />
-                              <KanaSection />
-                              <KnowledgeVerse />
-                              <QuestSection />
-                              <ArenaSection />
-                              <CreatorSection />
-                              <TokenSection />
-                              <InstitutionalSection />
-                              <RoadmapSection />
+                            <SimpleHeader />
+                            <HeaderSlideshow />
+                            <WhoIsThisForSection />
+                            <MissionVisionSection />
+                            <FeaturesSection />
+                            <main className="relative w-full bg-white">
+                              <PlatformComparisonTable />
                               <TeamSection />
                               <JoinSection />
-                              <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-                                {Array.from({ length: 20 }).map((_, i) => (
-                                  <div
-                                    key={i}
-                                    className="absolute bg-blue-400 opacity-30 rounded-full animate-float"
-                                    style={{
-                                      width: `${Math.random() * 10 + 5}px`,
-                                      height: `${Math.random() * 10 + 5}px`,
-                                      left: `${Math.random() * 100}%`,
-                                      top: `${Math.random() * 100}%`,
-                                      animationDuration: `${Math.random() * 10 + 10}s`,
-                                      animationDelay: `${Math.random() * 5}s`,
-                                    }}
-                                  />
-                                ))}
-                              </div>
                             </main>
                           </>
                         }

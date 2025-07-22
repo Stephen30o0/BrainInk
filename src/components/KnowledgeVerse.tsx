@@ -39,7 +39,7 @@ export const KnowledgeVerse = () => {
     color: '#00aaff',
     icon: '📚'
   }];
-  return <section className="min-h-screen w-full bg-dark py-20 relative overflow-hidden" id="knowledgeverse">
+  return <section className="min-h-screen w-full bg-white py-20 relative overflow-hidden" id="knowledgeverse">
       {/* Decorative elements */}
       <div className="absolute inset-0 z-0">
         {/* Stars */}
@@ -56,15 +56,15 @@ export const KnowledgeVerse = () => {
       </div>
       <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="text-center mb-16">
-          <h2 className="font-pixel text-3xl md:text-4xl mb-4 text-primary">
-            THE <span className="text-secondary">KNOWLEDGEVERSE</span>
+          <h2 className="font-pixel text-3xl md:text-4xl mb-4 text-gray-900">
+            THE <span className="text-cyan-600">KNOWLEDGEVERSE</span>
           </h2>
-          <p className="text-gray-300 font-pixel text-sm max-w-2xl mx-auto">
+          <p className="text-gray-600 font-pixel text-sm max-w-2xl mx-auto">
             Explore different zones in our learning universe
           </p>
         </div>
         {/* Interactive Map */}
-        <div className="relative w-full aspect-square max-w-4xl mx-auto bg-dark border-2 border-primary/30 rounded-lg overflow-hidden">
+        <div className="relative w-full aspect-square max-w-4xl mx-auto bg-gray-100 border-2 border-gray-300 rounded-lg overflow-hidden">
           {/* Map Background */}
           <div className="absolute inset-0 z-0">
             {/* Grid */}
