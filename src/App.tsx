@@ -1,22 +1,15 @@
 import { useEffect, useState } from 'react';
 import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { SimpleHeader } from './components/SimpleHeader';
-import { HeaderSlideshow } from './components/HeaderSlideshow';
-import { WhoIsThisForSection } from './components/WhoIsThisForSection';
-import { MissionVisionSection } from './components/MissionVisionSection';
-import { FeaturesSection } from './components/FeaturesSection';
-import { HeroSection } from './components/HeroSection';
-import { KanaSection } from './components/KanaSection';
-import { PlatformComparisonTable } from './components/PlatformComparisonTable';
-import { QuestSection } from './components/QuestSection';
-import { ArenaSection } from './components/ArenaSection';
-import { CreatorSection } from './components/CreatorSection';
-import { TokenSection } from './components/TokenSection';
-import { InstitutionalSection } from './components/InstitutionalSection';
-import { RoadmapSection } from './components/RoadmapSection';
-import { TeamSection } from './components/TeamSection';
-import { JoinSection } from './components/JoinSection';
+// Old landing sections (no longer used on marketing pages)
+// import { SimpleHeader } from './components/SimpleHeader';
+// import { HeaderSlideshow } from './components/HeaderSlideshow';
+// import { WhoIsThisForSection } from './components/WhoIsThisForSection';
+// import { MissionVisionSection } from './components/MissionVisionSection';
+// import { FeaturesSection } from './components/FeaturesSection';
+// import { PlatformComparisonTable } from './components/PlatformComparisonTable';
+// import { TeamSection } from './components/TeamSection';
+// import { JoinSection } from './components/JoinSection';
 import { LoadingScreen } from './components/LoadingScreen';
 import { AudioProvider } from './components/shared/AudioManager';
 import { SoundProvider } from './components/shared/SoundManager';
@@ -38,6 +31,11 @@ import { PrincipalLogin } from './pages/PrincipalLogin';
 import { PrincipalDashboardPage } from './pages/PrincipalDashboardPage';
 import { InvitationsPage } from './pages/InvitationsPage';
 import { AuthProvider } from './hooks/useAuth';
+// New marketing pages
+import HomePage from './pages/marketing/HomePage';
+import PricingPage from './pages/marketing/PricingPage';
+import HelpCenterPage from './pages/marketing/HelpCenterPage';
+import GetStarted from './pages/GetStarted';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
@@ -63,23 +61,10 @@ export function App() {
                     <LoadingScreen />
                   ) : (
                     <Routes>
-                      <Route
-                        path="/"
-                        element={
-                          <>
-                            <SimpleHeader />
-                            <HeaderSlideshow />
-                            <WhoIsThisForSection />
-                            <MissionVisionSection />
-                            <FeaturesSection />
-                            <main className="relative w-full bg-white">
-                              <PlatformComparisonTable />
-                              <TeamSection />
-                              <JoinSection />
-                            </main>
-                          </>
-                        }
-                      />
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/get-started" element={<GetStarted />} />
+                      <Route path="/pricing" element={<PricingPage />} />
+                      <Route path="/help" element={<HelpCenterPage />} />
                       <Route path="/signup" element={<SignUp />} />
                       <Route path="/login" element={<SignUp />} />
                       <Route path="/school-login" element={<SchoolLogin />} />
