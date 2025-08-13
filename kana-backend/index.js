@@ -77,6 +77,7 @@ Interaction Guidelines:
 // --- MIDDLEWARE ---
 
 const allowedOrigins = [
+  'https://brainink.org'
   'https://brain-ink.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
