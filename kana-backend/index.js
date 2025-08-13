@@ -1602,12 +1602,12 @@ const startServer = async () => {
         pdf_data,
         pdf_files,  // New: Array of PDFs for bulk processing
         pdf_text,
-        student_context,
-        analysis_type,
-        task_type,
-        assignment_title,
-        max_points,
-        grading_rubric,
+        student_context = 'General student assessment',  // Default value
+        analysis_type = 'educational_analysis',          // Default value
+        task_type = 'grade_assignment',                   // Default value
+        assignment_title = 'Assignment',                  // Default value
+        max_points = 100,                                // Default value
+        grading_rubric = 'Standard academic rubric',     // Default value
         student_names = []  // New: Array of student names for bulk processing
       } = req.body;
 
@@ -1617,6 +1617,8 @@ const startServer = async () => {
       }
 
       console.log(`DEBUG: /kana-direct called with task_type: ${task_type}, analysis_type: ${analysis_type}, student_context: ${student_context}`);
+      console.log(`DEBUG: Assignment: "${assignment_title}", Max Points: ${max_points}, Has Rubric: ${grading_rubric ? 'Yes' : 'No'}`);
+      console.log(`DEBUG: Data types - pdf_files: ${pdf_files ? 'Array' : 'None'}, pdf_data: ${pdf_data ? 'Base64' : 'None'}, pdf_text: ${pdf_text ? 'Text' : 'None'}`);
 
       // Check if Gemini AI is initialized
       if (!genAI) {
@@ -2112,6 +2114,15 @@ Use your vision capabilities to analyze all content in the image including text,
         }
       }
 
+      // Check if analysisResult is available before parsing
+      if (!analysisResult || typeof analysisResult !== 'string') {
+        console.error('❌ analysisResult is undefined or not a string');
+        return res.status(500).json({
+          error: 'Failed to analyze content',
+          details: 'Analysis result is empty or invalid'
+        });
+      }
+
       // Parse the analysis result
       const knowledgeGaps = parseKnowledgeGaps(analysisResult);
       const recommendations = parseRecommendations(analysisResult);
@@ -2151,9 +2162,13 @@ Use your vision capabilities to analyze all content in the image including text,
         responseData.improvement_areas = parseKnowledgeGaps(analysisResult);
         responseData.areas_for_improvement = parseKnowledgeGaps(analysisResult);
 
-        // Overall feedback from the analysis
-        responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() ||
-          analysisResult.substring(0, 200) + '...';
+        // Overall feedback from the analysis (with null check)
+        if (analysisResult && typeof analysisResult === 'string') {
+          responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() ||
+            analysisResult.substring(0, 200) + '...';
+        } else {
+          responseData.overall_feedback = 'Analysis feedback not available';
+        }
       }
 
       // Add assignment details if in grading mode
@@ -2494,6 +2509,12 @@ function getClassificationConfidence(message, classification) {
 
 // Helper functions to parse structured data from K.A.N.A.'s formatted analysis
 function parseKnowledgeGaps(analysisText) {
+  // Add null/undefined check
+  if (!analysisText || typeof analysisText !== 'string') {
+    console.warn('⚠️ parseKnowledgeGaps: analysisText is undefined or not a string');
+    return [];
+  }
+
   const gaps = [];
   const lines = analysisText.split('\n');
   let inGapsSection = false;
@@ -2515,6 +2536,12 @@ function parseKnowledgeGaps(analysisText) {
 }
 
 function parseRecommendations(analysisText) {
+  // Add null/undefined check
+  if (!analysisText || typeof analysisText !== 'string') {
+    console.warn('⚠️ parseRecommendations: analysisText is undefined or not a string');
+    return [];
+  }
+
   const recommendations = [];
   const lines = analysisText.split('\n');
   let inRecommendationsSection = false;
@@ -2536,6 +2563,12 @@ function parseRecommendations(analysisText) {
 }
 
 function parseStrengths(analysisText) {
+  // Add null/undefined check
+  if (!analysisText || typeof analysisText !== 'string') {
+    console.warn('⚠️ parseStrengths: analysisText is undefined or not a string');
+    return [];
+  }
+
   const strengths = [];
   const lines = analysisText.split('\n');
   let inStrengthsSection = false;
@@ -2557,6 +2590,12 @@ function parseStrengths(analysisText) {
 }
 
 function parseConfidenceFromAnalysis(analysisText) {
+  // Add null/undefined check
+  if (!analysisText || typeof analysisText !== 'string') {
+    console.warn('⚠️ parseConfidenceFromAnalysis: analysisText is undefined or not a string');
+    return 50; // Default confidence
+  }
+
   // Extract a confidence score based on the depth and structure of the analysis
   const hasDetailedSections = analysisText.includes('**') && analysisText.includes('•');
   const wordCount = analysisText.split(' ').length;
@@ -2573,6 +2612,12 @@ function parseConfidenceFromAnalysis(analysisText) {
 }
 
 function parseGradingFromAnalysis(analysisText) {
+  // Add null/undefined check
+  if (!analysisText || typeof analysisText !== 'string') {
+    console.warn('⚠️ parseGradingFromAnalysis: analysisText is undefined or not a string');
+    return { score: null, letterGrade: null, percentage: null };
+  }
+
   // First try the enhanced parsing
   const enhancedResult = parseGradeSingle(analysisText, 'Student', 100);
   if (enhancedResult.score !== null) {
