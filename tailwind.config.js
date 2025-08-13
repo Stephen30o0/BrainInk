@@ -11,7 +11,16 @@ export default {
         secondary: "#00ffaa",
         tertiary: "#ff00aa",
         dark: "#0a0a1a",
-        light: "#f0f0ff"
+        light: "#f0f0ff",
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
       },
       animation: {
         'float': 'float 15s ease-in-out infinite',
