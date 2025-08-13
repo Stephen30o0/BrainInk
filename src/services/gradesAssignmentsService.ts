@@ -105,6 +105,8 @@ export interface CreateGradeRequest {
     student_id: number;
     points_earned: number;
     feedback?: string;
+    ai_generated?: boolean;
+    ai_confidence?: number;
 }
 
 export interface UpdateGradeRequest {

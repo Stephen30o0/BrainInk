@@ -405,7 +405,7 @@ class TeacherServiceClass {
       console.log('📚 Getting my subjects with student details...');
       const subjects = await this.getMySubjects();
 
-      // For each subject, get detailed information including students
+      // For each subject, get detailed information including students using the proper endpoint
       const subjectsWithDetails = await Promise.all(
         subjects.map(async (subject: any) => {
           try {
@@ -504,13 +504,14 @@ class TeacherServiceClass {
   public async updateAssignment(assignmentId: number, updateData: {
     title?: string;
     description?: string;
+    rubric?: string;
     due_date?: string;
     max_points?: number;
     assignment_type?: string;
   }): Promise<BackendAssignment | null> {
     try {
       console.log('📝 Updating assignment:', assignmentId, updateData);
-      const response = await this.makeAuthenticatedRequest(`/study-area/academic/assignments/${assignmentId}`, 'PUT', updateData);
+      const response = await this.makeAuthenticatedRequest(`/study-area/assignments/${assignmentId}`, 'PUT', updateData);
       const data = await response.json();
       console.log('✅ Assignment updated:', data);
       return data;
@@ -622,6 +623,255 @@ class TeacherServiceClass {
         recentActivity: [],
         assignmentsNeedingGrading: 0
       };
+    }
+  }
+
+  /**
+   * Get teacher's students across all subjects - using the proper endpoint
+   */
+  public async getMyStudentsAcrossSubjects(): Promise<any[]> {
+    try {
+      console.log('👥 Getting my students across all subjects...');
+      const response = await this.makeAuthenticatedRequest('/study-area/teachers/my-students');
+      const data = await response.json();
+      console.log('✅ Retrieved my students:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get my students:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get assignment grades that teacher has access to
+   */
+  public async getMyAssignmentGrades(assignmentId: number): Promise<any[]> {
+    try {
+      console.log(`📊 Getting grades for assignment: ${assignmentId}`);
+      const response = await this.makeAuthenticatedRequest(`/study-area/academic/grades/assignment/${assignmentId}`);
+      const data = await response.json();
+      console.log('✅ Retrieved assignment grades:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get assignment grades:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get subject average - OPTIMIZED endpoint for real data
+   */
+  public async getSubjectAverage(subjectId: number): Promise<{
+    subject_id: number;
+    subject_name: string;
+    average_percentage: number;
+    total_grades: number;
+    student_count: number;
+    assignment_count: number;
+    completion_rate: number;
+  }> {
+    try {
+      console.log(`📊 Getting subject average for subject: ${subjectId}`);
+      const response = await this.makeAuthenticatedRequest(`/study-area/grades/grades-management/subject/${subjectId}/average`);
+      const data = await response.json();
+      console.log(`✅ Retrieved subject average for ${data.subject_name}: ${data.average_percentage}%`);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get subject average:', error);
+      // Return default data if API fails
+      return {
+        subject_id: subjectId,
+        subject_name: 'Unknown Subject',
+        average_percentage: 0,
+        total_grades: 0,
+        student_count: 0,
+        assignment_count: 0,
+        completion_rate: 0
+      };
+    }
+  }
+
+  /**
+   * Get overall completion rate - FAST endpoint for teacher's all subjects
+   */
+  public async getOverallCompletionRate(): Promise<{
+    overall_completion_rate: number;
+    total_students: number;
+    total_assignments: number;
+    total_possible_submissions: number;
+    total_actual_submissions: number;
+  }> {
+    try {
+      console.log(`📈 Getting overall completion rate...`);
+      const response = await this.makeAuthenticatedRequest('/study-area/grades/grades-management/teacher/overall-completion-rate');
+      const data = await response.json();
+      console.log(`✅ Overall completion rate: ${data.overall_completion_rate}%`);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get overall completion rate:', error);
+      // Return default data if API fails
+      return {
+        overall_completion_rate: 0,
+        total_students: 0,
+        total_assignments: 0,
+        total_possible_submissions: 0,
+        total_actual_submissions: 0
+      };
+    }
+  }
+
+  // ============ CLASSROOM MANAGEMENT ENDPOINTS ============
+
+  /**
+   * Create classroom
+   */
+  public async createClassroom(classroomData: {
+    name: string;
+    description?: string;
+    subject_ids?: number[];
+  }): Promise<any> {
+    try {
+      console.log('🏫 Creating classroom:', classroomData);
+      const response = await this.makeAuthenticatedRequest('/study-area/classrooms/create', 'POST', classroomData);
+      const data = await response.json();
+      console.log('✅ Classroom created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to create classroom:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get teacher's school classrooms
+   */
+  public async getMySchoolClassrooms(): Promise<any[]> {
+    try {
+      console.log('🏫 Getting my school classrooms...');
+      const response = await this.makeAuthenticatedRequest('/study-area/classrooms/my-school');
+      const data = await response.json();
+      console.log('✅ Retrieved school classrooms:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get school classrooms:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get teacher's assigned classrooms
+   */
+  public async getMyAssignedClassrooms(): Promise<any[]> {
+    try {
+      console.log('🏫 Getting my assigned classrooms...');
+      const response = await this.makeAuthenticatedRequest('/study-area/classrooms/my-assigned');
+      const data = await response.json();
+      console.log('✅ Retrieved assigned classrooms:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get assigned classrooms:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update classroom
+   */
+  public async updateClassroom(classroomId: number, updateData: {
+    name?: string;
+    description?: string;
+  }): Promise<any> {
+    try {
+      console.log(`🏫 Updating classroom ${classroomId}:`, updateData);
+      const response = await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}`, 'PUT', updateData);
+      const data = await response.json();
+      console.log('✅ Classroom updated:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to update classroom:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete classroom
+   */
+  public async deleteClassroom(classroomId: number): Promise<boolean> {
+    try {
+      console.log(`🏫 Deleting classroom ${classroomId}...`);
+      await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}`, 'DELETE');
+      console.log('✅ Classroom deleted');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to delete classroom:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Assign teacher to classroom
+   */
+  public async assignTeacherToClassroom(classroomId: number, teacherData: {
+    teacher_id: number;
+  }): Promise<boolean> {
+    try {
+      console.log(`🏫 Assigning teacher to classroom ${classroomId}:`, teacherData);
+      await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}/assign-teacher`, 'POST', teacherData);
+      console.log('✅ Teacher assigned to classroom');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to assign teacher to classroom:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Add students to classroom
+   */
+  public async addStudentsToClassroom(classroomId: number, studentData: {
+    student_ids: number[];
+  }): Promise<boolean> {
+    try {
+      console.log(`🏫 Adding students to classroom ${classroomId}:`, studentData);
+      await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}/add-students`, 'POST', studentData);
+      console.log('✅ Students added to classroom');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to add students to classroom:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Remove students from classroom
+   */
+  public async removeStudentsFromClassroom(classroomId: number, studentData: {
+    student_ids: number[];
+  }): Promise<boolean> {
+    try {
+      console.log(`🏫 Removing students from classroom ${classroomId}:`, studentData);
+      await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}/remove-students`, 'DELETE', studentData);
+      console.log('✅ Students removed from classroom');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to remove students from classroom:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get classroom students
+   */
+  public async getClassroomStudents(classroomId: number): Promise<any[]> {
+    try {
+      console.log(`🏫 Getting classroom ${classroomId} students...`);
+      const response = await this.makeAuthenticatedRequest(`/study-area/classrooms/${classroomId}/students`);
+      const data = await response.json();
+      console.log('✅ Retrieved classroom students:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get classroom students:', error);
+      return [];
     }
   }
 

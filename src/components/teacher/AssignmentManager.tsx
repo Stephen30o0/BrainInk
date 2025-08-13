@@ -195,6 +195,18 @@ export const AssignmentManager: React.FC = () => {
         return matchesSubject && matchesSearch;
     });
 
+    // Calculate completion rate with proper rounding
+    const getCompletionRate = (assignment: AssignmentWithGrades) => {
+        if (assignment.total_students === 0) return 0;
+        return Math.round((assignment.graded_count / assignment.total_students) * 100);
+    };
+
+    // Format percentage with one decimal place
+    const formatPercentage = (value: number | null | undefined) => {
+        if (!value) return '0.0';
+        return (Math.round(value * 10) / 10).toFixed(1);
+    };
+
     if (loading && assignments.length === 0) {
         return (
             <div className="p-6 space-y-6">
@@ -250,23 +262,27 @@ export const AssignmentManager: React.FC = () => {
             {analytics && (
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-blue-600">{analytics.totalAssignments}</div>
+                        <div className="text-2xl font-bold text-blue-600">{analytics.totalAssignments || 0}</div>
                         <div className="text-sm text-gray-600">Total Assignments</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-green-600">{analytics.totalGrades}</div>
+                        <div className="text-2xl font-bold text-green-600">{analytics.totalGrades || 0}</div>
                         <div className="text-sm text-gray-600">Grades Given</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-purple-600">{analytics.averageClassScore}%</div>
+                        <div className="text-2xl font-bold text-purple-600">
+                            {analytics.averageClassScore ? Math.round(analytics.averageClassScore * 10) / 10 : 0}%
+                        </div>
                         <div className="text-sm text-gray-600">Class Average</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-yellow-600">{analytics.gradingProgress}%</div>
+                        <div className="text-2xl font-bold text-yellow-600">
+                            {analytics.gradingProgress ? Math.round(analytics.gradingProgress * 10) / 10 : 0}%
+                        </div>
                         <div className="text-sm text-gray-600">Grading Progress</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-red-600">{analytics.assignmentsNeedingGrading}</div>
+                        <div className="text-2xl font-bold text-red-600">{analytics.assignmentsNeedingGrading || 0}</div>
                         <div className="text-sm text-gray-600">Need Grading</div>
                     </div>
                 </div>
@@ -310,8 +326,7 @@ export const AssignmentManager: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredAssignments.map((assignment) => {
                     const status = getAssignmentStatus(assignment);
-                    const completionRate = assignment.total_students > 0 ?
-                        Math.round((assignment.graded_count / assignment.total_students) * 100) : 0;
+                    const completionRate = getCompletionRate(assignment);
 
                     return (
                         <div key={assignment.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -342,11 +357,13 @@ export const AssignmentManager: React.FC = () => {
                             <div className="p-4 space-y-3">
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div className="text-center">
-                                        <div className="font-semibold text-lg">{assignment.max_points}</div>
+                                        <div className="font-semibold text-lg">{assignment.max_points || 0}</div>
                                         <div className="text-gray-600">Max Points</div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="font-semibold text-lg">{assignment.average_score || 0}%</div>
+                                        <div className="font-semibold text-lg">
+                                            {formatPercentage(assignment.average_score)}%
+                                        </div>
                                         <div className="text-gray-600">Class Avg</div>
                                     </div>
                                 </div>

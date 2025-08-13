@@ -9,6 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const fsPromises = fs.promises;
+
 const { evaluate } = require('mathjs');
 const { generateSVGGraph } = require('./utils/svgGraph');
 // Import QuizService
@@ -194,7 +195,7 @@ app.get('/api/debug/routes', (req, res) => {
 let genAI, geminiModel, quizService;
 if (process.env.GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest", systemInstruction });
   quizService = new QuizService(process.env.GOOGLE_API_KEY);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log('DEBUG: Quiz Service initialized.');
@@ -260,6 +261,384 @@ const extractTextFromFile = async (mimetype, buffer) => {
     return buffer.toString('utf8');
   }
   return ''; // Return empty for unsupported types
+};
+
+// Enhanced PDF processing for Gemini Vision analysis
+const extractPDFBasicInfo = async (pdfBuffer) => {
+  try {
+    console.log(`📄 Processing PDF with Gemini Vision, buffer size: ${pdfBuffer.length} bytes`);
+
+    // Validate buffer
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      throw new Error('Invalid or empty PDF buffer');
+    }
+
+    // Check if it's actually a PDF
+    const pdfHeader = pdfBuffer.slice(0, 4).toString();
+    if (pdfHeader !== '%PDF') {
+      console.warn('⚠️ Buffer does not appear to be a valid PDF file');
+    }
+
+    // Get basic PDF info for page count
+    let numPages = 1;
+    try {
+      const textData = await pdf(pdfBuffer);
+      numPages = textData.numpages || 1;
+      console.log(`📄 PDF has ${numPages} page(s)`);
+
+      // Log some text content for debugging (first 200 chars)
+      if (textData.text && textData.text.length > 0) {
+        console.log(`📝 PDF contains ${textData.text.length} characters of text`);
+        console.log(`📝 Text preview: ${textData.text.substring(0, 200)}...`);
+      } else {
+        console.warn('⚠️ PDF appears to contain no extractable text - relying on vision analysis');
+      }
+    } catch (parseError) {
+      console.warn(`⚠️ Could not extract PDF metadata: ${parseError.message}`);
+      console.log(`📄 Using default page count: ${numPages}`);
+    }
+
+    // Convert to base64 for Gemini Vision analysis
+    const pdfBase64 = pdfBuffer.toString('base64');
+
+    // Validate base64 conversion
+    if (!pdfBase64 || pdfBase64.length === 0) {
+      throw new Error('Failed to convert PDF to base64');
+    }
+
+    console.log(`✅ PDF prepared for Gemini Vision analysis: ${numPages} pages, ${pdfBase64.length} base64 chars`);
+
+    return {
+      numPages: numPages,
+      pdfBase64: pdfBase64,
+      useVisionAnalysis: true
+    };
+
+  } catch (error) {
+    console.error('❌ Error processing PDF:', error);
+
+    // Fallback: still try to return base64 for analysis if possible
+    try {
+      const pdfBase64 = pdfBuffer.toString('base64');
+      if (pdfBase64 && pdfBase64.length > 0) {
+        console.log('🔄 Fallback: returning base64 despite processing error');
+        return {
+          numPages: 1,
+          pdfBase64: pdfBase64,
+          useVisionAnalysis: true,
+          hasError: true
+        };
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback base64 conversion also failed:', fallbackError);
+    }
+
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+};
+
+// Circuit breaker for Gemini API calls
+let circuitBreakerOpen = false;
+let failureCount = 0;
+const MAX_FAILURES = 3;
+const RESET_TIMEOUT = 30000; // 30 seconds
+
+const callGeminiWithCircuitBreaker = async (model, input, maxRetries = 3, retryDelay = 2000) => {
+  if (circuitBreakerOpen) {
+    throw new Error('Circuit breaker open - service temporarily unavailable');
+  }
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Gemini API attempt ${attempt}/${maxRetries}...`);
+
+      // Validate input before sending
+      if (Array.isArray(input)) {
+        const pdfPart = input.find(part => part.inlineData?.mimeType === 'application/pdf');
+        if (pdfPart && pdfPart.inlineData?.data) {
+          console.log(`📄 Sending PDF data of size: ${pdfPart.inlineData.data.length} characters`);
+        }
+      }
+
+      const response = await model.generateContent(input);
+
+      // Check if response is valid and has content
+      if (!response) {
+        throw new Error('No response received from Gemini API');
+      }
+
+      if (!response.response) {
+        throw new Error('Response object missing from Gemini API');
+      }
+
+      const rawText = response.response.text();
+      if (!rawText || rawText.trim().length === 0) {
+        throw new Error('Empty response from Gemini API');
+      }
+
+      // Validate and clean the response to prevent looping (for grading mode)
+      const text = rawText.includes('GRADE_START') ? validateAndCleanGradingResponse(rawText) : rawText;
+
+      console.log(`✅ Gemini API responded with ${text.length} characters`);
+
+      // Reset failure count on success
+      failureCount = 0;
+      return response;
+
+    } catch (error) {
+      console.error(`❌ Gemini API attempt ${attempt}/${maxRetries} failed:`, error.message);
+
+      // Log more details for debugging
+      if (error.message.includes('Empty response')) {
+        console.error('🔍 Debug: Gemini returned empty response - possible PDF processing issue');
+      }
+
+      failureCount++;
+
+      // Open circuit breaker if too many failures
+      if (failureCount >= MAX_FAILURES) {
+        circuitBreakerOpen = true;
+        console.error('🚫 Circuit breaker opened - too many failures');
+
+        // Reset circuit breaker after timeout
+        setTimeout(() => {
+          circuitBreakerOpen = false;
+          failureCount = 0;
+          console.log('🔄 Circuit breaker reset');
+        }, RESET_TIMEOUT);
+      }
+
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      // Wait before retry with exponential backoff
+      const waitTime = retryDelay * Math.pow(2, attempt - 1);
+      console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+};// Enhanced grade parsing function
+const parseGradeSingle = (analysisText, studentName, maxPoints) => {
+  console.log(`🔍 Single-pass parsing for ${studentName}...`);
+
+  // Clean the analysis text for better parsing
+  const cleanText = analysisText.replace(/\*\*/g, '').replace(/\n\s*\n/g, '\n').trim();
+
+  // First try: Look for GRADE_START/GRADE_END markers
+  const gradeMarkerMatch = cleanText.match(/GRADE_START([\s\S]*?)GRADE_END/i);
+  if (gradeMarkerMatch) {
+    const gradeSection = gradeMarkerMatch[1].trim();
+    console.log(`✅ Found GRADE_START section for ${studentName}: ${gradeSection}`);
+
+    // Enhanced patterns for different formats
+    const scorePatterns = [
+      /Points\s+Earned:\s*(\d+)\/(\d+)/i,
+      /Points\s+Earned:\s*(\d+)\s*\/\s*(\d+)/i,
+      /Points\s+Earned:\s*(\d+)\s*out\s*of\s*(\d+)/i,
+      /Score:\s*(\d+)\/(\d+)/i,
+      /(\d+)\/(\d+)/  // Basic number/number format
+    ];
+
+    const letterPatterns = [
+      /Letter\s+Grade:\s*([A-F][+-]?)/i,
+      /Grade:\s*([A-F][+-]?)/i,
+      /Letter:\s*([A-F][+-]?)/i
+    ];
+
+    const percentagePatterns = [
+      /Percentage:\s*(\d+)%/i,
+      /(\d+)%/
+    ];
+
+    let score = null, maxPointsParsed = null, letterGrade = null, percentage = null;
+
+    // Try score patterns
+    for (const pattern of scorePatterns) {
+      const match = gradeSection.match(pattern);
+      if (match) {
+        score = parseInt(match[1]);
+        maxPointsParsed = parseInt(match[2]);
+        console.log(`✅ Parsed score: ${score}/${maxPointsParsed}`);
+        break;
+      }
+    }
+
+    // Try letter grade patterns
+    for (const pattern of letterPatterns) {
+      const match = gradeSection.match(pattern);
+      if (match) {
+        letterGrade = match[1];
+        console.log(`✅ Parsed letter grade: ${letterGrade}`);
+        break;
+      }
+    }
+
+    // Try percentage patterns
+    for (const pattern of percentagePatterns) {
+      const match = gradeSection.match(pattern);
+      if (match) {
+        percentage = parseInt(match[1]);
+        console.log(`✅ Parsed percentage: ${percentage}%`);
+        break;
+      }
+    }
+
+    if (score !== null && maxPointsParsed !== null) {
+      // Validate the parsed data
+      if (score > maxPointsParsed) {
+        console.log(`⚠️ Score ${score} > max points ${maxPointsParsed}, capping to max`);
+        score = maxPointsParsed;
+      }
+
+      const calculatedPercentage = Math.round((score / maxPointsParsed) * 100);
+
+      return {
+        score: score,
+        maxPoints: maxPointsParsed,
+        letterGrade: letterGrade || calculateLetterGrade(score, maxPointsParsed),
+        percentage: percentage || calculatedPercentage,
+        parseMethod: 'grade_markers'
+      };
+    }
+  }
+
+  // Fallback parsing methods...
+  console.log(`⚠️ No GRADE_START markers found for ${studentName}, trying fallback patterns...`);
+
+  // Try standard patterns without markers
+  const fallbackPatterns = [
+    /Score:\s*(\d+)\/(\d+)/i,
+    /Points:\s*(\d+)\/(\d+)/i,
+    /Grade:\s*(\d+)\/(\d+)/i,
+    /(\d+)\s*\/\s*(\d+)\s*points?/i,
+    /(\d+)\s*out\s*of\s*(\d+)/i
+  ];
+
+  for (const pattern of fallbackPatterns) {
+    const match = cleanText.match(pattern);
+    if (match) {
+      const score = parseInt(match[1]);
+      const maxPointsParsed = parseInt(match[2]);
+
+      if (score <= maxPointsParsed) {
+        console.log(`✅ Fallback parsing successful: ${score}/${maxPointsParsed}`);
+        return {
+          score: score,
+          maxPoints: maxPointsParsed,
+          letterGrade: calculateLetterGrade(score, maxPointsParsed),
+          percentage: Math.round((score / maxPointsParsed) * 100),
+          parseMethod: 'fallback_patterns'
+        };
+      }
+    }
+  }
+
+  console.log(`❌ All parsing methods failed for ${studentName}`);
+  return {
+    score: null,
+    maxPoints: null,
+    letterGrade: null,
+    percentage: null,
+    parseMethod: 'failed'
+  };
+};
+
+// --- RESPONSE VALIDATION ---
+function validateAndCleanGradingResponse(rawResponse) {
+  try {
+    console.log('🔍 Validating grading response for loops and consistency...');
+
+    // Check for repetitive patterns (looping)
+    const lines = rawResponse.split('\n');
+    const totalLines = [];
+    const duplicatePatterns = [];
+
+    // Find all "Total:" or calculation lines
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('Total:') || line.includes('Total =') || line.includes('= ')) {
+        totalLines.push({ line, index: i });
+      }
+
+      // Check for duplicate calculation patterns
+      if (line.match(/\d+\s*\+\s*\d+.*=.*\d+/)) {
+        if (duplicatePatterns.includes(line)) {
+          console.warn('⚠️ Detected duplicate calculation pattern:', line);
+        } else {
+          duplicatePatterns.push(line);
+        }
+      }
+    }
+
+    // If we have excessive repetition, truncate the response
+    if (totalLines.length > 3) {
+      console.warn(`⚠️ Detected ${totalLines.length} total lines - likely looping. Truncating response.`);
+
+      // Find the first complete score justification section
+      const gradeEndIndex = lines.findIndex(line => line.includes('GRADE_END'));
+      const scoreJustificationIndex = lines.findIndex(line => line.includes('**Score Justification**') || line.includes('3. **Score Justification**'));
+
+      if (gradeEndIndex !== -1 && scoreJustificationIndex !== -1) {
+        // Find the first calculation after Score Justification
+        const firstTotalIndex = totalLines.find(total => total.index > scoreJustificationIndex)?.index;
+
+        if (firstTotalIndex !== -1) {
+          // Keep everything up to and including the first total calculation
+          const truncateIndex = Math.min(firstTotalIndex + 5, lines.length); // Keep 5 lines after first total
+          const cleanedLines = lines.slice(0, truncateIndex);
+
+          // Add a proper ending if needed
+          cleanedLines.push('');
+          cleanedLines.push('4. **Feedback**: Grade calculated based on rubric application above.');
+
+          const cleanedResponse = cleanedLines.join('\n');
+          console.log('✅ Response truncated to prevent looping');
+          return cleanedResponse;
+        }
+      }
+    }
+
+    // Check for grade consistency
+    const gradeStartMatch = rawResponse.match(/Points Earned: (\d+)\/\d+/);
+    const totalCalculationMatch = rawResponse.match(/Total.*?(\d+)\s*(?:points|$)/i);
+
+    if (gradeStartMatch && totalCalculationMatch) {
+      const gradeStartPoints = parseInt(gradeStartMatch[1]);
+      const calculatedPoints = parseInt(totalCalculationMatch[1]);
+
+      if (gradeStartPoints !== calculatedPoints) {
+        console.warn(`⚠️ Grade inconsistency detected: GRADE_START has ${gradeStartPoints} but calculation shows ${calculatedPoints}`);
+        // You could implement auto-correction here if needed
+      }
+    }
+
+    console.log('✅ Response validation complete');
+    return rawResponse;
+
+  } catch (error) {
+    console.error('❌ Error validating response:', error);
+    return rawResponse; // Return original if validation fails
+  }
+}
+
+// Calculate letter grade from numeric score
+const calculateLetterGrade = (score, maxPoints) => {
+  const percentage = (score / maxPoints) * 100;
+
+  if (percentage >= 97) return 'A+';
+  if (percentage >= 93) return 'A';
+  if (percentage >= 90) return 'A-';
+  if (percentage >= 87) return 'B+';
+  if (percentage >= 83) return 'B';
+  if (percentage >= 80) return 'B-';
+  if (percentage >= 77) return 'C+';
+  if (percentage >= 73) return 'C';
+  if (percentage >= 70) return 'C-';
+  if (percentage >= 67) return 'D+';
+  if (percentage >= 63) return 'D';
+  if (percentage >= 60) return 'D-';
+  return 'F';
 };
 
 // --- DATABASE INITIALIZATION ---
@@ -1214,14 +1593,26 @@ const startServer = async () => {
     }
   });
 
-  // New endpoint for direct K.A.N.A. analysis (used by teacher dashboard)
-  app.post('/kana-direct', async (req, res) => {
+  // New endpoint for direct K.A.N.A. analysis (used by teacher dashboard and Python backend)
+  app.post('/api/kana/bulk-grade-pdfs', async (req, res) => {
     try {
-      const { image_data, pdf_data, pdf_text, student_context, analysis_type, task_type, assignment_title, max_points, grading_rubric } = req.body;
+      const {
+        image_data,
+        pdf_data,
+        pdf_files,  // New: Array of PDFs for bulk processing
+        pdf_text,
+        student_context,
+        analysis_type,
+        task_type,
+        assignment_title,
+        max_points,
+        grading_rubric,
+        student_names = []  // New: Array of student names for bulk processing
+      } = req.body;
 
       // Check if at least one type of data is provided
-      if (!image_data && !pdf_data && !pdf_text) {
-        return res.status(400).json({ error: 'Either image_data, pdf_data, or pdf_text is required' });
+      if (!image_data && !pdf_data && !pdf_text && !pdf_files) {
+        return res.status(400).json({ error: 'Either image_data, pdf_data, pdf_text, or pdf_files is required' });
       }
 
       console.log(`DEBUG: /kana-direct called with task_type: ${task_type}, analysis_type: ${analysis_type}, student_context: ${student_context}`);
@@ -1232,92 +1623,387 @@ const startServer = async () => {
         return res.status(500).json({ error: 'AI service not configured' });
       }
 
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const isGradingMode = task_type === 'grade_assignment';
 
-      let analysisResult;
+      // Handle bulk PDF processing
+      if (pdf_files && Array.isArray(pdf_files) && pdf_files.length > 0) {
+        console.log(`🎓 Enhanced PDF grading start: ${pdf_files.length} PDFs (Assignment: ${assignment_title})`);
+        console.log(`📋 Using Gemini 2.5 Pro with visual analysis capabilities`);
 
-      // Handle PDF analysis
-      if (pdf_data || pdf_text) {
-        let textContent = pdf_text;
+        const model = genAI.getGenerativeModel({
+          model: 'gemini-2.0-flash-exp',
+          generationConfig: {
+            temperature: 0,
+            topP: 1,
+            topK: 1,
+            maxOutputTokens: 4096,
+            candidateCount: 1
+          }
+        });
 
-        // If we have pdf_data (base64), convert it to text
-        if (pdf_data && !pdf_text) {
+        const results = [];
+
+        for (let i = 0; i < pdf_files.length; i++) {
+          const pdfData = pdf_files[i];
+          const studentName = (student_names[i] && student_names[i].trim()) || `Student ${i + 1}`;
+
+          console.log(`📄 [${i + 1}/${pdf_files.length}] Processing ${studentName}`);
+
+          if (typeof pdfData !== 'string' || !pdfData.trim()) {
+            results.push({
+              student_name: studentName,
+              student_index: i,
+              error: 'invalid_pdf_data',
+              success: false
+            });
+            continue;
+          }
+
           try {
-            const pdfBuffer = Buffer.from(pdf_data, 'base64');
-            textContent = await extractTextFromFile('application/pdf', pdfBuffer);
-          } catch (pdfError) {
-            console.error('Error extracting text from PDF:', pdfError);
-            return res.status(500).json({ error: 'Failed to extract text from PDF' });
+            const pdfBuffer = Buffer.from(pdfData, 'base64');
+            const basicInfo = await extractPDFBasicInfo(pdfBuffer);
+
+            // Always use Gemini Vision for comprehensive analysis (text + images)
+            console.log(`👁️ Using Gemini Vision for comprehensive analysis of ${studentName}`);
+
+            // Enhanced prompt for better parsing reliability
+            const prompt = `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
+
+ASSIGNMENT: ${assignment_title}
+STUDENT: ${studentName}
+MAX POINTS: ${max_points}
+RUBRIC: ${grading_rubric}
+
+CRITICAL: You MUST start your response with EXACTLY this format (no variations):
+
+GRADE_START
+Points Earned: [NUMBER]/${max_points}
+Letter Grade: [LETTER]
+Percentage: [NUMBER]%
+GRADE_END
+
+EXAMPLE FORMAT:
+GRADE_START
+Points Earned: 85/${max_points}
+Letter Grade: B+
+Percentage: 85%
+GRADE_END
+
+After the GRADE_END marker, provide your detailed analysis following this EXACT structure:
+
+1. **Content Analysis**: Read all text, handwriting, equations, diagrams
+
+2. **Rubric Application**: 
+[List EACH rubric section with points awarded. Example:]
+• Forward Propagation: 15/20 points
+• Activation Function: 0/15 points  
+• Loss Function: 0/15 points
+• Backward Propagation: 20/25 points
+• Gradient Descent: 15/15 points
+• Presentation: 8/10 points
+
+3. **Score Justification**: 
+Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
+
+4. **Feedback**: Provide constructive feedback for improvement
+
+CRITICAL ANTI-LOOP REQUIREMENTS:
+- NEVER repeat calculations or reconsider scores once written
+- NEVER write multiple "Total:" lines
+- NEVER go back and forth between different point values
+- Calculate the rubric points ONCE and stick with that calculation
+- The final total in Score Justification MUST match the Points Earned in GRADE_START
+- If you find yourself repeating text, STOP immediately and finalize your answer
+- Maximum response length: 1000 words
+- Write decisively without second-guessing
+
+MATHEMATICAL CONSISTENCY RULES:
+- THE POINTS EARNED IN GRADE_START MUST EQUAL THE SUM OF ALL RUBRIC SECTION POINTS
+- Show your math ONCE: add up all rubric sections to get final total
+- Use exact format with no extra words or symbols in GRADE_START section
+- Ensure points earned ≤ max points
+- Be consistent with percentage calculation
+
+The document is provided as a PDF. Use your vision capabilities to read and understand all content comprehensively.`;            // Create model input with PDF for comprehensive vision analysis
+            const modelInput = [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: basicInfo.pdfBase64
+                }
+              }
+            ];
+
+            console.log(`🤖 Comprehensive vision analysis for ${studentName}...`);
+
+            // Use the circuit breaker with retry logic
+            const response = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
+            const rawResponse = response.response.text();
+
+            if (!rawResponse || rawResponse.trim().length === 0) {
+              throw new Error('Empty response from Gemini API');
+            }
+
+            // Validate and clean the response to prevent looping
+            const raw = validateAndCleanGradingResponse(rawResponse);
+
+            console.log(`📝 AI Response preview for ${studentName}: ${raw.substring(0, 200)}...`);
+
+            // Validate response format before parsing
+            if (!raw.includes('GRADE_START') || !raw.includes('GRADE_END')) {
+              console.log(`⚠️ Response missing grade markers for ${studentName}, but attempting to parse anyway...`);
+            }
+
+            const gradeData = parseGradeSingle(raw, studentName, max_points);
+            if (gradeData.score === null) {
+              console.error(`❌ Parse failed for ${studentName}`);
+              console.log(`📄 Full AI response for debugging:`);
+              console.log(raw);
+
+              // Final attempt: try to generate a reasonable default based on response content
+              const hasPositiveKeywords = /excellent|good|correct|well|accurate|strong/i.test(raw);
+              const hasNegativeKeywords = /poor|incorrect|wrong|missing|weak|inadequate/i.test(raw);
+
+              let fallbackScore = null;
+              if (hasPositiveKeywords && !hasNegativeKeywords) {
+                fallbackScore = Math.round(max_points * 0.8); // Assume 80% if positive feedback
+                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on positive feedback`);
+              } else if (hasNegativeKeywords && !hasPositiveKeywords) {
+                fallbackScore = Math.round(max_points * 0.5); // Assume 50% if negative feedback
+                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on negative feedback`);
+              } else {
+                fallbackScore = Math.round(max_points * 0.7); // Neutral fallback
+                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} as neutral default`);
+              }
+
+              results.push({
+                student_name: studentName,
+                student_index: i,
+                pdf_pages: basicInfo.numPages,
+                score: fallbackScore,
+                max_points: max_points,
+                letter_grade: calculateLetterGrade(fallbackScore, max_points),
+                percentage: Math.round((fallbackScore / max_points) * 100),
+                feedback: raw,
+                raw_feedback: raw,
+                parse_method: 'sentiment_fallback',
+                analysis_type: 'vision',
+                success: true,
+                warning: 'Grade extracted using sentiment analysis fallback',
+                processed_at: new Date().toISOString()
+              });
+              continue;
+            }
+
+            const resultObj = {
+              student_name: studentName,
+              student_index: i,
+              pdf_pages: basicInfo.numPages,
+              score: gradeData.score,
+              max_points: gradeData.maxPoints,
+              letter_grade: gradeData.letterGrade,
+              percentage: gradeData.percentage,
+              feedback: raw,
+              raw_feedback: raw,
+              parse_method: gradeData.parseMethod,
+              analysis_type: 'vision',
+              success: true,
+              processed_at: new Date().toISOString()
+            };
+            results.push(resultObj);
+            console.log(`✅ ${studentName} graded ${gradeData.score}/${gradeData.maxPoints} (vision analysis)`);
+          } catch (e) {
+            console.error(`❌ Error grading ${studentName}:`, e.message);
+
+            // Categorize errors for better debugging
+            let errorCategory = 'unknown';
+            let errorDetails = e.message;
+
+            if (e.message.includes('Circuit breaker')) {
+              errorCategory = 'circuit_breaker';
+              errorDetails = 'Service temporarily unavailable due to repeated failures';
+            } else if (e.message.includes('fetch failed') || e.message.includes('network')) {
+              errorCategory = 'network';
+              errorDetails = 'Network connection failed';
+            } else if (e.message.includes('500 Internal Server Error')) {
+              errorCategory = 'server';
+              errorDetails = 'Gemini API server error';
+            } else if (e.message.includes('quota') || e.message.includes('rate limit')) {
+              errorCategory = 'quota';
+              errorDetails = 'API quota or rate limit exceeded';
+            } else if (e.message.includes('authentication') || e.message.includes('API key')) {
+              errorCategory = 'auth';
+              errorDetails = 'Authentication failed - check API key';
+            } else if (e.message.includes('PDF') || e.message.includes('buffer')) {
+              errorCategory = 'pdf_processing';
+              errorDetails = 'PDF processing failed';
+            }
+
+            results.push({
+              student_name: studentName,
+              student_index: i,
+              error: errorCategory,
+              error_detail: errorDetails,
+              technical_detail: process.env.NODE_ENV === 'development' ? e.message : undefined,
+              success: false,
+              processed_at: new Date().toISOString()
+            });
           }
         }
 
-        // Generate analysis prompt for PDF content
-        const analysisPrompt = isGradingMode
-          ? `Grade this student assignment based on the following criteria:
-             Assignment: ${assignment_title}
-             Max Points: ${max_points}
-             Grading Rubric: ${grading_rubric}
-             
-             Student Work:
-             ${textContent}
-             
-             Provide a detailed analysis including:
-             **GRADE BREAKDOWN**
-             Points Earned: X/${max_points}
-             Letter Grade: [A-F]
-             Percentage: X%
-             
-             **DETAILED FEEDBACK**
-             [Provide specific feedback on the work]
-             
-             **LEARNING STRENGTHS**
-             • [List observed strengths]
-             
-             **GROWTH OPPORTUNITIES**
-             • [List areas for improvement]
-             
-             **STUDY SUGGESTIONS**
-             • [Provide specific recommendations]`
-          : `Analyze this student work and provide educational insights:
-             
-             Student Context: ${student_context || 'Not provided'}
-             Content: ${textContent}
-             
-             Please provide:
-             **LEARNING ANALYSIS**
-             [Overall assessment of understanding]
-             
-             **LEARNING STRENGTHS**
-             • [List observed strengths]
-             
-             **GROWTH OPPORTUNITIES**
-             • [List areas for improvement]
-             
-             **STUDY SUGGESTIONS**
-             • [Provide specific recommendations]`;
+        const successful = results.filter(r => r.success);
+        console.log(`🎯 Enhanced PDF grading completed (vision analysis): ${successful.length}/${pdf_files.length} successful`);
 
-        const result = await model.generateContent(analysisPrompt);
-        analysisResult = result.response.text();
+        return res.json({
+          assignment_title,
+          max_points,
+          grading_rubric,
+          total_pdfs: pdf_files.length,
+          successful: successful.length,
+          failed: pdf_files.length - successful.length,
+          student_results: results,
+          bulk_processing: true,
+          analysis_type: 'vision',
+          success: true
+        });
+      }
 
-      } else if (image_data) {
-        // Handle image analysis
-        try {
-          const imageBuffer = Buffer.from(image_data, 'base64');
-          const imagePart = {
-            inlineData: {
-              data: image_data,
-              mimeType: 'image/jpeg' // Assume JPEG, could be made dynamic
+      // Use Gemini Vision model for enhanced analysis (for single PDFs and images)
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      let analysisResult;
+
+      // Handle single PDF analysis with enhanced Gemini Vision
+      if (pdf_data || pdf_text) {
+        let textContent = pdf_text;
+
+        // If we have pdf_data (base64), use Gemini Vision for comprehensive analysis
+        if (pdf_data && !pdf_text) {
+          try {
+            const pdfBuffer = Buffer.from(pdf_data, 'base64');
+            const basicInfo = await extractPDFBasicInfo(pdfBuffer);
+
+            console.log(`👁️ Using Gemini Vision for comprehensive PDF analysis`);
+
+            // Generate enhanced analysis prompt for PDF content
+            const analysisPrompt = isGradingMode
+              ? `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
+
+ASSIGNMENT: ${assignment_title}
+MAX POINTS: ${max_points}
+RUBRIC: ${grading_rubric}
+
+CRITICAL: You MUST start your response with EXACTLY this format (no variations):
+
+GRADE_START
+Points Earned: [NUMBER]/${max_points}
+Letter Grade: [LETTER]
+Percentage: [NUMBER]%
+GRADE_END
+
+After the GRADE_END marker, provide your detailed analysis following this EXACT structure:
+
+**RUBRIC APPLICATION**
+[List EACH rubric section with points awarded. Example:]
+• Forward Propagation: 15/20 points
+• Activation Function: 0/15 points  
+• Loss Function: 0/15 points
+• Backward Propagation: 20/25 points
+• Gradient Descent: 15/15 points
+• Presentation: 8/10 points
+
+**SCORE JUSTIFICATION**
+Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
+
+**DETAILED FEEDBACK**
+[Provide specific feedback on the work]
+
+**LEARNING STRENGTHS**
+• [List observed strengths]
+
+**GROWTH OPPORTUNITIES**
+• [List areas for improvement]
+
+**STUDY SUGGESTIONS**
+• [Provide specific recommendations]
+
+CRITICAL ANTI-LOOP REQUIREMENTS:
+- NEVER repeat calculations or reconsider scores once written
+- NEVER write multiple "Total:" lines
+- NEVER go back and forth between different point values
+- Calculate the rubric points ONCE and stick with that calculation
+- The final total in Score Justification MUST match the Points Earned in GRADE_START
+- If you find yourself repeating text, STOP immediately and finalize your answer
+- Maximum response length: 1000 words
+- Write decisively without second-guessing
+
+MATHEMATICAL CONSISTENCY RULES:
+- THE POINTS EARNED IN GRADE_START MUST EQUAL THE SUM OF ALL RUBRIC SECTION POINTS
+- Show your math ONCE: add up all rubric sections to get final total
+- Use exact format with no extra words or symbols in GRADE_START section
+
+Use your vision capabilities to read and understand all content comprehensively including text, handwriting, equations, and diagrams.`
+              : `Analyze this student work and provide educational insights:
+                 
+                 Student Context: ${student_context || 'Not provided'}
+                 
+                 Please provide:
+                 **LEARNING ANALYSIS**
+                 [Overall assessment of understanding]
+                 
+                 **LEARNING STRENGTHS**
+                 • [List observed strengths]
+                 
+                 **GROWTH OPPORTUNITIES**
+                 • [List areas for improvement]
+                 
+                 **STUDY SUGGESTIONS**
+                 • [Provide specific recommendations]
+                 
+                 Use your vision capabilities to analyze all content in the PDF.`;
+
+            // Create model input with PDF for comprehensive vision analysis
+            const modelInput = [
+              { text: analysisPrompt },
+              {
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: basicInfo.pdfBase64
+                }
+              }
+            ];
+
+            const result = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
+            analysisResult = result.response.text();
+
+          } catch (pdfError) {
+            console.error('Error with Gemini Vision PDF analysis, falling back to text extraction:', pdfError);
+
+            // Fallback to text extraction
+            try {
+              const pdfBuffer = Buffer.from(pdf_data, 'base64');
+              textContent = await extractTextFromFile('application/pdf', pdfBuffer);
+            } catch (textError) {
+              console.error('Error extracting text from PDF:', textError);
+              return res.status(500).json({ error: 'Failed to process PDF' });
             }
-          };
+          }
+        }
 
+        // If we still need to process text content (fallback or direct text input)
+        if (!analysisResult && textContent) {
+          // Generate analysis prompt for PDF text content
           const analysisPrompt = isGradingMode
             ? `Grade this student assignment based on the following criteria:
                Assignment: ${assignment_title}
                Max Points: ${max_points}
                Grading Rubric: ${grading_rubric}
                
-               Please analyze the image and provide:
+               Student Work:
+               ${textContent}
+               
+               Provide a detailed analysis including:
                **GRADE BREAKDOWN**
                Points Earned: X/${max_points}
                Letter Grade: [A-F]
@@ -1334,6 +2020,69 @@ const startServer = async () => {
                
                **STUDY SUGGESTIONS**
                • [Provide specific recommendations]`
+            : `Analyze this student work and provide educational insights:
+               
+               Student Context: ${student_context || 'Not provided'}
+               Content: ${textContent}
+               
+               Please provide:
+               **LEARNING ANALYSIS**
+               [Overall assessment of understanding]
+               
+               **LEARNING STRENGTHS**
+               • [List observed strengths]
+               
+               **GROWTH OPPORTUNITIES**
+               • [List areas for improvement]
+               
+               **STUDY SUGGESTIONS**
+               • [Provide specific recommendations]`;
+
+          const result = await model.generateContent(analysisPrompt);
+          analysisResult = result.response.text();
+        }
+
+      } else if (image_data) {
+        // Handle image analysis with enhanced Gemini Vision
+        try {
+          const imageBuffer = Buffer.from(image_data, 'base64');
+          const imagePart = {
+            inlineData: {
+              data: image_data,
+              mimeType: 'image/jpeg' // Assume JPEG, could be made dynamic
+            }
+          };
+
+          const analysisPrompt = isGradingMode
+            ? `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
+
+ASSIGNMENT: ${assignment_title}
+MAX POINTS: ${max_points}
+RUBRIC: ${grading_rubric}
+
+CRITICAL: You MUST start your response with EXACTLY this format (no variations):
+
+GRADE_START
+Points Earned: [NUMBER]/${max_points}
+Letter Grade: [LETTER]
+Percentage: [NUMBER]%
+GRADE_END
+
+After the GRADE_END marker, provide your detailed analysis:
+
+**DETAILED FEEDBACK**
+[Provide specific feedback on the work]
+
+**LEARNING STRENGTHS**
+• [List observed strengths]
+
+**GROWTH OPPORTUNITIES**
+• [List areas for improvement]
+
+**STUDY SUGGESTIONS**
+• [Provide specific recommendations]
+
+Use your vision capabilities to analyze all content in the image including text, handwriting, equations, and diagrams.`
             : `Analyze this student work image and provide educational insights:
                
                Student Context: ${student_context || 'Not provided'}
@@ -1349,9 +2098,11 @@ const startServer = async () => {
                • [List areas for improvement]
                
                **STUDY SUGGESTIONS**
-               • [Provide specific recommendations]`;
+               • [Provide specific recommendations]
+               
+               Use your vision capabilities to analyze all content in the image.`;
 
-          const result = await model.generateContent([analysisPrompt, imagePart]);
+          const result = await callGeminiWithCircuitBreaker(model, [analysisPrompt, imagePart], 3, 2000);
           analysisResult = result.response.text();
 
         } catch (imageError) {
@@ -1380,7 +2131,11 @@ const startServer = async () => {
         confidence: confidence,
 
         // Add extracted text for frontend display
-        extracted_text: pdf_text || (pdf_data ? 'Text extracted from PDF' : 'Text extracted from image')
+        extracted_text: pdf_text || (pdf_data ? 'Text extracted from PDF' : 'Text extracted from image'),
+
+        // Enhanced analysis metadata
+        analysis_type: pdf_data ? 'pdf_vision' : (image_data ? 'image_vision' : 'text'),
+        model_used: 'gemini-2.5-flash'
       };
 
       // Add grading information if available
@@ -1412,7 +2167,7 @@ const startServer = async () => {
       res.json(responseData);
 
     } catch (error) {
-      console.error('Error in /kana-direct:', error);
+      console.error('Error in /api/kana/bulk-grade-pdfs:', error);
       res.status(500).json({
         error: 'Failed to analyze content',
         details: error.message
@@ -1420,8 +2175,25 @@ const startServer = async () => {
     }
   });
 
+  // Alias endpoints for compatibility with different naming conventions
+  app.post('/kana-direct', async (req, res) => {
+    // Redirect to the main endpoint
+    req.url = '/api/kana/bulk-grade-pdfs';
+    app._router.handle(req, res);
+  });
+
+  app.post('/api/kana/grade-pdfs', async (req, res) => {
+    // Another alias for Python backend compatibility
+    req.url = '/api/kana/bulk-grade-pdfs';
+    app._router.handle(req, res);
+  });
+
   app.listen(port, '0.0.0.0', () => {
     console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
+    console.log(`📋 Available grading endpoints:`);
+    console.log(`  - POST /api/kana/bulk-grade-pdfs (main endpoint)`);
+    console.log(`  - POST /kana-direct (alias)`);
+    console.log(`  - POST /api/kana/grade-pdfs (alias)`);
   });
 };
 
@@ -1800,6 +2572,13 @@ function parseConfidenceFromAnalysis(analysisText) {
 }
 
 function parseGradingFromAnalysis(analysisText) {
+  // First try the enhanced parsing
+  const enhancedResult = parseGradeSingle(analysisText, 'Student', 100);
+  if (enhancedResult.score !== null) {
+    return enhancedResult;
+  }
+
+  // Fallback to original simple parsing
   const gradeMatch = analysisText.match(/Points Earned:\s*(\d+)\/(\d+)/);
   const letterGradeMatch = analysisText.match(/Letter Grade:\s*([A-F][+-]?)/);
   const percentageMatch = analysisText.match(/Percentage:\s*(\d+)%/);

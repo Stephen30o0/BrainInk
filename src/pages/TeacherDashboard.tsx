@@ -22,6 +22,7 @@ export const TeacherDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [backendConnected, setBackendConnected] = useState(false);
   const [teacherData, setTeacherData] = useState<any>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
 
@@ -123,10 +124,12 @@ export const TeacherDashboard: React.FC = () => {
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab as TeacherDashboardTab)}
         teacher={user}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">

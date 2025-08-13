@@ -12,19 +12,25 @@ import {
   UserPlus,
   FileText,
   CheckSquare,
-  Map
+  Map,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface TeacherSidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   teacher: any;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
   activeTab,
   onTabChange,
-  teacher
+  teacher,
+  isCollapsed = false,
+  onToggleCollapse
 }) => {
   const menuItems = [
     {
@@ -90,33 +96,50 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-      {/* Teacher Profile Section */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <User className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{teacher?.name || 'Teacher'}</h3>
-            <p className="text-sm text-gray-500">{teacher?.subjects?.join(', ') || 'Educator'}</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="bg-gray-50 p-2 rounded">
-            <div className="font-medium text-gray-900">Class ID</div>
-            <div className="text-gray-600">{teacher?.classId || 'N/A'}</div>
-          </div>
-          <div className="bg-blue-50 p-2 rounded">
-            <div className="font-medium text-blue-900">K.A.N.A.</div>
-            <div className="text-blue-600 text-xs">Active</div>
-          </div>
-        </div>
+    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 z-10 transition-all duration-300 overflow-hidden`}>
+      {/* Collapse Toggle Button */}
+      <div className="p-2 border-b border-gray-200 flex justify-end">
+        <button
+          onClick={onToggleCollapse}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+          ) : (
+            <ChevronLeft className="w-4 h-4 text-gray-600" />
+          )}
+        </button>
       </div>
 
+      {/* Teacher Profile Section */}
+      {!isCollapsed && (
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <User className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-gray-900 truncate">{teacher?.name || 'Teacher'}</h3>
+              <p className="text-sm text-gray-500 truncate">{teacher?.subjects?.join(', ') || 'Educator'}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div className="bg-gray-50 p-2 rounded">
+              <div className="font-medium text-gray-900 text-xs">Class ID</div>
+              <div className="text-gray-600 text-xs">{teacher?.classId || 'N/A'}</div>
+            </div>
+            <div className="bg-blue-50 p-2 rounded">
+              <div className="font-medium text-blue-900 text-xs">K.A.N.A.</div>
+              <div className="text-blue-600 text-xs">Active</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4">
-        <div className="space-y-2">
+      <nav className="flex-1 p-3 overflow-y-auto min-h-0">
+        <div className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -125,16 +148,19 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${isActive
+                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded-lg text-left transition-colors ${isActive
                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
+                title={isCollapsed ? item.label : undefined}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                <div className="flex-1">
-                  <div className="font-medium">{item.label}</div>
-                  <div className="text-xs text-gray-500">{item.description}</div>
-                </div>
+                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                {!isCollapsed && (
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{item.label}</div>
+                    <div className="text-xs text-gray-500 truncate">{item.description}</div>
+                  </div>
+                )}
               </button>
             );
           })}
@@ -142,30 +168,35 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
       </nav>
 
       {/* Quick Stats */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="bg-gray-50 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Today's Activity</span>
-            <BarChart3 className="w-4 h-4 text-gray-400" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <div className="text-2xl font-bold text-green-600">24</div>
-              <div className="text-gray-600">Notes Analyzed</div>
+      {!isCollapsed && (
+        <div className="p-4 border-t border-gray-200">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Today's Activity</span>
+              <BarChart3 className="w-4 h-4 text-gray-400" />
             </div>
-            <div>
-              <div className="text-2xl font-bold text-blue-600">8</div>
-              <div className="text-gray-600">AI Insights</div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <div className="text-2xl font-bold text-green-600">24</div>
+                <div className="text-gray-600">Notes Analyzed</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-blue-600">8</div>
+                <div className="text-gray-600">AI Insights</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200">
-        <button className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg">
+        <button
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-2 px-3'} py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg`}
+          title={isCollapsed ? 'Back to Brain Ink' : undefined}
+        >
           <LogOut className="w-4 h-4" />
-          <span>Back to Brain Ink</span>
+          {!isCollapsed && <span>Back to Brain Ink</span>}
         </button>
       </div>
     </div>

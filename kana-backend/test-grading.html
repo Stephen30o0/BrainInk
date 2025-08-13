@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced K.A.N.A. Grading System Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2196F3, #21CBF3);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: white;
+            color: #2196F3;
+            border-bottom: 3px solid #2196F3;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+        }
+
+        .tab-content {
+            padding: 30px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .file-upload {
+            border: 2px dashed #e9ecef;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload:hover {
+            border-color: #2196F3;
+            background: #f8f9ff;
+        }
+
+        .file-upload.dragover {
+            border-color: #2196F3;
+            background: #f0f8ff;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #2196F3, #21CBF3);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2196F3;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 5px solid #2196F3;
+        }
+
+        .results h3 {
+            color: #2196F3;
+            margin-bottom: 15px;
+        }
+
+        .feedback-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #28a745;
+        }
+
+        .feedback-section h4 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .grade-display {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .grade-display h2 {
+            font-size: 2.5em;
+            margin-bottom: 5px;
+        }
+
+        .student-result {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .student-result h4 {
+            color: #2196F3;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .stat-card h4 {
+            color: #2196F3;
+            margin-bottom: 15px;
+        }
+
+        .stat-card p {
+            margin-bottom: 8px;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+            margin-top: 20px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin-top: 20px;
+        }
+
+        .file-list {
+            margin-top: 15px;
+        }
+
+        .file-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-item button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: normal;
+        }
+
+        .api-status {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Enhanced K.A.N.A. Grading System</h1>
+            <p>Test advanced PDF grading with image analysis and dual feedback types</p>
+        </div>
+
+        <div class="api-status">
+            <strong>📡 API Endpoint:</strong> <span id="apiEndpoint">http://localhost:10000</span>
+            | <strong>Status:</strong> <span id="apiStatus">Checking...</span>
+            | <button onclick="switchPort()" id="portSwitch" class="btn"
+                style="padding: 5px 10px; margin-left: 10px;">Switch to :8000</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('single')">Single File Grading</button>
+            <button class="tab" onclick="switchTab('bulk')">Bulk PDF Grading</button>
+            <button class="tab" onclick="switchTab('bulkImages')">Bulk Image Grading</button>
+        </div>
+
+        <!-- Single File Grading Tab -->
+        <div id="single-tab" class="tab-content active">
+            <h2>📄 Single File Enhanced Grading</h2>
+            <p>Test the enhanced grading system with detailed and summary feedback options.</p>
+
+            <div class="form-group">
+                <label>Assignment Title</label>
+                <input type="text" id="singleAssignmentTitle" value="Mathematics Quiz - Algebra and Geometry"
+                    placeholder="Enter assignment title">
+            </div>
+
+            <div class="form-group">
+                <label>Maximum Points</label>
+                <input type="number" id="singleMaxPoints" value="100" placeholder="Enter maximum points">
+            </div>
+
+            <div class="form-group">
+                <label>Grading Rubric</label>
+                <textarea id="singleGradingRubric" placeholder="Enter grading criteria and rubric">
+Grading Criteria:
+- Problem solving approach (30 points)
+- Mathematical accuracy (40 points)
+- Work shown and explanations (20 points)
+- Presentation and organization (10 points)
+
+A: 90-100%, B: 80-89%, C: 70-79%, D: 60-69%, F: Below 60%
+                </textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Feedback Type</label>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="radio" name="singleFeedbackType" value="detailed" checked>
+                        Detailed Only
+                    </label>
+                    <label>
+                        <input type="radio" name="singleFeedbackType" value="summary">
+                        Summary Only
+                    </label>
+                    <label>
+                        <input type="radio" name="singleFeedbackType" value="both">
+                        Both Types
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Upload PDF File</label>
+                <div class="file-upload" id="singleFileUpload">
+                    <div class="upload-icon">📁</div>
+                    <p>Click to select a PDF file or drag and drop</p>
+                    <input type="file" id="singlePdfFile" accept=".pdf" style="display: none;">
+                </div>
+                <div id="singleFileList" class="file-list"></div>
+            </div>
+
+            <button class="btn" onclick="gradeSingleFile()" id="singleGradeBtn">
+                🎓 Grade Assignment
+            </button>
+
+            <div id="singleLoading" class="loading">
+                <div class="spinner"></div>
+                <p>Analyzing PDF and generating feedback... This may take a moment.</p>
+            </div>
+
+            <div id="singleResults"></div>
+        </div>
+
+        <!-- Bulk PDF Grading Tab -->
+        <div id="bulk-tab" class="tab-content">
+            <h2>📚 Bulk PDF Grading</h2>
+            <p>Upload multiple PDF files for batch grading with advanced image analysis.</p>
+
+            <div class="form-group">
+                <label>Assignment Title</label>
+                <input type="text" id="bulkAssignmentTitle" value="Science Lab Report - Chemical Reactions"
+                    placeholder="Enter assignment title">
+            </div>
+
+            <div class="form-group">
+                <label>Maximum Points</label>
+                <input type="number" id="bulkMaxPoints" value="100" placeholder="Enter maximum points">
+            </div>
+
+            <div class="form-group">
+                <label>Grading Rubric</label>
+                <textarea id="bulkGradingRubric" placeholder="Enter grading criteria and rubric">
+Lab Report Grading:
+- Hypothesis and predictions (15 points)
+- Experimental procedure (20 points)
+- Data collection and analysis (25 points)
+- Results interpretation (20 points)
+- Conclusions and discussion (15 points)
+- Lab safety and organization (5 points)
+
+Grading Scale: A: 90-100, B: 80-89, C: 70-79, D: 60-69, F: Below 60
+                </textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Student Names (Optional)</label>
+                <textarea id="studentNames" placeholder="Enter student names, one per line (optional)">
+John Smith
+Sarah Johnson
+Michael Brown
+Emma Davis
+David Wilson
+                </textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Feedback Type</label>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="radio" name="bulkFeedbackType" value="detailed">
+                        Detailed Only
+                    </label>
+                    <label>
+                        <input type="radio" name="bulkFeedbackType" value="summary">
+                        Summary Only
+                    </label>
+                    <label>
+                        <input type="radio" name="bulkFeedbackType" value="both" checked>
+                        Both Types
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Upload PDF Files</label>
+                <div class="file-upload" id="bulkFileUpload">
+                    <div class="upload-icon">📁</div>
+                    <p>Click to select multiple PDF files or drag and drop</p>
+                    <input type="file" id="bulkPdfFiles" accept=".pdf" multiple style="display: none;">
+                </div>
+                <div id="bulkFileList" class="file-list"></div>
+            </div>
+
+            <button class="btn" onclick="gradeBulkFiles()" id="bulkGradeBtn">
+                🎓 Grade All Assignments
+            </button>
+            <button class="btn btn-secondary" onclick="clearBulkFiles()">
+                🗑️ Clear Files
+            </button>
+
+            <div id="bulkLoading" class="loading">
+                <div class="spinner"></div>
+                <p>Processing multiple PDFs with image analysis... This will take several minutes.</p>
+            </div>
+
+            <div id="bulkResults"></div>
+        </div>
+
+        <!-- Bulk Image Grading Tab -->
+        <div id="bulkImages-tab" class="tab-content">
+            <h2>🖼️ Bulk Image Grading</h2>
+            <p>Upload multiple image files for batch grading with AI analysis.</p>
+
+            <div class="form-group">
+                <label>Assignment Title</label>
+                <input type="text" id="bulkImageAssignmentTitle" value="Mathematics Worksheet - Problem Solving"
+                    placeholder="Enter assignment title">
+            </div>
+
+            <div class="form-group">
+                <label>Maximum Points</label>
+                <input type="number" id="bulkImageMaxPoints" value="100" placeholder="Enter maximum points">
+            </div>
+
+            <div class="form-group">
+                <label>Grading Rubric</label>
+                <textarea id="bulkImageGradingRubric" placeholder="Enter grading criteria and rubric">
+Image-based Assignment Grading:
+- Problem-solving approach (25 points)
+- Mathematical accuracy (30 points)
+- Work shown clearly (20 points)
+- Neat presentation (15 points)
+- Following instructions (10 points)
+
+Grading Scale: A: 90-100, B: 80-89, C: 70-79, D: 60-69, F: Below 60
+                </textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Student Names (Optional)</label>
+                <textarea id="imageStudentNames" placeholder="Enter student names, one per line (optional)">
+Alex Chen
+Maria Rodriguez
+James Thompson
+Sofia Kim
+Daniel Lee
+                </textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Feedback Type</label>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="radio" name="bulkImageFeedbackType" value="detailed">
+                        Detailed Only
+                    </label>
+                    <label>
+                        <input type="radio" name="bulkImageFeedbackType" value="summary">
+                        Summary Only
+                    </label>
+                    <label>
+                        <input type="radio" name="bulkImageFeedbackType" value="both" checked>
+                        Both Types
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Upload Image Files</label>
+                <div class="file-upload" id="bulkImageFileUpload">
+                    <div class="upload-icon">🖼️</div>
+                    <p>Click to select multiple image files (JPG, PNG) or drag and drop</p>
+                    <input type="file" id="bulkImageFiles" accept=".jpg,.jpeg,.png,.gif,.bmp" multiple
+                        style="display: none;">
+                </div>
+                <div id="bulkImageFileList" class="file-list"></div>
+            </div>
+
+            <button class="btn" onclick="gradeBulkImages()" id="bulkImageGradeBtn">
+                🖼️ Grade All Images
+            </button>
+            <button class="btn btn-secondary" onclick="clearBulkImages()">
+                🗑️ Clear Images
+            </button>
+
+            <div id="bulkImageLoading" class="loading">
+                <div class="spinner"></div>
+                <p>Processing multiple images with AI analysis... This will take several minutes.</p>
+            </div>
+
+            <div id="bulkImageResults"></div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration - Dynamic port switching
+        let currentPort = '10000';
+        let API_BASE = `http://localhost:${currentPort}`;
+
+        // Global variables
+        let singlePdfFile = null;
+        let bulkPdfFiles = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            checkApiStatus();
+            setupFileUploads();
+        });
+
+        // Port switching function
+        function switchPort() {
+            currentPort = currentPort === '10000' ? '8000' : '10000';
+            API_BASE = `http://localhost:${currentPort}`;
+
+            // Update UI
+            document.getElementById('apiEndpoint').textContent = API_BASE;
+            document.getElementById('portSwitch').textContent = `Switch to :${currentPort === '10000' ? '8000' : '10000'}`;
+
+            // Recheck API status
+            checkApiStatus();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            checkApiStatus();
+            setupFileUploads();
+        });
+
+        // Check API status
+        async function checkApiStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                if (response.ok) {
+                    document.getElementById('apiStatus').textContent = '✅ Connected';
+                    document.getElementById('apiStatus').style.color = '#28a745';
+                } else {
+                    document.getElementById('apiStatus').textContent = '❌ Server Error';
+                    document.getElementById('apiStatus').style.color = '#dc3545';
+                }
+            } catch (error) {
+                document.getElementById('apiStatus').textContent = '❌ Disconnected';
+                document.getElementById('apiStatus').style.color = '#dc3545';
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // File upload setup
+        function setupFileUploads() {
+            // Single file upload
+            const singleUpload = document.getElementById('singleFileUpload');
+            const singleInput = document.getElementById('singlePdfFile');
+
+            singleUpload.addEventListener('click', () => singleInput.click());
+            singleInput.addEventListener('change', handleSingleFileSelect);
+
+            // Bulk file upload
+            const bulkUpload = document.getElementById('bulkFileUpload');
+            const bulkInput = document.getElementById('bulkPdfFiles');
+
+            bulkUpload.addEventListener('click', () => bulkInput.click());
+            bulkInput.addEventListener('change', handleBulkFileSelect);
+
+            // Bulk image upload
+            const bulkImageUpload = document.getElementById('bulkImageFileUpload');
+            const bulkImageInput = document.getElementById('bulkImageFiles');
+
+            if (bulkImageUpload && bulkImageInput) {
+                bulkImageUpload.addEventListener('click', () => bulkImageInput.click());
+                bulkImageInput.addEventListener('change', handleBulkImageSelect);
+            }
+
+            // Drag and drop
+            setupDragAndDrop(singleUpload, handleSingleFileDrop);
+            setupDragAndDrop(bulkUpload, handleBulkFileDrop);
+            if (bulkImageUpload) {
+                setupDragAndDrop(bulkImageUpload, handleBulkImageDrop);
+            }
+        }
+
+        function setupDragAndDrop(element, dropHandler) {
+            element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                element.classList.add('dragover');
+            });
+
+            element.addEventListener('dragleave', () => {
+                element.classList.remove('dragover');
+            });
+
+            element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                element.classList.remove('dragover');
+                dropHandler(e.dataTransfer.files);
+            });
+        }
+
+        // Single file handlers
+        function handleSingleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                singlePdfFile = file;
+                updateSingleFileList();
+            } else {
+                showError('single', 'Please select a valid PDF file.');
+            }
+        }
+
+        function handleSingleFileDrop(files) {
+            const file = files[0];
+            if (file && file.type === 'application/pdf') {
+                singlePdfFile = file;
+                updateSingleFileList();
+            } else {
+                showError('single', 'Please drop a valid PDF file.');
+            }
+        }
+
+        function updateSingleFileList() {
+            const fileList = document.getElementById('singleFileList');
+            if (singlePdfFile) {
+                fileList.innerHTML = `
+                    <div class="file-item">
+                        <span>📄 ${singlePdfFile.name} (${formatFileSize(singlePdfFile.size)})</span>
+                        <button onclick="clearSingleFile()">Remove</button>
+                    </div>
+                `;
+            } else {
+                fileList.innerHTML = '';
+            }
+        }
+
+        function clearSingleFile() {
+            singlePdfFile = null;
+            updateSingleFileList();
+            document.getElementById('singlePdfFile').value = '';
+        }
+
+        // Bulk file handlers
+        function handleBulkFileSelect(event) {
+            const files = Array.from(event.target.files);
+            addBulkFiles(files);
+        }
+
+        function handleBulkFileDrop(files) {
+            addBulkFiles(Array.from(files));
+        }
+
+        function addBulkFiles(files) {
+            const pdfFiles = files.filter(file => file.type === 'application/pdf');
+            bulkPdfFiles.push(...pdfFiles);
+            updateBulkFileList();
+
+            if (pdfFiles.length !== files.length) {
+                showError('bulk', `${files.length - pdfFiles.length} non-PDF files were ignored.`);
+            }
+        }
+
+        function updateBulkFileList() {
+            const fileList = document.getElementById('bulkFileList');
+            if (bulkPdfFiles.length > 0) {
+                fileList.innerHTML = bulkPdfFiles.map((file, index) => `
+                    <div class="file-item">
+                        <span>📄 ${file.name} (${formatFileSize(file.size)})</span>
+                        <button onclick="removeBulkFile(${index})">Remove</button>
+                    </div>
+                `).join('');
+            } else {
+                fileList.innerHTML = '';
+            }
+        }
+
+        function removeBulkFile(index) {
+            bulkPdfFiles.splice(index, 1);
+            updateBulkFileList();
+        }
+
+        function clearBulkFiles() {
+            bulkPdfFiles = [];
+            updateBulkFileList();
+            document.getElementById('bulkPdfFiles').value = '';
+        }
+
+        // Image upload variables
+        let bulkImageFiles = [];
+
+        // Bulk image handlers
+        function handleBulkImageSelect(event) {
+            const files = Array.from(event.target.files);
+            addBulkImageFiles(files);
+        }
+
+        function handleBulkImageDrop(files) {
+            addBulkImageFiles(Array.from(files));
+        }
+
+        function addBulkImageFiles(files) {
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            bulkImageFiles.push(...imageFiles);
+            updateBulkImageFileList();
+
+            if (imageFiles.length !== files.length) {
+                showError('bulkImage', `${files.length - imageFiles.length} non-image files were ignored.`);
+            }
+        }
+
+        function updateBulkImageFileList() {
+            const fileList = document.getElementById('bulkImageFileList');
+            if (bulkImageFiles.length > 0) {
+                fileList.innerHTML = bulkImageFiles.map((file, index) => `
+                    <div class="file-item">
+                        <span>🖼️ ${file.name} (${formatFileSize(file.size)})</span>
+                        <button onclick="removeBulkImageFile(${index})">Remove</button>
+                    </div>
+                `).join('');
+            } else {
+                fileList.innerHTML = '';
+            }
+        }
+
+        function removeBulkImageFile(index) {
+            bulkImageFiles.splice(index, 1);
+            updateBulkImageFileList();
+        }
+
+        function clearBulkImages() {
+            bulkImageFiles = [];
+            updateBulkImageFileList();
+            document.getElementById('bulkImageFiles').value = '';
+        }
+
+        // Utility functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function getFeedbackType(prefix) {
+            const radios = document.querySelectorAll(`input[name="${prefix}FeedbackType"]:checked`);
+            return radios.length > 0 ? radios[0].value : 'both';
+        }
+
+        // Grading functions
+        async function gradeSingleFile() {
+            if (!singlePdfFile) {
+                showError('single', 'Please select a PDF file first.');
+                return;
+            }
+
+            const assignmentTitle = document.getElementById('singleAssignmentTitle').value;
+            const maxPoints = document.getElementById('singleMaxPoints').value;
+            const gradingRubric = document.getElementById('singleGradingRubric').value;
+
+            if (!assignmentTitle || !maxPoints || !gradingRubric) {
+                showError('single', 'Please fill in all required fields.');
+                return;
+            }
+
+            try {
+                showLoading('single', true);
+                document.getElementById('singleGradeBtn').disabled = true;
+
+                const pdfBase64 = await fileToBase64(singlePdfFile);
+                const feedbackType = getFeedbackType('single');
+
+                const payload = {
+                    pdf_data: pdfBase64,
+                    task_type: 'grade_assignment',
+                    assignment_title: assignmentTitle,
+                    max_points: parseInt(maxPoints),
+                    grading_rubric: gradingRubric,
+                    feedback_type: feedbackType
+                };
+
+                const response = await fetch(`${API_BASE}/kana-direct`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    displaySingleResults(result);
+                } else {
+                    showError('single', result.error || 'Grading failed. Please check your inputs and try again.');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('single', 'Network error. Please check if the server is running and try again.');
+            } finally {
+                showLoading('single', false);
+                document.getElementById('singleGradeBtn').disabled = false;
+            }
+        }
+
+        async function gradeBulkFiles() {
+            if (bulkPdfFiles.length === 0) {
+                showError('bulk', 'Please select at least one PDF file.');
+                return;
+            }
+
+            const assignmentTitle = document.getElementById('bulkAssignmentTitle').value;
+            const maxPoints = document.getElementById('bulkMaxPoints').value;
+            const gradingRubric = document.getElementById('bulkGradingRubric').value;
+
+            if (!assignmentTitle || !maxPoints || !gradingRubric) {
+                showError('bulk', 'Please fill in all required fields.');
+                return;
+            }
+
+            try {
+                showLoading('bulk', true);
+                document.getElementById('bulkGradeBtn').disabled = true;
+
+                // Convert all files to base64
+                const pdfData = await Promise.all(bulkPdfFiles.map(file => fileToBase64(file)));
+
+                // Get student names
+                const studentNamesText = document.getElementById('studentNames').value.trim();
+                const studentNames = studentNamesText ? studentNamesText.split('\n').map(name => name.trim()) : [];
+
+                const feedbackType = getFeedbackType('bulk');
+
+                const payload = {
+                    pdf_files: pdfData,
+                    assignment_title: assignmentTitle,
+                    max_points: parseInt(maxPoints),
+                    grading_rubric: gradingRubric,
+                    feedback_type: feedbackType,
+                    student_names: studentNames
+                };
+
+                const response = await fetch(`${API_BASE}/api/kana/bulk-grade-pdfs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    displayBulkResults(result);
+                } else {
+                    showError('bulk', result.error || 'Bulk grading failed. Please check your inputs and try again.');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('bulk', 'Network error. Please check if the server is running and try again.');
+            } finally {
+                showLoading('bulk', false);
+                document.getElementById('bulkGradeBtn').disabled = false;
+            }
+        }
+
+        async function gradeBulkImages() {
+            if (bulkImageFiles.length === 0) {
+                showError('bulkImage', 'Please select at least one image file.');
+                return;
+            }
+
+            const assignmentTitle = document.getElementById('bulkImageAssignmentTitle').value;
+            const maxPoints = document.getElementById('bulkImageMaxPoints').value;
+            const gradingRubric = document.getElementById('bulkImageGradingRubric').value;
+
+            if (!assignmentTitle || !maxPoints || !gradingRubric) {
+                showError('bulkImage', 'Please fill in all required fields.');
+                return;
+            }
+
+            try {
+                showLoading('bulkImage', true);
+                document.getElementById('bulkImageGradeBtn').disabled = true;
+
+                // Convert all files to base64
+                const imageData = await Promise.all(bulkImageFiles.map(file => fileToBase64(file)));
+
+                // Get student names
+                const studentNamesText = document.getElementById('imageStudentNames').value.trim();
+                const studentNames = studentNamesText ? studentNamesText.split('\n').map(name => name.trim()) : [];
+
+                const feedbackType = getFeedbackType('bulkImage');
+
+                const payload = {
+                    image_files: imageData,
+                    assignment_title: assignmentTitle,
+                    max_points: parseInt(maxPoints),
+                    grading_rubric: gradingRubric,
+                    feedback_type: feedbackType,
+                    student_names: studentNames
+                };
+
+                const response = await fetch(`${API_BASE}/api/kana/bulk-grade-images`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    displayBulkImageResults(result);
+                } else {
+                    showError('bulkImage', result.error || 'Bulk image grading failed. Please check your inputs and try again.');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('bulkImage', 'Network error. Please check if the server is running and try again.');
+            } finally {
+                showLoading('bulkImage', false);
+                document.getElementById('bulkImageGradeBtn').disabled = false;
+            }
+        }
+
+        // Display functions
+        function displaySingleResults(result) {
+            const resultsDiv = document.getElementById('singleResults');
+
+            let html = '<div class="results"><h3>📊 Grading Results</h3>';
+
+            // Grade display
+            if (result.score !== null) {
+                const percentage = result.percentage || Math.round((result.score / result.max_points) * 100);
+                html += `
+                    <div class="grade-display">
+                        <h2>${result.score}/${result.max_points}</h2>
+                        <p>${result.letter_grade || 'N/A'} (${percentage}%)</p>
+                    </div>
+                `;
+            }
+
+            // Detailed feedback
+            if (result.detailed_analysis) {
+                html += `
+                    <div class="feedback-section">
+                        <h4>📝 Detailed Feedback</h4>
+                        <pre>${result.detailed_analysis}</pre>
+                    </div>
+                `;
+            }
+
+            // Summary feedback
+            if (result.summary_analysis) {
+                html += `
+                    <div class="feedback-section">
+                        <h4>📋 Summary Feedback</h4>
+                        <pre>${result.summary_analysis}</pre>
+                    </div>
+                `;
+            }
+
+            // Structured data
+            if (result.strengths && result.strengths.length > 0) {
+                html += `
+                    <div class="feedback-section">
+                        <h4>💪 Strengths</h4>
+                        <ul>${result.strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            if (result.knowledge_gaps && result.knowledge_gaps.length > 0) {
+                html += `
+                    <div class="feedback-section">
+                        <h4>🎯 Areas for Improvement</h4>
+                        <ul>${result.knowledge_gaps.map(g => `<li>${g}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            if (result.recommendations && result.recommendations.length > 0) {
+                html += `
+                    <div class="feedback-section">
+                        <h4>💡 Recommendations</h4>
+                        <ul>${result.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        function displayBulkResults(result) {
+            const resultsDiv = document.getElementById('bulkResults');
+
+            let html = '<div class="results"><h3>📊 Bulk Grading Results</h3>';
+
+            // Batch summary
+            if (result.batch_summary) {
+                const summary = result.batch_summary;
+                html += `
+                    <div class="grade-display">
+                        <h2>${summary.successfully_graded}/${summary.total_pdfs} Graded</h2>
+                        <p>Average Score: ${summary.average_score}</p>
+                    </div>
+                `;
+            }
+
+            // Individual results
+            if (result.student_results && result.student_results.length > 0) {
+                result.student_results.forEach((student, index) => {
+                    html += `<div class="student-result">`;
+
+                    if (student.success) {
+                        html += `
+                            <h4>👤 ${student.student_name} - ${student.score || 'N/A'}/${student.max_points}</h4>
+                            <p><strong>Grade:</strong> ${student.letter_grade || 'N/A'} (${student.percentage || 'N/A'}%)</p>
+                            <p><strong>Pages:</strong> ${student.pdf_pages}, <strong>Images Analyzed:</strong> ${student.images_analyzed}</p>
+                        `;
+
+                        if (student.detailed_feedback) {
+                            html += `
+                                <div style="margin-top: 15px;">
+                                    <h5>📝 Detailed Feedback:</h5>
+                                    <pre style="max-height: 200px; overflow-y: auto;">${student.detailed_feedback}</pre>
+                                </div>
+                            `;
+                        }
+
+                        if (student.summary_feedback) {
+                            html += `
+                                <div style="margin-top: 15px;">
+                                    <h5>📋 Summary Feedback:</h5>
+                                    <pre style="max-height: 150px; overflow-y: auto;">${student.summary_feedback}</pre>
+                                </div>
+                            `;
+                        }
+
+                        if (student.strengths && student.strengths.length > 0) {
+                            html += `
+                                <div style="margin-top: 10px;">
+                                    <strong>💪 Strengths:</strong>
+                                    <ul>${student.strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+                                </div>
+                            `;
+                        }
+
+                        if (student.knowledge_gaps && student.knowledge_gaps.length > 0) {
+                            html += `
+                                <div style="margin-top: 10px;">
+                                    <strong>🎯 Improvement Areas:</strong>
+                                    <ul>${student.knowledge_gaps.map(g => `<li>${g}</li>`).join('')}</ul>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        html += `
+                            <h4>❌ ${student.student_name} - Grading Failed</h4>
+                            <p><strong>Error:</strong> ${student.error}</p>
+                        `;
+                    }
+
+                    html += `</div>`;
+                });
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        function displayBulkImageResults(result) {
+            const resultsDiv = document.getElementById('bulkImageResults');
+
+            let html = '<div class="results"><h3>🖼️ Bulk Image Grading Results</h3>';
+
+            // Statistics - calculate from batch_summary and student_results
+            if (result.batch_summary || result.student_results) {
+                const successful = result.student_results ? result.student_results.filter(r => r.success && r.score !== null) : [];
+                const scores = successful.map(r => r.score);
+                const averageScore = result.batch_summary?.average_score || (scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
+                const maxPoints = result.batch_summary?.max_points || 100;
+                const averagePercentage = (averageScore / maxPoints) * 100;
+
+                // Calculate grade distribution
+                const gradeDistribution = {};
+                successful.forEach(r => {
+                    const grade = r.letter_grade || 'N/A';
+                    gradeDistribution[grade] = (gradeDistribution[grade] || 0) + 1;
+                });
+
+                html += `
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h4>📊 Class Statistics</h4>
+                            <p><strong>Total Graded:</strong> ${result.batch_summary?.successfully_graded || successful.length}</p>
+                            <p><strong>Average Score:</strong> ${averageScore.toFixed(1)}/${maxPoints} (${averagePercentage.toFixed(1)}%)</p>
+                            <p><strong>Highest Score:</strong> ${scores.length > 0 ? Math.max(...scores) : 0}/${maxPoints}</p>
+                            <p><strong>Lowest Score:</strong> ${scores.length > 0 ? Math.min(...scores) : 0}/${maxPoints}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>📈 Grade Distribution</h4>
+                            ${Object.entries(gradeDistribution).map(([grade, count]) =>
+                    `<p><strong>${grade}:</strong> ${count} students</p>`
+                ).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Individual results
+            if (result.student_results && result.student_results.length > 0) {
+                html += '<div class="individual-results">';
+                result.student_results.forEach((studentResult, index) => {
+                    const score = studentResult.score || studentResult.score === 0 ? studentResult.score : 'N/A';
+                    const maxPoints = studentResult.max_points || 100;
+                    const percentage = studentResult.percentage || (studentResult.score !== null && studentResult.score !== undefined ? Math.round((studentResult.score / maxPoints) * 100) : 'N/A');
+
+                    html += `
+                        <div class="student-result">
+                            <h4>🖼️ Image ${index + 1} ${studentResult.student_name ? `- ${studentResult.student_name}` : ''}</h4>
+                    `;
+
+                    if (studentResult.success) {
+                        html += `
+                            <div class="grade-display">
+                                <h3>${score}/${maxPoints}</h3>
+                                <p>${studentResult.letter_grade || 'N/A'} ${percentage !== 'N/A' ? `(${percentage}%)` : ''}</p>
+                            </div>
+                        `;
+
+                        if (studentResult.detailed_feedback) {
+                            html += `
+                                <div class="feedback-section">
+                                    <h5>📝 Detailed Feedback</h5>
+                                    <pre>${studentResult.detailed_feedback}</pre>
+                                </div>
+                            `;
+                        }
+
+                        if (studentResult.summary_feedback) {
+                            html += `
+                                <div class="feedback-section">
+                                    <h5>📋 Summary Feedback</h5>
+                                    <pre>${studentResult.summary_feedback}</pre>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        html += `
+                            <div class="feedback-section" style="border-left-color: #dc3545;">
+                                <h5 style="color: #dc3545;">❌ Processing Failed</h5>
+                                <p><strong>Error:</strong> ${studentResult.error || 'Unknown error occurred'}</p>
+                            </div>
+                        `;
+                    }
+
+                    html += `</div>`;
+                });
+                html += '</div>';
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        // Utility functions
+        function showLoading(prefix, show) {
+            const loadingDiv = document.getElementById(prefix + 'Loading');
+            loadingDiv.style.display = show ? 'block' : 'none';
+        }
+
+        function showError(prefix, message) {
+            const resultsDiv = document.getElementById(prefix + 'Results');
+            resultsDiv.innerHTML = `<div class="error"><strong>Error:</strong> ${message}</div>`;
+        }
+
+        function showSuccess(prefix, message) {
+            const resultsDiv = document.getElementById(prefix + 'Results');
+            resultsDiv.innerHTML = `<div class="success"><strong>Success:</strong> ${message}</div>`;
+        }
+    </script>
+</body>
+
+</html>
