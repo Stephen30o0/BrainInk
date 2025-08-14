@@ -129,30 +129,28 @@ export const HomePage: React.FC = () => {
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(59,130,246,0.14),transparent_60%)]" />
         <GradientOrb className="w-[20rem] sm:w-[30rem] lg:w-[50rem] xl:w-[60rem] h-[20rem] sm:h-[30rem] lg:h-[50rem] xl:h-[60rem] bg-blue-200 -top-20 sm:-top-40 -left-10 sm:-left-20" style={{ transform: `translate3d(${mouse.x * -20}px, ${mouse.y * -10}px, 0)` }} />
         <GradientOrb className="w-[15rem] sm:w-[25rem] lg:w-[40rem] xl:w-[50rem] h-[15rem] sm:h-[25rem] lg:h-[40rem] xl:h-[50rem] bg-indigo-200 top-5 sm:top-10 -right-12 sm:-right-24" style={{ transform: `translate3d(${mouse.x * 25}px, ${mouse.y * 12}px, 0)` }} />
-        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
-          <Reveal className="relative max-w-none pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12 mx-auto text-center" >
-            <h1 className="mt-4 sm:mt-6 lg:mt-8 text-4xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl 2xl:text-10xl 3xl:text-11xl 4xl:text-12xl font-black tracking-tight text-slate-900 leading-[1.0] sm:leading-[0.95] lg:leading-[0.9] xl:leading-[0.85]" style={{
+        <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-12">
+          <Reveal className="relative pt-20 sm:pt-24 lg:pt-32 pb-12 sm:pb-16 lg:pb-20 mx-auto text-center" >
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight text-slate-900 leading-[0.9] sm:leading-[0.85] lg:leading-[0.8]" style={{
               transform: `translateY(${progress * -20}px) scale(${1.06 - progress * 0.04})`,
               transition: 'transform 200ms ease',
-              willChange: 'transform',
-              textShadow: '0 1px 0 rgba(255,255,255,0.7), 0 18px 40px rgba(15,23,42,0.18)'
+              willChange: 'transform'
             }}>
-              <span className="block mb-1 sm:mb-2 lg:mb-3">Instant  Grades</span>
-              <span className="block mb-1 sm:mb-2 lg:mb-3">Free  Learning</span>
+              <span className="block mb-2 sm:mb-3 lg:mb-4">Instant Grades</span>
+              <span className="block mb-2 sm:mb-3 lg:mb-4">Free Learning</span>
               <span className="block">Academic Freedom</span>
             </h1>
-            {/* decorative soft divider lines behind heading */}
-            <div aria-hidden className="absolute left-1/2 -translate-x-1/2 mt-4 sm:mt-6 lg:mt-8 w-[95%] sm:w-[98%] max-w-none">
-              <div className="h-[2px] sm:h-[3px] lg:h-[4px] bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
-              <div className="mt-2 sm:mt-3 lg:mt-4 h-[1px] sm:h-[2px] bg-gradient-to-r from-transparent via-slate-200/60 to-transparent" />
-            </div>
-            <p className="mt-6 sm:mt-8 lg:mt-12 text-slate-600 text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl 3xl:text-4xl max-w-none mx-auto leading-relaxed px-4 sm:px-8 lg:px-16 xl:px-24">
-              BrainInk is a Rwandan‑built platform that saves teachers hours on grading and gives students, parents, and principals clear,
-              actionable feedback. Built by a Pan‑African team for real classrooms.
+            <p className="mt-8 sm:mt-10 lg:mt-12 text-slate-600 text-lg sm:text-xl lg:text-2xl max-w-4xl mx-auto leading-relaxed font-medium">
+              BrainInk gives you the answers you didn't study for in every conversation, 
+              without you even having to ask.
             </p>
-            <div className="mt-6 sm:mt-8 lg:mt-12 xl:mt-16 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10 px-4">
-              <Link to="/get-started" className="px-6 sm:px-8 lg:px-10 xl:px-12 2xl:px-14 py-3 sm:py-4 lg:py-5 xl:py-6 2xl:py-7 rounded-xl bg-slate-900 text-white text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl shadow-[0_10px_24px_rgba(15,23,42,0.25)] ring-1 ring-slate-900/10 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">Get Started</Link>
-              <Link to="/pricing" className="px-6 sm:px-8 lg:px-10 xl:px-12 2xl:px-14 py-3 sm:py-4 lg:py-5 xl:py-6 2xl:py-7 rounded-xl bg-blue-600 text-white text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl shadow-[0_10px_24px_rgba(59,130,246,0.35)] ring-1 ring-blue-700/20 hover:bg-blue-600/90 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">See pricing</Link>
+            <div className="mt-10 sm:mt-12 lg:mt-14 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6">
+              <Link to="/get-started" className="inline-flex items-center justify-center px-6 sm:px-7 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg lg:text-xl font-semibold rounded-xl bg-slate-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-[-1px] hover:scale-[1.01] border border-slate-900">
+                Get Started
+              </Link>
+              <Link to="/pricing" className="inline-flex items-center justify-center px-6 sm:px-7 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg lg:text-xl font-semibold rounded-xl bg-white text-slate-900 shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-[-1px] hover:scale-[1.01] border border-slate-200 hover:border-slate-300">
+                See pricing
+              </Link>
             </div>
           </Reveal>
           <div className="mt-4 sm:mt-6 lg:mt-10 relative group" style={{
