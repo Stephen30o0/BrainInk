@@ -22,6 +22,19 @@ export default {
           foreground: "hsl(var(--muted-foreground))",
         },
       },
+      fontSize: {
+        '10xl': ['10rem', { lineHeight: '1' }],
+        '11xl': ['12rem', { lineHeight: '1' }],
+        '12xl': ['14rem', { lineHeight: '1' }],
+        '13xl': ['16rem', { lineHeight: '1' }],
+        '14xl': ['18rem', { lineHeight: '1' }],
+        '15xl': ['20rem', { lineHeight: '1' }],
+      },
+      screens: {
+        '3xl': '1600px',
+        '4xl': '1920px',
+        '5xl': '2560px',
+      },
       animation: {
         'float': 'float 15s ease-in-out infinite',
         'pulse-slow': 'pulse 3s ease-in-out infinite',

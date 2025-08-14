@@ -21,11 +21,11 @@ export const MarketingFooter: React.FC = () => {
                   <path d="M19.967 17.484A4 4 0 0 1 18 18" />
                 </svg>
               </div>
-              <span className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent">BrainInk</span>
+              <span className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent">Brain Ink</span>
             </div>
-            <p className="text-slate-600 max-w-md text-sm sm:text-base">Learning AI that helps during the work, not after. Try BrainInk in your next study session today.</p>
+            <p className="text-slate-600 max-w-md text-sm sm:text-base">Learning AI that helps during the work, not after. Try Brain Ink in your next study session today.</p>
             <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <Link to="/signup" className="px-3 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm text-center">Start for free</Link>
+              <Link to="/signup" className="px-3 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm text-center">Get started</Link>
               <Link to="/pricing" className="px-3 py-2 rounded-md bg-slate-900 text-white hover:opacity-90 text-xs sm:text-sm text-center">See pricing</Link>
             </div>
           </div>

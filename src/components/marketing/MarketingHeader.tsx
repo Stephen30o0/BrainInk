@@ -49,7 +49,7 @@ export const MarketingHeader: React.FC = () => {
               </svg>
             </div>
             <span className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent">
-              BrainInk
+              Brain Ink
             </span>
           </Link>
           <nav className="hidden md:flex items-center gap-0.5 lg:gap-1">

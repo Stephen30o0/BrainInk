@@ -124,36 +124,35 @@ export const HomePage: React.FC = () => {
       <MarketingHeader />
 
       {/* Hero */}
-      <section ref={heroRef as any} className="relative overflow-hidden" onMouseMove={onHeroMouseMove} style={{ minHeight: 'calc(100vh - 64px)' }}>
+      <section ref={heroRef as any} className="relative overflow-hidden flex items-center justify-center" onMouseMove={onHeroMouseMove} style={{ minHeight: '100vh' }}>
         {/* subtle radial background for character */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(59,130,246,0.14),transparent_60%)]" />
-        <GradientOrb className="w-[20rem] sm:w-[30rem] lg:w-[40rem] h-[20rem] sm:h-[30rem] lg:h-[40rem] bg-blue-200 -top-20 sm:-top-40 -left-10 sm:-left-20" style={{ transform: `translate3d(${mouse.x * -20}px, ${mouse.y * -10}px, 0)` }} />
-        <GradientOrb className="w-[15rem] sm:w-[25rem] lg:w-[30rem] h-[15rem] sm:h-[25rem] lg:h-[30rem] bg-indigo-200 top-5 sm:top-10 -right-12 sm:-right-24" style={{ transform: `translate3d(${mouse.x * 25}px, ${mouse.y * 12}px, 0)` }} />
+        <GradientOrb className="w-[20rem] sm:w-[30rem] lg:w-[50rem] xl:w-[60rem] h-[20rem] sm:h-[30rem] lg:h-[50rem] xl:h-[60rem] bg-blue-200 -top-20 sm:-top-40 -left-10 sm:-left-20" style={{ transform: `translate3d(${mouse.x * -20}px, ${mouse.y * -10}px, 0)` }} />
+        <GradientOrb className="w-[15rem] sm:w-[25rem] lg:w-[40rem] xl:w-[50rem] h-[15rem] sm:h-[25rem] lg:h-[40rem] xl:h-[50rem] bg-indigo-200 top-5 sm:top-10 -right-12 sm:-right-24" style={{ transform: `translate3d(${mouse.x * 25}px, ${mouse.y * 12}px, 0)` }} />
         <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
-          <Reveal className="relative max-w-6xl pt-20 sm:pt-24 lg:pt-28 pb-8 sm:pb-12 lg:pb-16 mx-auto text-center" >
-            <p className="text-blue-600 text-xs sm:text-sm lg:text-base font-semibold">For schools across Africa</p>
-            <h1 className="mt-3 sm:mt-4 lg:mt-6 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-black tracking-tight text-slate-900 leading-tight" style={{
+          <Reveal className="relative max-w-none pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12 mx-auto text-center" >
+            <h1 className="mt-4 sm:mt-6 lg:mt-8 text-4xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl 2xl:text-10xl 3xl:text-11xl 4xl:text-12xl font-black tracking-tight text-slate-900 leading-[1.0] sm:leading-[0.95] lg:leading-[0.9] xl:leading-[0.85]" style={{
               transform: `translateY(${progress * -20}px) scale(${1.06 - progress * 0.04})`,
               transition: 'transform 200ms ease',
               willChange: 'transform',
               textShadow: '0 1px 0 rgba(255,255,255,0.7), 0 18px 40px rgba(15,23,42,0.18)'
             }}>
-              <span className="block sm:inline">Smart classrooms start</span>
-              <br className="hidden sm:block" />
-              <span className="block sm:inline sm:ml-2">with smart feedback.</span>
+              <span className="block mb-1 sm:mb-2 lg:mb-3">Instant  Grades</span>
+              <span className="block mb-1 sm:mb-2 lg:mb-3">Free  Learning</span>
+              <span className="block">Academic Freedom</span>
             </h1>
             {/* decorative soft divider lines behind heading */}
-            <div aria-hidden className="absolute left-1/2 -translate-x-1/2 mt-3 sm:mt-4 lg:mt-6 w-[90%] sm:w-[92%] max-w-4xl lg:max-w-5xl">
-              <div className="h-[1px] sm:h-[2px] bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
-              <div className="mt-1 sm:mt-2 h-[1px] bg-gradient-to-r from-transparent via-slate-200/60 to-transparent" />
+            <div aria-hidden className="absolute left-1/2 -translate-x-1/2 mt-4 sm:mt-6 lg:mt-8 w-[95%] sm:w-[98%] max-w-none">
+              <div className="h-[2px] sm:h-[3px] lg:h-[4px] bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
+              <div className="mt-2 sm:mt-3 lg:mt-4 h-[1px] sm:h-[2px] bg-gradient-to-r from-transparent via-slate-200/60 to-transparent" />
             </div>
-            <p className="mt-3 sm:mt-4 lg:mt-6 text-slate-600 text-sm sm:text-base lg:text-lg xl:text-xl max-w-4xl lg:max-w-5xl mx-auto leading-relaxed px-4">
+            <p className="mt-6 sm:mt-8 lg:mt-12 text-slate-600 text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl 3xl:text-4xl max-w-none mx-auto leading-relaxed px-4 sm:px-8 lg:px-16 xl:px-24">
               BrainInk is a Rwandan‑built platform that saves teachers hours on grading and gives students, parents, and principals clear,
               actionable feedback. Built by a Pan‑African team for real classrooms.
             </p>
-            <div className="mt-4 sm:mt-6 lg:mt-8 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 lg:gap-6 px-4">
-              <Link to="/get-started" className="px-4 sm:px-5 lg:px-6 py-2 sm:py-3 lg:py-4 rounded-xl bg-slate-900 text-white text-sm sm:text-base lg:text-lg shadow-[0_10px_24px_rgba(15,23,42,0.25)] ring-1 ring-slate-900/10 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">Get Started</Link>
-              <Link to="/pricing" className="px-4 sm:px-5 lg:px-6 py-2 sm:py-3 lg:py-4 rounded-xl bg-blue-600 text-white text-sm sm:text-base lg:text-lg shadow-[0_10px_24px_rgba(59,130,246,0.35)] ring-1 ring-blue-700/20 hover:bg-blue-600/90 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">See pricing</Link>
+            <div className="mt-6 sm:mt-8 lg:mt-12 xl:mt-16 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 lg:gap-8 xl:gap-10 px-4">
+              <Link to="/get-started" className="px-6 sm:px-8 lg:px-10 xl:px-12 2xl:px-14 py-3 sm:py-4 lg:py-5 xl:py-6 2xl:py-7 rounded-xl bg-slate-900 text-white text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl shadow-[0_10px_24px_rgba(15,23,42,0.25)] ring-1 ring-slate-900/10 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">Get Started</Link>
+              <Link to="/pricing" className="px-6 sm:px-8 lg:px-10 xl:px-12 2xl:px-14 py-3 sm:py-4 lg:py-5 xl:py-6 2xl:py-7 rounded-xl bg-blue-600 text-white text-base sm:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl shadow-[0_10px_24px_rgba(59,130,246,0.35)] ring-1 ring-blue-700/20 hover:bg-blue-600/90 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">See pricing</Link>
             </div>
           </Reveal>
           <div className="mt-4 sm:mt-6 lg:mt-10 relative group" style={{
@@ -167,34 +166,12 @@ export const HomePage: React.FC = () => {
 
             <Reveal>
               <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 backdrop-blur-sm" style={{
-                clipPath: 'inset(30px 0 20px 0) sm:inset(50px 0 35px 0)',
+                clipPath: 'inset(50px 0 35px 0)',
                 borderRadius: '1.5rem'
               }}>
                 <video
-                  ref={(el) => {
-                    if (el) {
-                      const handleMouseEnter = () => {
-                        el.play().catch(() => {
-                          // Handle autoplay restrictions gracefully
-                        });
-                      };
-                      const handleMouseLeave = () => {
-                        el.pause();
-                      };
-
-                      const container = el.closest('.group');
-                      if (container) {
-                        container.addEventListener('mouseenter', handleMouseEnter);
-                        container.addEventListener('mouseleave', handleMouseLeave);
-
-                        return () => {
-                          container.removeEventListener('mouseenter', handleMouseEnter);
-                          container.removeEventListener('mouseleave', handleMouseLeave);
-                        };
-                      }
-                    }
-                  }}
                   className="aspect-[16/9] w-full object-cover"
+                  autoPlay
                   muted
                   loop
                   playsInline
@@ -206,15 +183,6 @@ export const HomePage: React.FC = () => {
 
                 {/* Subtle overlay for better text visibility if needed */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
-
-                {/* Play indicator that shows on hover */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
-                    <div className="w-8 h-8 text-white flex items-center justify-center">
-                      <div className="w-0 h-0 border-l-[12px] border-l-white border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent ml-1"></div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </Reveal>
           </div>
@@ -239,14 +207,14 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* DisplayCards Showcase Section */}
-      <section className="relative py-12 sm:py-16 lg:py-20 xl:py-24 bg-gradient-to-b from-sky-50 to-indigo-50/20 overflow-hidden">
+      <section className="relative py-16 sm:py-20 lg:py-24 xl:py-28 bg-gradient-to-b from-sky-50 to-indigo-50/20 overflow-hidden">
         {/* ambient orbs */}
         <GradientOrb className="w-48 sm:w-60 lg:w-72 h-48 sm:h-60 lg:h-72 bg-sky-200 -top-5 sm:-top-8 lg:-top-10 -left-5 sm:-left-8 lg:-left-10" style={{ opacity: 0.35 }} />
         <GradientOrb className="w-56 sm:w-68 lg:w-80 h-56 sm:h-68 lg:h-80 bg-indigo-200 -bottom-10 sm:-bottom-16 lg:-bottom-20 -right-10 sm:-right-16 lg:-right-20" style={{ opacity: 0.25 }} />
 
         <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
           <Reveal>
-            <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+            <div className="text-center mb-12 sm:mb-16 lg:mb-20">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-slate-900 mb-3 sm:mb-4 lg:mb-6 leading-tight">
                 Experience BrainInk in Action
               </h2>
@@ -256,7 +224,7 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex justify-center items-center min-h-[300px] sm:min-h-[400px] lg:min-h-[500px] xl:min-h-[600px]">
+            <div className="flex justify-center items-center min-h-[600px] sm:min-h-[700px] lg:min-h-[500px] xl:min-h-[600px]">
               <DisplayCards
                 cards={[
                   {

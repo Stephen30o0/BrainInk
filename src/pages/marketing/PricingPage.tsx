@@ -3,6 +3,7 @@ import MarketingHeader from '../../components/marketing/MarketingHeader';
 import MarketingFooter from '../../components/marketing/MarketingFooter';
 import { PricingSection } from '@/components/ui/pricing-section';
 import { Sparkles, Building2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const pricingTiers = [
   {
@@ -143,12 +144,18 @@ export const PricingPage: React.FC = () => {
               to ensure successful adoption across your institution.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 lg:gap-6">
-              <button className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 lg:py-4 bg-slate-900 text-white rounded-md text-sm sm:text-base lg:text-lg font-medium hover:bg-slate-800 transition-colors hover:scale-105 transform">
+              <Link
+                to="/get-started"
+                className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 lg:py-4 bg-slate-900 text-white rounded-md text-sm sm:text-base lg:text-lg font-medium hover:bg-slate-800 transition-colors hover:scale-105 transform inline-flex items-center justify-center"
+              >
                 Start Pilot Program
-              </button>
-              <button className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 lg:py-4 border border-slate-300 text-slate-700 rounded-md text-sm sm:text-base lg:text-lg font-medium hover:bg-slate-50 transition-colors hover:scale-105 transform">
+              </Link>
+              <Link
+                to="/get-started"
+                className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 lg:py-4 border border-slate-300 text-slate-700 rounded-md text-sm sm:text-base lg:text-lg font-medium hover:bg-slate-50 transition-colors hover:scale-105 transform inline-flex items-center justify-center"
+              >
                 Schedule Demo
-              </button>
+              </Link>
             </div>
           </div>
         </div>
