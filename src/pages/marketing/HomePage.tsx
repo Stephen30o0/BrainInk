@@ -224,7 +224,7 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex justify-center items-center min-h-[600px] sm:min-h-[700px] lg:min-h-[500px] xl:min-h-[600px]">
+            <div className="flex justify-center items-center min-h-[700px] sm:min-h-[800px] md:min-h-[900px] lg:min-h-[700px] xl:min-h-[800px] 2xl:min-h-[900px]">
               <DisplayCards
                 cards={[
                   {
@@ -267,7 +267,7 @@ export const HomePage: React.FC = () => {
                 className="inline-flex items-center px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 will-change-transform"
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                Start Your Free Trial
+                Start Your Journey
               </Link>
             </div>
           </Reveal>
