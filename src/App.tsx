@@ -35,6 +35,7 @@ import { AuthProvider } from './hooks/useAuth';
 import HomePage from './pages/marketing/HomePage';
 import PricingPage from './pages/marketing/PricingPage';
 import HelpCenterPage from './pages/marketing/HelpCenterPage';
+import OnboardingPage from './pages/marketing/OnboardingPage';
 import GetStarted from './pages/GetStarted';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
@@ -65,6 +66,7 @@ export function App() {
                       <Route path="/get-started" element={<GetStarted />} />
                       <Route path="/pricing" element={<PricingPage />} />
                       <Route path="/help" element={<HelpCenterPage />} />
+                      <Route path="/onboarding" element={<OnboardingPage />} />
                       <Route path="/signup" element={<SignUp />} />
                       <Route path="/login" element={<SignUp />} />
                       <Route path="/school-login" element={<SchoolLogin />} />

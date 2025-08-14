@@ -36,16 +36,16 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
   const buttonStyles = {
     default: cn(
       "h-12 bg-white dark:bg-zinc-900",
-      "hover:bg-zinc-50 dark:hover:bg-zinc-800",
-      "text-zinc-900 dark:text-zinc-100",
-      "border border-zinc-200 dark:border-zinc-800",
-      "hover:border-zinc-300 dark:hover:border-zinc-700",
+      "hover:bg-slate-50 dark:hover:bg-zinc-800",
+      "text-slate-900 dark:text-zinc-100",
+      "border border-slate-300 dark:border-zinc-800",
+      "hover:border-slate-400 dark:hover:border-zinc-700",
       "shadow-sm hover:shadow-md",
-      "text-sm font-medium",
+      "text-sm font-semibold",
     ),
     highlight: cn(
-      "h-12 bg-zinc-900 dark:bg-zinc-100",
-      "hover:bg-zinc-800 dark:hover:bg-zinc-300",
+      "h-12 bg-slate-900 dark:bg-zinc-100",
+      "hover:bg-slate-800 dark:hover:bg-zinc-300",
       "text-white dark:text-zinc-900",
       "shadow-[0_1px_15px_rgba(0,0,0,0.1)]",
       "hover:shadow-[0_1px_20px_rgba(0,0,0,0.15)]",
@@ -71,19 +71,19 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
     >
       <div className="w-full max-w-5xl mx-auto">
         <div className="flex flex-col items-center gap-4 mb-12">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-zinc-50">
             Simple, transparent pricing
           </h2>
-          <div className="inline-flex items-center p-1.5 bg-white dark:bg-zinc-800/50 rounded-full border border-zinc-200 dark:border-zinc-700 shadow-sm">
+          <div className="inline-flex items-center p-1.5 bg-white dark:bg-zinc-800/50 rounded-full border border-slate-200 dark:border-zinc-700 shadow-sm">
             {["Per Term", "Per Year"].map((period) => (
               <button
                 key={period}
                 onClick={() => setIsYearly(period === "Per Year")}
                 className={cn(
-                  "px-8 py-2.5 text-sm font-medium rounded-full transition-all duration-300",
+                  "px-8 py-2.5 text-sm font-semibold rounded-full transition-all duration-300",
                   (period === "Per Year") === isYearly
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg"
-                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100",
+                    ? "bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg"
+                    : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100",
                 )}
               >
                 {period}
@@ -101,12 +101,12 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                 "rounded-3xl transition-all duration-300",
                 "flex flex-col",
                 tier.highlight
-                  ? "bg-gradient-to-b from-zinc-100/80 to-transparent dark:from-zinc-400/[0.15]"
+                  ? "bg-gradient-to-b from-blue-50/80 to-transparent dark:from-zinc-400/[0.15]"
                   : "bg-white dark:bg-zinc-800/50",
                 "border",
                 tier.highlight
-                  ? "border-zinc-400/50 dark:border-zinc-400/20 shadow-xl"
-                  : "border-zinc-200 dark:border-zinc-700 shadow-md",
+                  ? "border-blue-200/80 dark:border-zinc-400/20 shadow-xl"
+                  : "border-slate-200 dark:border-zinc-700 shadow-md",
                 "hover:translate-y-0 hover:shadow-lg",
               )}
             >
@@ -122,32 +122,32 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                     className={cn(
                       "p-3 rounded-xl",
                       tier.highlight
-                        ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+                        ? "bg-blue-100 dark:bg-zinc-800 text-blue-700 dark:text-zinc-100"
+                        : "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400",
                     )}
                   >
                     {tier.icon}
                   </div>
-                  <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-zinc-100">
                     {tier.name}
                   </h3>
                 </div>
 
                 <div className="mb-6">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-zinc-900 dark:text-zinc-100">
-                      {typeof (isYearly ? tier.price.yearly : tier.price.monthly) === 'string' 
+                    <span className="text-4xl font-bold text-slate-900 dark:text-zinc-100">
+                      {typeof (isYearly ? tier.price.yearly : tier.price.monthly) === 'string'
                         ? (isYearly ? tier.price.yearly : tier.price.monthly)
                         : `${isYearly ? tier.price.yearly : tier.price.monthly} RWF`
                       }
                     </span>
                     {typeof (isYearly ? tier.price.yearly : tier.price.monthly) === 'number' && (
-                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                      <span className="text-sm text-slate-600 dark:text-zinc-400 font-medium">
                         /{isYearly ? "year" : "term"}
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                  <p className="mt-2 text-sm text-slate-700 dark:text-zinc-400 font-medium">
                     {tier.description}
                   </p>
                 </div>
@@ -166,10 +166,10 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                         <CheckIcon className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        <div className="text-sm font-semibold text-slate-900 dark:text-zinc-100">
                           {feature.name}
                         </div>
-                        <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                        <div className="text-sm text-slate-700 dark:text-zinc-400 font-medium">
                           {feature.description}
                         </div>
                       </div>

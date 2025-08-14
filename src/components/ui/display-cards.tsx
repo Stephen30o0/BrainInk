@@ -35,20 +35,25 @@ function DisplayCard({
   return (
     <div
       className={cn(
-        "relative flex h-36 w-[22rem] -skew-y-[8deg] select-none flex-col justify-between rounded-xl border-2 bg-slate-100/70 backdrop-blur-sm px-4 py-3 transition-all duration-700 after:absolute after:-right-1 after:top-[-5%] after:h-[110%] after:w-[20rem] after:bg-gradient-to-l after:from-white after:to-transparent after:content-[''] hover:border-white/20 hover:bg-slate-100 [&>*]:flex [&>*]:items-center [&>*]:gap-2",
+        "relative flex h-24 sm:h-28 md:h-32 lg:h-36 w-[16rem] sm:w-[18rem] md:w-[20rem] lg:w-[22rem] -skew-y-[8deg] select-none flex-col justify-between rounded-xl border-2 bg-slate-100/70 backdrop-blur-sm px-3 sm:px-4 py-2 sm:py-3 transition-all duration-700 after:absolute after:-right-1 after:top-[-5%] after:h-[110%] after:w-[14rem] sm:after:w-[16rem] md:after:w-[18rem] lg:after:w-[20rem] after:bg-gradient-to-l after:from-white after:to-transparent after:content-[''] hover:border-white/20 hover:bg-slate-100 [&>*]:flex [&>*]:items-center [&>*]:gap-2",
         className
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       <div>
-        <span className="relative inline-block rounded-full bg-blue-800 p-1">
-          {icon}
+        <span className="relative inline-block rounded-full bg-blue-800 p-0.5 sm:p-1">
+          {React.isValidElement(icon)
+            ? React.cloneElement(icon, {
+              className: cn(icon.props.className, iconClassName)
+            })
+            : icon
+          }
         </span>
-        <p className={cn("text-lg font-medium", titleClassName)}>{title}</p>
+        <p className={cn("text-sm sm:text-base lg:text-lg font-medium", titleClassName)}>{title}</p>
       </div>
-      <p className="whitespace-nowrap text-lg">{description}</p>
-      <p className="text-slate-500">{date}</p>
+      <p className="whitespace-nowrap text-sm sm:text-base lg:text-lg">{description}</p>
+      <p className="text-slate-500 text-xs sm:text-sm">{date}</p>
     </div>
   );
 }
@@ -61,46 +66,46 @@ interface ExplanationPanelProps {
 
 function ExplanationPanel({ activeCard, isVisible }: ExplanationPanelProps) {
   return (
-    <div 
+    <div
       className={cn(
-        "relative bg-white/20 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 min-h-[300px] flex items-center",
+        "relative bg-white/20 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-white/30 shadow-2xl p-4 sm:p-6 lg:p-8 min-h-[200px] sm:min-h-[250px] lg:min-h-[300px] flex items-center",
         "transition-all duration-500 ease-out transform",
-        "before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-br before:from-white/10 before:to-transparent before:pointer-events-none",
-        "after:absolute after:inset-0 after:rounded-3xl after:bg-gradient-to-t after:from-slate-900/5 after:to-transparent after:pointer-events-none",
-        isVisible 
-          ? "opacity-100 translate-x-0 scale-100" 
+        "before:absolute before:inset-0 before:rounded-2xl sm:before:rounded-3xl before:bg-gradient-to-br before:from-white/10 before:to-transparent before:pointer-events-none",
+        "after:absolute after:inset-0 after:rounded-2xl sm:after:rounded-3xl after:bg-gradient-to-t after:from-slate-900/5 after:to-transparent after:pointer-events-none",
+        isVisible
+          ? "opacity-100 translate-x-0 scale-100"
           : "opacity-70 translate-x-4 scale-95"
       )}
     >
-      <div className="relative z-10 space-y-6 w-full">
-        <div 
+      <div className="relative z-10 space-y-3 sm:space-y-4 lg:space-y-6 w-full">
+        <div
           className={cn(
-            "flex items-center space-x-4 transition-all duration-300 delay-100",
+            "flex items-center space-x-2 sm:space-x-3 lg:space-x-4 transition-all duration-300 delay-100",
             isVisible ? "opacity-100 translate-y-0" : "opacity-60 translate-y-2"
           )}
         >
-          <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm border border-white/20 flex-shrink-0 shadow-lg">
+          <div className="p-1.5 sm:p-2 lg:p-3 rounded-lg sm:rounded-xl bg-white/20 backdrop-blur-sm border border-white/20 flex-shrink-0 shadow-lg">
             {activeCard.icon}
           </div>
-          <h3 className="text-2xl font-bold text-slate-800 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text">
+          <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text">
             {activeCard.title}
           </h3>
         </div>
-        <p 
+        <p
           className={cn(
-            "text-lg text-slate-700 leading-relaxed font-medium transition-all duration-400 delay-200",
+            "text-sm sm:text-base lg:text-lg text-slate-700 leading-relaxed font-medium transition-all duration-400 delay-200",
             isVisible ? "opacity-100 translate-y-0" : "opacity-70 translate-y-1"
           )}
         >
           {activeCard.explanation || "Experience the power of AI-driven education technology."}
         </p>
-        <div 
+        <div
           className={cn(
-            "flex items-center space-x-3 text-sm text-slate-600 transition-all duration-300 delay-300",
+            "flex items-center space-x-2 sm:space-x-3 text-xs sm:text-sm text-slate-600 transition-all duration-300 delay-300",
             isVisible ? "opacity-100 translate-y-0" : "opacity-50 translate-y-1"
           )}
         >
-          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-sm"></div>
+          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse shadow-sm"></div>
           <span className="font-medium">{activeCard.date}</span>
         </div>
       </div>
@@ -159,13 +164,13 @@ export default function DisplayCards({ cards }: DisplayCardsProps) {
   };
 
   return (
-    <div className="flex items-center justify-between w-full max-w-7xl mx-auto px-6 gap-32">
+    <div className="flex flex-col lg:flex-row items-center justify-between w-full max-w-7xl mx-auto px-4 sm:px-6 gap-8 lg:gap-16 xl:gap-32">
       {/* Left side - Cards stack (Separate Entity) */}
       <div className="flex-shrink-0 w-fit max-w-md">
         <div className="grid [grid-template-areas:'stack'] place-items-center opacity-100 animate-in fade-in-0 duration-700">
           {displayCards.map((cardProps, index) => (
-            <DisplayCard 
-              key={index} 
+            <DisplayCard
+              key={index}
               {...cardProps}
               onMouseEnter={() => handleMouseEnter(index)}
               onMouseLeave={handleMouseLeave}
@@ -175,10 +180,10 @@ export default function DisplayCards({ cards }: DisplayCardsProps) {
       </div>
 
       {/* Right side - Explanation Panel (Separate Entity) - Well separated */}
-      <div className="flex-1 min-w-0 max-w-lg ml-auto" style={{ minHeight: '350px' }}>
+      <div className="flex-1 min-w-0 max-w-lg lg:ml-auto" style={{ minHeight: '300px' }}>
         <div className="w-full flex items-center justify-center h-full">
-          <ExplanationPanel 
-            activeCard={displayCards[activeCardIndex]} 
+          <ExplanationPanel
+            activeCard={displayCards[activeCardIndex]}
             isVisible={isHovering}
           />
         </div>

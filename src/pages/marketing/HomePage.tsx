@@ -127,47 +127,47 @@ export const HomePage: React.FC = () => {
       <section ref={heroRef as any} className="relative overflow-hidden" onMouseMove={onHeroMouseMove} style={{ minHeight: 'calc(100vh - 64px)' }}>
         {/* subtle radial background for character */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(59,130,246,0.14),transparent_60%)]" />
-        <GradientOrb className="w-[40rem] h-[40rem] bg-blue-200 -top-40 -left-20" style={{ transform: `translate3d(${mouse.x * -20}px, ${mouse.y * -10}px, 0)` }} />
-        <GradientOrb className="w-[30rem] h-[30rem] bg-indigo-200 top-10 -right-24" style={{ transform: `translate3d(${mouse.x * 25}px, ${mouse.y * 12}px, 0)` }} />
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <Reveal className="relative max-w-4xl pt-28 pb-10 sm:pb-16 mx-auto text-center" >
-            <p className="text-blue-600 text-sm font-semibold">For schools across Africa</p>
-            <h1 className="mt-4 text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight text-slate-900" style={{
+        <GradientOrb className="w-[20rem] sm:w-[30rem] lg:w-[40rem] h-[20rem] sm:h-[30rem] lg:h-[40rem] bg-blue-200 -top-20 sm:-top-40 -left-10 sm:-left-20" style={{ transform: `translate3d(${mouse.x * -20}px, ${mouse.y * -10}px, 0)` }} />
+        <GradientOrb className="w-[15rem] sm:w-[25rem] lg:w-[30rem] h-[15rem] sm:h-[25rem] lg:h-[30rem] bg-indigo-200 top-5 sm:top-10 -right-12 sm:-right-24" style={{ transform: `translate3d(${mouse.x * 25}px, ${mouse.y * 12}px, 0)` }} />
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <Reveal className="relative max-w-6xl pt-20 sm:pt-24 lg:pt-28 pb-8 sm:pb-12 lg:pb-16 mx-auto text-center" >
+            <p className="text-blue-600 text-xs sm:text-sm lg:text-base font-semibold">For schools across Africa</p>
+            <h1 className="mt-3 sm:mt-4 lg:mt-6 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-black tracking-tight text-slate-900 leading-tight" style={{
               transform: `translateY(${progress * -20}px) scale(${1.06 - progress * 0.04})`,
               transition: 'transform 200ms ease',
               willChange: 'transform',
               textShadow: '0 1px 0 rgba(255,255,255,0.7), 0 18px 40px rgba(15,23,42,0.18)'
             }}>
-              Smart classrooms start
-              <br />
-              with smart feedback.
+              <span className="block sm:inline">Smart classrooms start</span>
+              <br className="hidden sm:block" />
+              <span className="block sm:inline sm:ml-2">with smart feedback.</span>
             </h1>
             {/* decorative soft divider lines behind heading */}
-            <div aria-hidden className="absolute left-1/2 -translate-x-1/2 mt-4 w-[92%] max-w-3xl">
-              <div className="h-[2px] bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
-              <div className="mt-2 h-[1px] bg-gradient-to-r from-transparent via-slate-200/60 to-transparent" />
+            <div aria-hidden className="absolute left-1/2 -translate-x-1/2 mt-3 sm:mt-4 lg:mt-6 w-[90%] sm:w-[92%] max-w-4xl lg:max-w-5xl">
+              <div className="h-[1px] sm:h-[2px] bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
+              <div className="mt-1 sm:mt-2 h-[1px] bg-gradient-to-r from-transparent via-slate-200/60 to-transparent" />
             </div>
-            <p className="mt-4 text-slate-600 text-lg max-w-3xl mx-auto">
+            <p className="mt-3 sm:mt-4 lg:mt-6 text-slate-600 text-sm sm:text-base lg:text-lg xl:text-xl max-w-4xl lg:max-w-5xl mx-auto leading-relaxed px-4">
               BrainInk is a Rwandan‑built platform that saves teachers hours on grading and gives students, parents, and principals clear,
               actionable feedback. Built by a Pan‑African team for real classrooms.
             </p>
-            <div className="mt-6 flex justify-center gap-3">
-              <Link to="/get-started" className="px-5 py-3 rounded-xl bg-slate-900 text-white text-sm shadow-[0_10px_24px_rgba(15,23,42,0.25)] ring-1 ring-slate-900/10 hover:translate-y-[-1px] transition will-change-transform">Get Started</Link>
-              <Link to="/pricing" className="px-5 py-3 rounded-xl bg-blue-600 text-white text-sm shadow-[0_10px_24px_rgba(59,130,246,0.35)] ring-1 ring-blue-700/20 hover:bg-blue-600/90 hover:translate-y-[-1px] transition will-change-transform">See pricing</Link>
+            <div className="mt-4 sm:mt-6 lg:mt-8 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 lg:gap-6 px-4">
+              <Link to="/get-started" className="px-4 sm:px-5 lg:px-6 py-2 sm:py-3 lg:py-4 rounded-xl bg-slate-900 text-white text-sm sm:text-base lg:text-lg shadow-[0_10px_24px_rgba(15,23,42,0.25)] ring-1 ring-slate-900/10 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">Get Started</Link>
+              <Link to="/pricing" className="px-4 sm:px-5 lg:px-6 py-2 sm:py-3 lg:py-4 rounded-xl bg-blue-600 text-white text-sm sm:text-base lg:text-lg shadow-[0_10px_24px_rgba(59,130,246,0.35)] ring-1 ring-blue-700/20 hover:bg-blue-600/90 hover:translate-y-[-1px] transition will-change-transform hover:scale-105 transform">See pricing</Link>
             </div>
           </Reveal>
-          <div className="mt-6 sm:mt-10 relative group" style={{
+          <div className="mt-4 sm:mt-6 lg:mt-10 relative group" style={{
             transform: `translateY(${(1 - progress) * 24}px)`,
             opacity: 0.85 + progress * 0.15,
             transition: 'transform 200ms ease, opacity 200ms ease',
             willChange: 'transform, opacity'
           }}>
             {/* Floating shadow effect */}
-            <div className="absolute inset-0 rounded-3xl shadow-[0_25px_60px_rgba(15,23,42,0.2)] group-hover:shadow-[0_35px_80px_rgba(15,23,42,0.25)] transition-shadow duration-500" />
-            
+            <div className="absolute inset-0 rounded-2xl sm:rounded-3xl shadow-[0_15px_40px_rgba(15,23,42,0.15)] sm:shadow-[0_25px_60px_rgba(15,23,42,0.2)] group-hover:shadow-[0_25px_60px_rgba(15,23,42,0.2)] sm:group-hover:shadow-[0_35px_80px_rgba(15,23,42,0.25)] transition-shadow duration-500" />
+
             <Reveal>
-              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 backdrop-blur-sm" style={{
-                clipPath: 'inset(50px 0 35px 0)',
+              <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 backdrop-blur-sm" style={{
+                clipPath: 'inset(30px 0 20px 0) sm:inset(50px 0 35px 0)',
                 borderRadius: '1.5rem'
               }}>
                 <video
@@ -181,12 +181,12 @@ export const HomePage: React.FC = () => {
                       const handleMouseLeave = () => {
                         el.pause();
                       };
-                      
+
                       const container = el.closest('.group');
                       if (container) {
                         container.addEventListener('mouseenter', handleMouseEnter);
                         container.addEventListener('mouseleave', handleMouseLeave);
-                        
+
                         return () => {
                           container.removeEventListener('mouseenter', handleMouseEnter);
                           container.removeEventListener('mouseleave', handleMouseLeave);
@@ -203,10 +203,10 @@ export const HomePage: React.FC = () => {
                   <source src="/video/Brain Ink Teacher Dashboard and Student study Center Demo video.mp4" type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
-                
+
                 {/* Subtle overlay for better text visibility if needed */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
-                
+
                 {/* Play indicator that shows on hover */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                   <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
@@ -227,37 +227,37 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* floating decorative tiles */}
-        <SoftFloat className="size-20 sm:size-24 right-6 sm:right-16 top-2 sm:top-12 rotate-6">
-          <Upload className="w-7 h-7" />
+        <SoftFloat className="size-16 sm:size-20 lg:size-24 right-3 sm:right-6 lg:right-16 top-1 sm:top-2 lg:top-12 rotate-6">
+          <Upload className="w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7" />
         </SoftFloat>
-        <SoftFloat className="size-16 sm:size-20 left-4 sm:left-12 bottom-10 -rotate-6">
-          <FileCheck2 className="w-6 h-6" />
+        <SoftFloat className="size-12 sm:size-16 lg:size-20 left-2 sm:left-4 lg:left-12 bottom-8 sm:bottom-10 -rotate-6">
+          <FileCheck2 className="w-4 sm:w-5 lg:w-6 h-4 sm:h-5 lg:h-6" />
         </SoftFloat>
-        <SoftFloat className="size-24 sm:size-28 right-24 bottom-6 rotate-3">
-          <BarChart3 className="w-8 h-8" />
+        <SoftFloat className="size-18 sm:size-20 lg:size-24 xl:size-28 right-12 sm:right-16 lg:right-24 bottom-4 sm:bottom-6 rotate-3">
+          <BarChart3 className="w-6 sm:w-7 lg:w-8 h-6 sm:h-7 lg:h-8" />
         </SoftFloat>
       </section>
 
       {/* DisplayCards Showcase Section */}
-      <section className="relative py-16 sm:py-20 bg-gradient-to-b from-sky-50 to-indigo-50/20 overflow-hidden">
+      <section className="relative py-12 sm:py-16 lg:py-20 xl:py-24 bg-gradient-to-b from-sky-50 to-indigo-50/20 overflow-hidden">
         {/* ambient orbs */}
-        <GradientOrb className="w-72 h-72 bg-sky-200 -top-10 -left-10" style={{ opacity: 0.35 }} />
-        <GradientOrb className="w-80 h-80 bg-indigo-200 -bottom-20 -right-20" style={{ opacity: 0.25 }} />
-        
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <GradientOrb className="w-48 sm:w-60 lg:w-72 h-48 sm:h-60 lg:h-72 bg-sky-200 -top-5 sm:-top-8 lg:-top-10 -left-5 sm:-left-8 lg:-left-10" style={{ opacity: 0.35 }} />
+        <GradientOrb className="w-56 sm:w-68 lg:w-80 h-56 sm:h-68 lg:h-80 bg-indigo-200 -bottom-10 sm:-bottom-16 lg:-bottom-20 -right-10 sm:-right-16 lg:-right-20" style={{ opacity: 0.25 }} />
+
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
           <Reveal>
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
+            <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-slate-900 mb-3 sm:mb-4 lg:mb-6 leading-tight">
                 Experience BrainInk in Action
               </h2>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                Discover how our platform transforms traditional grading into an intelligent, 
+              <p className="text-sm sm:text-base lg:text-lg xl:text-xl text-slate-600 max-w-3xl lg:max-w-4xl mx-auto leading-relaxed px-4">
+                Discover how our platform transforms traditional grading into an intelligent,
                 efficient process that benefits teachers, students, and administrators alike.
               </p>
             </div>
-            
-            <div className="flex justify-center items-center min-h-[500px]">
-              <DisplayCards 
+
+            <div className="flex justify-center items-center min-h-[300px] sm:min-h-[400px] lg:min-h-[500px] xl:min-h-[600px]">
+              <DisplayCards
                 cards={[
                   {
                     icon: <Sparkles className="size-4 text-blue-300" />,
@@ -289,13 +289,13 @@ export const HomePage: React.FC = () => {
                 ]}
               />
             </div>
-            
+
             <div className="text-center mt-12">
               <p className="text-slate-600 mb-6">
                 Join thousands of educators already using BrainInk to revolutionize their teaching experience
               </p>
-              <Link 
-                to="/signup" 
+              <Link
+                to="/signup"
                 className="inline-flex items-center px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 will-change-transform"
               >
                 <Sparkles className="w-4 h-4 mr-2" />
@@ -306,86 +306,90 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-    {/* Features preview grid */}
-      <section className="py-16">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 className="text-2xl font-semibold">Grade faster. Give better feedback. See progress in real time.</h2>
-          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Features preview grid */}
+      <section className="py-12 sm:py-16 lg:py-20">
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-semibold mb-6 sm:mb-8 lg:mb-12 leading-tight">
+            Grade faster. Give better feedback. See progress in real time.
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {[
-        { title: 'Instant Grading', desc: 'Scan or upload handwritten/typed work and get results immediately.' },
-        { title: 'Actionable Feedback', desc: 'Breakdowns of strengths, gaps, and suggested follow‑ups for each student.' },
-        { title: 'Student Dashboards', desc: 'Individual progress, topics to review, and growth over time.' },
-        { title: 'Class & School Analytics', desc: 'Principals see real‑time performance across classes and terms.' },
+              { title: 'Instant Grading', desc: 'Scan or upload handwritten/typed work and get results immediately.' },
+              { title: 'Actionable Feedback', desc: 'Breakdowns of strengths, gaps, and suggested follow‑ups for each student.' },
+              { title: 'Student Dashboards', desc: 'Individual progress, topics to review, and growth over time.' },
+              { title: 'Class & School Analytics', desc: 'Principals see real‑time performance across classes and terms.' },
             ].map((f) => (
-              <div key={f.title} className="p-6 rounded-2xl border border-slate-200 bg-white/70 shadow-sm">
-                <h3 className="font-semibold mb-1">{f.title}</h3>
-                <p className="text-slate-600 text-sm">{f.desc}</p>
+              <div key={f.title} className="p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-200 bg-white/70 shadow-sm hover:shadow-md transition-shadow hover:scale-105 transform">
+                <h3 className="font-semibold mb-1 sm:mb-2 lg:mb-3 text-sm sm:text-base lg:text-lg">{f.title}</h3>
+                <p className="text-slate-600 text-xs sm:text-sm lg:text-base leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
 
           {/* Visual flow: Test → Upload → Results */}
-          <div className="mt-10">
+          <div className="mt-8 sm:mt-10 lg:mt-12">
             <GradingProcessPinDemo />
           </div>
         </div>
       </section>
 
       {/* Who it's for */}
-      <section className="py-14">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid sm:grid-cols-3 gap-6">
+      <section className="py-12 sm:py-14 lg:py-18">
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
             {[{
-              icon: <GraduationCap className="text-blue-600" size={24} />, title: 'Students',
+              icon: <GraduationCap className="text-blue-600" size={20} />, title: 'Students',
               desc: 'Know where you went wrong, what to review next, and track improvement each term.'
-            },{
-              icon: <Users className="text-blue-600" size={24} />, title: 'Teachers',
+            }, {
+              icon: <Users className="text-blue-600" size={20} />, title: 'Teachers',
               desc: 'Save 10+ hours/week with instant grading, clear rubrics, and organized feedback.'
-            },{
-              icon: <Building2 className="text-blue-600" size={24} />, title: 'School Leaders',
+            }, {
+              icon: <Building2 className="text-blue-600" size={20} />, title: 'School Leaders',
               desc: 'Get real‑time visibility across classes and subjects to make data‑driven decisions.'
             }].map((c) => (
-              <div key={c.title} className="rounded-2xl border border-slate-200 p-6 bg-white">
-                <div className="h-10 w-10 rounded-lg bg-blue-50 grid place-items-center mb-3">{c.icon}</div>
-                <h3 className="font-semibold text-slate-900">{c.title}</h3>
-                <p className="text-sm text-slate-600 mt-1">{c.desc}</p>
+              <div key={c.title} className="rounded-2xl border border-slate-200 p-4 sm:p-6 lg:p-8 bg-white hover:shadow-md transition-shadow hover:scale-105 transform">
+                <div className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 rounded-lg bg-blue-50 grid place-items-center mb-3 sm:mb-4">{c.icon}</div>
+                <h3 className="font-semibold text-slate-900 text-sm sm:text-base lg:text-lg">{c.title}</h3>
+                <p className="text-xs sm:text-sm lg:text-base text-slate-600 mt-1 sm:mt-2 leading-relaxed">{c.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-    {/* How it works */}
-  <section className="py-16 bg-gradient-to-b from-slate-50 to-white border-y border-slate-200/60">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 className="text-3xl font-semibold">How BrainInk fits in your school</h2>
-          <div className="mt-8 grid md:grid-cols-4 gap-6">
+      {/* How it works */}
+      <section className="py-12 sm:py-16 lg:py-20 bg-gradient-to-b from-slate-50 to-white border-y border-slate-200/60">
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-semibold mb-6 sm:mb-8 lg:mb-12 leading-tight">
+            How BrainInk fits in your school
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {[
-        { step: '1', title: 'Upload or scan work', desc: 'Teachers scan handwritten papers or upload PDFs/images for assignments, quizzes, and exams.' },
-        { step: '2', title: 'Apply rubrics', desc: 'Import your rubric or use templates so marking is consistent across classes.' },
-        { step: '3', title: 'Get instant results', desc: 'Students and teachers receive clear breakdowns: strengths, gaps, and next steps.' },
-        { step: '4', title: 'See school‑wide insights', desc: 'Principals and admins view live dashboards by class, subject, and term.' },
+              { step: '1', title: 'Upload or scan work', desc: 'Teachers scan handwritten papers or upload PDFs/images for assignments, quizzes, and exams.' },
+              { step: '2', title: 'Apply rubrics', desc: 'Import your rubric or use templates so marking is consistent across classes.' },
+              { step: '3', title: 'Get instant results', desc: 'Students and teachers receive clear breakdowns: strengths, gaps, and next steps.' },
+              { step: '4', title: 'See school‑wide insights', desc: 'Principals and admins view live dashboards by class, subject, and term.' },
             ].map((s) => (
-      <StepCard key={s.step} step={s.step} title={s.title} desc={s.desc} />
+              <StepCard key={s.step} step={s.step} title={s.title} desc={s.desc} />
             ))}
           </div>
         </div>
       </section>
 
-    <BrainInkCapabilities />
+      <BrainInkCapabilities />
 
       {/* Outcomes section */}
-      <section className="py-16 bg-gradient-to-b from-white to-slate-50">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl border border-slate-200 p-8 grid sm:grid-cols-3 gap-6 text-center">
+      <section className="py-12 sm:py-16 lg:py-20 bg-gradient-to-b from-white to-slate-50">
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <div className="rounded-2xl border border-slate-200 p-6 sm:p-8 lg:p-10 xl:p-12 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 lg:gap-10 text-center bg-white shadow-sm hover:shadow-md transition-shadow">
             {[
               { stat: '10+ hrs', label: 'Teacher time saved per week' },
               { stat: '3× faster', label: 'Feedback turnaround to students' },
               { stat: 'Real‑time', label: 'Visibility for principals and HoDs' },
             ].map((x) => (
-              <div key={x.label}>
-                <div className="text-4xl font-black text-slate-900">{x.stat}</div>
-                <div className="text-slate-600 mt-1">{x.label}</div>
+              <div key={x.label} className="hover:scale-105 transform transition-transform">
+                <div className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black text-slate-900">{x.stat}</div>
+                <div className="text-slate-600 mt-1 sm:mt-2 text-xs sm:text-sm lg:text-base">{x.label}</div>
               </div>
             ))}
           </div>
@@ -393,9 +397,9 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="py-16">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-3 gap-6">
+      <section className="py-12 sm:py-16 lg:py-20">
+        <div className="mx-auto max-w-8xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {[
               { quote: 'I graded three classes before lunch. The feedback is clearer than ever.', name: 'Teacher (Math, S2)' },
               { quote: 'We finally see progress across departments at a glance.', name: 'Head Teacher' },
@@ -449,15 +453,15 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-  {/* Final CTA */}
+      {/* Final CTA */}
       <section className="py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-slate-200 p-8 text-center bg-white">
-    <h3 className="text-2xl font-semibold">Let’s build the future of learning — together.</h3>
-    <p className="text-slate-600 mt-2">Start a pilot at your school or roll out the standard plan in minutes.</p>
+            <h3 className="text-2xl font-semibold">Let’s build the future of learning — together.</h3>
+            <p className="text-slate-600 mt-2">Start a pilot at your school or roll out the standard plan in minutes.</p>
             <div className="mt-6 flex justify-center gap-3">
-      <Link to="/signup" className="px-4 py-3 rounded-md bg-slate-900 text-white text-sm shadow-sm">Start a pilot</Link>
-      <Link to="/pricing" className="px-4 py-3 rounded-md bg-blue-600 text-white text-sm shadow-sm">Pricing & plans</Link>
+              <Link to="/signup" className="px-4 py-3 rounded-md bg-slate-900 text-white text-sm shadow-sm">Start a pilot</Link>
+              <Link to="/pricing" className="px-4 py-3 rounded-md bg-blue-600 text-white text-sm shadow-sm">Pricing & plans</Link>
             </div>
           </div>
         </div>
