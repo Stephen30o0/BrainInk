@@ -9,6 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
 const fsPromises = fs.promises;
+const nodemailer = require('nodemailer');
 
 const { evaluate } = require('mathjs');
 const { generateSVGGraph } = require('./utils/svgGraph');
@@ -670,6 +671,61 @@ async function initializeDatabase() {
 }
 
 // --- API ENDPOINTS ---
+
+// Create transporter for Gmail (for contact form)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER || 'braininkedu@gmail.com',
+    pass: process.env.GMAIL_APP_PASSWORD, // Use App Password, not regular password
+  },
+});
+
+// Contact form endpoint
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { fullName, workEmail, companyName, message } = req.body;
+
+    // Validate required fields
+    if (!fullName || !workEmail || !companyName || !message) {
+      return res.status(400).json({
+        error: 'All fields are required',
+      });
+    }
+
+    // Email options
+    const mailOptions = {
+      from: process.env.GMAIL_USER || 'braininkedu@gmail.com',
+      to: 'braininkedu@gmail.com',
+      subject: `New Contact Form Submission from ${fullName}`,
+      html: `
+        <h2>New Contact Form Submission</h2>
+        <p><strong>Full Name:</strong> ${fullName}</p>
+        <p><strong>Work Email:</strong> ${workEmail}</p>
+        <p><strong>Company Name:</strong> ${companyName}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message.replace(/\n/g, '<br>')}</p>
+        <hr>
+        <p><em>This message was sent from the BrainInk contact form.</em></p>
+      `,
+      replyTo: workEmail,
+    };
+
+    // Send email
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      success: true,
+      message: 'Email sent successfully',
+    });
+  } catch (error) {
+    console.error('Error sending email:', error);
+    res.status(500).json({
+      error: 'Failed to send email',
+      details: error.message,
+    });
+  }
+});
 
 app.get('/api/study-materials', (req, res) => {
   res.json(studyMaterialsDb);

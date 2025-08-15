@@ -1,0 +1,19 @@
+{
+    "name": "brainink-contact-server",
+    "version": "1.0.0",
+    "description": "Contact form email server for BrainInk",
+    "main": "contact-server.js",
+    "scripts": {
+        "start": "node contact-server.js",
+        "dev": "nodemon contact-server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "nodemailer": "^6.9.7",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    }
+}

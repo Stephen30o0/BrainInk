@@ -59,7 +59,7 @@ export const MarketingFooter: React.FC = () => {
             <h4 className="font-semibold text-slate-900 mb-2 sm:mb-3 text-sm sm:text-base">Support</h4>
             <ul className="space-y-1 sm:space-y-2 text-slate-600 text-xs sm:text-sm">
               <li><Link to="/help">Help Center</Link></li>
-              <li>Contact us</li>
+              <li><Link to="/contact">Contact us</Link></li>
             </ul>
           </div>
         </div>

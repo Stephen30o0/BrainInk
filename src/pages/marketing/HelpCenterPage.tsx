@@ -36,7 +36,7 @@ export const HelpCenterPage: React.FC = () => {
               <p>Use a copier or phone to batch scan stacks of papers. Apply your rubric templates for consistent marking across departments.</p>
             </Article>
             <Article title="Contact us">
-              <p>Email support@brainink.ai to book a demo or request onboarding for your school.</p>
+              <p>Email info.brainink@gmail.com to book a demo or request onboarding for your school.</p>
             </Article>
           </div>
         </div>

@@ -57,6 +57,7 @@ export const MarketingHeader: React.FC = () => {
             <NavItem to="/pricing" label="Pricing" />
             <NavItem to="/help" label="Help Center" />
             <NavItem to="/onboarding" label="Onboarding" />
+            <NavItem to="/contact" label="Contact Us" />
           </nav>
           <div className="hidden md:flex items-center gap-2 lg:gap-3">
             <Link
@@ -82,6 +83,7 @@ export const MarketingHeader: React.FC = () => {
             <Link to="/pricing" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Pricing</Link>
             <Link to="/help" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Help Center</Link>
             <Link to="/onboarding" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Onboarding</Link>
+            <Link to="/contact" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Contact Us</Link>
             <Link
               to="/get-started"
               onClick={() => setOpen(false)}
