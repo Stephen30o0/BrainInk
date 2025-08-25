@@ -50,19 +50,19 @@ export const ProfilePanel = () => {
     if (fname && lname) {
       return (fname.charAt(0) + lname.charAt(0)).toUpperCase();
     }
-    
+
     if (fname) {
       return fname.substring(0, 2).toUpperCase();
     }
-    
+
     if (lname) {
       return lname.substring(0, 2).toUpperCase();
     }
-    
+
     if (username && username.length >= 2) {
       return username.substring(0, 2).toUpperCase();
     }
-    
+
     return username?.charAt(0).toUpperCase() || '?';
   };
 
@@ -84,7 +84,7 @@ export const ProfilePanel = () => {
 
       // Try to get preloaded data first
       let preloadedData = apiService.getPreloadedData();
-      
+
       if (!preloadedData) {
         console.log('No preloaded data found, loading...');
         try {
@@ -169,7 +169,7 @@ export const ProfilePanel = () => {
       // Get user data from token first
       const tokenUserData = getUserDataFromToken();
       console.log('User data from token:', tokenUserData);
-      
+
       // Set initial profile data from token
       setProfileData(prev => ({
         ...prev,
@@ -206,9 +206,9 @@ export const ProfilePanel = () => {
       const paddedPayload = base64Payload.padEnd(base64Payload.length + (4 - base64Payload.length % 4) % 4, '=');
       const decodedPayload = atob(paddedPayload);
       const payload = JSON.parse(decodedPayload);
-      
+
       console.log('Decoded token payload for user data:', payload);
-      
+
       return {
         fname: payload.fname || payload.first_name,
         lname: payload.lname || payload.last_name,
@@ -304,7 +304,7 @@ export const ProfilePanel = () => {
           .filter((achievement: Achievement) => achievement.earned_at)
           .sort((a: Achievement, b: Achievement) => new Date(b.earned_at!).getTime() - new Date(a.earned_at!).getTime())
           .slice(0, 3);
-          
+
         setRecentAchievements(sortedAchievements);
       }
     } catch (err) {
@@ -341,28 +341,28 @@ export const ProfilePanel = () => {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         if (data.access_token) {
           localStorage.setItem('access_token', data.access_token);
         }
-        
+
         if (data.encrypted_data) {
           localStorage.setItem('encrypted_user_data', data.encrypted_data);
         }
-        
+
         // Update avatar with new initials
         setProfileData(prev => ({
           ...prev,
           avatar: getUserInitials(prev.fname, prev.lname, prev.username)
         }));
-        
+
         setIsEditing(false);
         setError(null);
-        
+
         // Refresh the cache and reload data
-        await apiService.refreshData('user');
+        await apiService.refreshData('all');
         await loadProfileData();
-        
+
       } else {
         const errorText = await response.text();
         setError('Failed to update profile');
@@ -377,7 +377,7 @@ export const ProfilePanel = () => {
 
   // Retry function for failed requests
   const retryFetchData = async () => {
-    await apiService.refreshData('user');
+    await apiService.refreshData('all');
     await loadProfileData();
   };
 
@@ -404,23 +404,23 @@ export const ProfilePanel = () => {
       </div>
     );
   }
-  
+
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-8 space-y-6 bg-white min-h-screen">
       {/* Error Display */}
       {error && (
-        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">
           {error}
           <div className="flex gap-2 mt-2">
-            <button 
+            <button
               onClick={() => setError(null)}
-              className="text-red-300 hover:text-red-100 text-xs underline"
+              className="text-red-500 hover:text-red-700 text-xs underline"
             >
               Dismiss
             </button>
-            <button 
+            <button
               onClick={retryFetchData}
-              className="text-red-300 hover:text-red-100 text-xs underline"
+              className="text-red-500 hover:text-red-700 text-xs underline"
             >
               Retry
             </button>
@@ -430,20 +430,20 @@ export const ProfilePanel = () => {
 
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-          <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 p-[2px]">
+          <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-2xl text-blue-600 font-bold">
             {profileData.avatar || '?'}
           </div>
         </div>
         <div>
-          <h2 className="font-pixel text-xl text-primary">{profileData.username || 'User'}</h2>
+          <h2 className="font-bold text-xl text-gray-800">{profileData.username || 'User'}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <Medal size={14} className="text-yellow-400" />
-            <span className="text-gray-400 text-sm">{profileData.rank}</span>
+            <Medal size={14} className="text-yellow-500" />
+            <span className="text-gray-600 text-sm">{profileData.rank}</span>
           </div>
           <button
             onClick={() => setIsEditing(true)}
-            className="mt-2 px-3 py-1 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors"
+            className="mt-2 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
           >
             Edit Profile
           </button>
@@ -469,49 +469,49 @@ export const ProfilePanel = () => {
           value: profileData.loginStreak ? `${profileData.loginStreak} days` : '0 days',
           icon: <Calendar size={16} />
         }].map((stat, i) => (
-          <div key={i} className="bg-dark/50 border border-primary/20 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-gray-400 mb-1">
+          <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-gray-600 mb-2">
               {stat.icon}
-              <span className="text-xs">{stat.label}</span>
+              <span className="text-sm">{stat.label}</span>
             </div>
-            <div className="font-pixel text-primary">{stat.value}</div>
+            <div className="font-bold text-lg text-blue-600">{stat.value}</div>
           </div>
         ))}
       </div>
 
       {/* Additional Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-dark/30 border border-primary/20 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-gray-400 mb-1">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-gray-600 mb-2">
             <Trophy size={14} />
-            <span className="text-xs">Tournaments Won</span>
+            <span className="text-sm">Tournaments Won</span>
           </div>
-          <div className="font-pixel text-secondary">{profileData.tournamentsWon || 0}</div>
+          <div className="font-bold text-lg text-green-600">{profileData.tournamentsWon || 0}</div>
         </div>
-        <div className="bg-dark/30 border border-primary/20 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-gray-400 mb-1">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-gray-600 mb-2">
             <Star size={14} />
-            <span className="text-xs">Quizzes Completed</span>
+            <span className="text-sm">Quizzes Completed</span>
           </div>
-          <div className="font-pixel text-tertiary">{profileData.quizCompleted || 0}</div>
+          <div className="font-bold text-lg text-purple-600">{profileData.quizCompleted || 0}</div>
         </div>
       </div>
 
       {/* Recent Achievements */}
       <div>
-        <h3 className="font-pixel text-primary text-sm mb-3">
+        <h3 className="font-bold text-gray-800 text-lg mb-4">
           Recent Achievements
         </h3>
         <div className="space-y-3">
           {recentAchievements.length > 0 ? (
             recentAchievements.map((achievement) => (
-              <div key={achievement.id} className="flex items-center gap-3 bg-dark/30 border border-primary/20 rounded-lg p-3">
+              <div key={achievement.id} className="flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="text-2xl">{achievement.badge_icon || '🏆'}</div>
                 <div>
-                  <div className="text-sm text-primary">{achievement.name}</div>
-                  <div className="text-xs text-gray-400">{achievement.description}</div>
+                  <div className="text-sm font-semibold text-gray-800">{achievement.name}</div>
+                  <div className="text-xs text-gray-600">{achievement.description}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-yellow-400">+{achievement.xp_reward} XP</span>
+                    <span className="text-xs text-yellow-600">+{achievement.xp_reward} XP</span>
                     {achievement.earned_at && (
                       <span className="text-xs text-gray-500">
                         {new Date(achievement.earned_at).toLocaleDateString()}
@@ -536,11 +536,11 @@ export const ProfilePanel = () => {
               desc: 'Discover the platform features',
               icon: '🔍'
             }].map((achievement, i) => (
-              <div key={i} className="flex items-center gap-3 bg-dark/30 border border-primary/20 rounded-lg p-3">
+              <div key={i} className="flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="text-2xl">{achievement.icon}</div>
                 <div>
-                  <div className="text-sm text-primary">{achievement.name}</div>
-                  <div className="text-xs text-gray-400">{achievement.desc}</div>
+                  <div className="text-sm font-semibold text-gray-800">{achievement.name}</div>
+                  <div className="text-xs text-gray-600">{achievement.desc}</div>
                 </div>
               </div>
             ))
@@ -549,7 +549,7 @@ export const ProfilePanel = () => {
       </div>
 
       {/* Settings Button */}
-      <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-dark/50 border border-primary/20 rounded-lg text-primary hover:bg-primary/10 transition-colors">
+      <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
         <Settings size={16} />
         <span className="text-sm">Settings</span>
       </button>
@@ -557,19 +557,19 @@ export const ProfilePanel = () => {
       {/* Edit Profile Modal */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-gray-200 rounded-lg w-full max-w-md p-6 max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-pixel text-xl text-primary">Edit Profile</h3>
+              <h3 className="font-bold text-xl text-gray-800">Edit Profile</h3>
               <button
                 onClick={() => setIsEditing(false)}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-500 hover:text-gray-700"
               >
                 <X size={20} />
               </button>
             </div>
 
             {error && (
-              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm mb-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm mb-4">
                 {error}
               </div>
             )}
@@ -577,46 +577,46 @@ export const ProfilePanel = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Avatar Display */}
               <div className="flex flex-col items-center gap-4 mb-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-                  <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 p-[2px]">
+                  <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-2xl text-blue-600 font-bold">
                     {profileData.avatar || '?'}
                   </div>
                 </div>
-                <p className="text-xs text-gray-400">Avatar based on your name initials</p>
+                <p className="text-xs text-gray-500">Avatar based on your name initials</p>
               </div>
 
               {/* First Name */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">First Name</label>
+                <label className="block text-sm text-gray-700 mb-2">First Name</label>
                 <input
                   type="text"
                   value={profileData.fname}
                   onChange={(e) => setProfileData({ ...profileData, fname: e.target.value })}
-                  className="w-full bg-dark/50 border border-primary/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Last Name */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Last Name</label>
+                <label className="block text-sm text-gray-700 mb-2">Last Name</label>
                 <input
                   type="text"
                   value={profileData.lname}
                   onChange={(e) => setProfileData({ ...profileData, lname: e.target.value })}
-                  className="w-full bg-dark/50 border border-primary/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               {/* Username */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Username</label>
+                <label className="block text-sm text-gray-700 mb-2">Username</label>
                 <div className="relative">
                   <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
                     value={profileData.username}
                     onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
-                    className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 </div>
@@ -624,14 +624,14 @@ export const ProfilePanel = () => {
 
               {/* Email */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Email</label>
+                <label className="block text-sm text-gray-700 mb-2">Email</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 </div>
@@ -641,7 +641,7 @@ export const ProfilePanel = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-primary to-secondary text-dark font-pixel py-2 rounded-lg hover:opacity-90 transition-all duration-300 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-all duration-300 disabled:opacity-50"
               >
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>

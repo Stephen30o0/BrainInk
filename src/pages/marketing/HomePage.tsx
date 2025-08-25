@@ -141,8 +141,7 @@ export const HomePage: React.FC = () => {
               <span className="block">Academic Freedom</span>
             </h1>
             <p className="mt-8 sm:mt-10 lg:mt-12 text-slate-600 text-lg sm:text-xl lg:text-2xl max-w-4xl mx-auto leading-relaxed font-medium">
-              BrainInk gives you the answers you didn't study for in every conversation, 
-              without you even having to ask.
+              BrainInk transforms education from simple scores into meaningfull opportunities for student growth.
             </p>
             <div className="mt-10 sm:mt-12 lg:mt-14 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6">
               <Link to="/get-started" className="inline-flex items-center justify-center px-6 sm:px-7 lg:px-8 py-3 sm:py-3.5 lg:py-4 text-base sm:text-lg lg:text-xl font-semibold rounded-xl bg-slate-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-[-1px] hover:scale-[1.01] border border-slate-900">

@@ -14,7 +14,8 @@ import {
   CheckSquare,
   Map,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  PieChart
 } from 'lucide-react';
 
 interface TeacherSidebarProps {
@@ -80,6 +81,12 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
       label: 'K.A.N.A. Insights',
       icon: Brain,
       description: 'AI Recommendations'
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: PieChart,
+      description: 'Generate Reports'
     },
     {
       id: 'manage-class',

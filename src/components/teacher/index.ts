@@ -12,3 +12,4 @@ export { TeacherSettings } from './TeacherSettings';
 export { UploadAnalyze } from './UploadAnalyze';
 export { TeacherSidebar } from './TeacherSidebar';
 export { TeacherSyllabus } from './TeacherSyllabus';
+export { Reports } from './Reports';

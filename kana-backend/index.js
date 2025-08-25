@@ -5,6 +5,7 @@ const path = require('path');
 const pdf = require('pdf-parse');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { fromBuffer: pdfFromBuffer } = require('pdf2pic');
 const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -129,6 +130,8 @@ const imageStorage = multer.diskStorage({
   }
 });
 const uploadImage = multer({ storage: imageStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+// For OCR we allow slightly larger files (e.g., multi-page PDFs with images)
+const uploadOcrFile = multer({ storage: imageStorage, limits: { fileSize: 25 * 1024 * 1024 } });
 
 // Serve static files at the paths expected by the frontend
 app.use('/study_material_files', express.static(STUDY_MATERIALS_DIR));
@@ -165,9 +168,200 @@ console.log('DEBUG: Syllabus routes enabled');
 app.use('/api/kana/syllabus', syllabusIntegrationRoutes);
 console.log('DEBUG: Syllabus integration routes enabled');
 
-// Add K.A.N.A. syllabus processing routes (alias for compatibility)
-app.use('/api/kana', syllabusRoutes);
-console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
+// --- REPORT CARD EXTRACTION (Gemini-native OCR) ---
+
+// Helper: ensure JSON shape and nulls for missing
+function normalizeReportCardJson(obj) {
+  const safeNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+  const safeStr = (v) => (v === null || v === undefined || v === '' ? null : String(v));
+  const termObj = (t) => ({ total: t && t.total !== undefined ? safeNum(t.total) : null });
+  const annualObj = (a) => ({
+    total: a && a.total !== undefined ? safeNum(a.total) : null,
+    percentage: a && a.percentage !== undefined ? safeNum(a.percentage) : null,
+  });
+  const ap = Array.isArray(obj?.academicPerformance) ? obj.academicPerformance.map(s => ({
+    subject: safeStr(s?.subject) || null,
+    term1: termObj(s?.term1 || {}),
+    term2: termObj(s?.term2 || {}),
+    term3: termObj(s?.term3 || {}),
+    annual: annualObj(s?.annual || {}),
+  })) : [];
+  return {
+    studentInfo: {
+      fullName: safeStr(obj?.studentInfo?.fullName) || null,
+      studentId: obj?.studentInfo?.studentId === null ? null : safeStr(obj?.studentInfo?.studentId),
+      class: safeStr(obj?.studentInfo?.class) || null,
+      academicYear: safeStr(obj?.studentInfo?.academicYear) || null,
+    },
+    schoolInfo: { name: safeStr(obj?.schoolInfo?.name) || null },
+    academicPerformance: ap,
+    summary: {
+      overallTotal: obj?.summary ? safeNum(obj.summary.overallTotal) : null,
+      overallPercentage: obj?.summary ? safeNum(obj.summary.overallPercentage) : null,
+      classPosition: obj?.summary?.classPosition === null ? null : safeStr(obj?.summary?.classPosition),
+      verdict: obj?.summary?.verdict === null ? null : safeStr(obj?.summary?.verdict),
+      comments: obj?.summary?.comments === null ? null : safeStr(obj?.summary?.comments),
+    }
+  };
+}
+
+// Extract JSON from LLM text output (robust against code fences and extra text)
+function extractJson(text) {
+  if (!text || typeof text !== 'string') return null;
+  let t = text.trim();
+
+  // Remove code fences if present
+  t = t.replace(/^```json\s*\n?|```$/g, '').replace(/^```\s*\n?|```$/g, '').trim();
+
+  // Strategy 1: direct parse
+  try { return JSON.parse(t); } catch { }
+
+  // Strategy 2: find fenced JSON block
+  const fenceMatch = t.match(/```json\s*([\s\S]*?)```/i) || t.match(/```\s*([\s\S]*?)```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch { }
+  }
+
+  // Strategy 3: extract the first balanced JSON object
+  const start = t.indexOf('{');
+  if (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < t.length; i++) {
+      const ch = t[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = t.substring(start, i + 1);
+          try { return JSON.parse(candidate); } catch { }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Register OCR route BEFORE generic /api/kana router to avoid shadowing by syllabusRoutes
+app.post('/api/kana/report-card/extract', uploadOcrFile.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    const filePath = req.file.path;
+    const mimetype = req.file.mimetype || 'application/octet-stream';
+    const buffer = await fsPromises.readFile(filePath);
+    const base64 = buffer.toString('base64');
+
+    if (!genAI || !geminiModel) {
+      return res.status(503).json({ error: 'Gemini not configured. Set GOOGLE_API_KEY in .env' });
+    }
+
+    const prompt = `You will receive a school report card as an image or PDF. Extract and return ONLY a single valid JSON object with this exact structure and field names:
+{
+  "studentInfo": {
+    "fullName": "string",
+    "studentId": "string | null",
+    "class": "string",
+    "academicYear": "string"
+  },
+  "schoolInfo": { "name": "string" },
+  "academicPerformance": [
+    { "subject": "string",
+      "term1": { "total": "number | null" },
+      "term2": { "total": "number | null" },
+      "term3": { "total": "number | null" },
+      "annual": { "total": "number | null", "percentage": "number | null" }
+    }
+  ],
+  "summary": {
+    "overallTotal": "number | null",
+    "overallPercentage": "number | null",
+    "classPosition": "string | null",
+    "verdict": "string | null",
+    "comments": "string | null"
+  }
+}
+
+Rules:
+- Normalize term labels (e.g., T1, 1st Term, Semester 1) to term1/term2/term3 totals.
+- If a subject has separate Theory/Practical components, treat them as separate subjects (e.g., "Physics Theory", "Physics Practical").
+- If a field is missing, set it to null.
+- Output JSON only, no extra text.`;
+
+    let raw = '';
+    if (mimetype === 'application/pdf') {
+      // Try image-based extraction first for image-heavy PDFs
+      let imageParts = [];
+      try {
+        const convert = pdfFromBuffer(buffer, { density: 144, quality: 90, format: 'png', width: 1654, height: 2339 });
+        for (let p = 1; p <= 2; p++) {
+          try {
+            const out = await convert(p, { responseType: 'base64' });
+            const b64 = (out && (out.base64 || out.base64Image || out.data)) ? (out.base64 || out.base64Image || out.data) : null;
+            if (b64) imageParts.push({ inlineData: { mimeType: 'image/png', data: String(b64).replace(/^data:image\/png;base64,/, '') } });
+          } catch { break; }
+        }
+      } catch { /* ignore converter errors */ }
+
+      if (imageParts.length > 0) {
+        const response = await callGeminiWithCircuitBreaker(geminiModel, [{ text: prompt }, ...imageParts]);
+        raw = response?.response?.text?.() || '';
+      }
+
+      if (!raw) {
+        // Fallback: send PDF directly
+        const response = await callGeminiWithCircuitBreaker(geminiModel, [{ text: prompt }, { inlineData: { mimeType: 'application/pdf', data: base64 } }]);
+        raw = response?.response?.text?.() || '';
+      }
+    } else {
+      const response = await callGeminiWithCircuitBreaker(geminiModel, [{ text: prompt }, { inlineData: { mimeType: mimetype, data: base64 } }]);
+      raw = response?.response?.text?.() || '';
+    }
+
+    let json = extractJson(raw);
+    if (!json && mimetype === 'application/pdf') {
+      try {
+        const pdfData = await pdf(buffer);
+        const textOnly = `Extract JSON from this report card text:\n\n${pdfData.text}`;
+        const fallback = await callGeminiWithCircuitBreaker(geminiModel, [{ text: prompt }, { text: textOnly }]);
+        const raw2 = fallback?.response?.text?.() || '';
+        json = extractJson(raw2);
+      } catch { }
+    }
+
+    // Last-resort: ask Gemini to strictly convert the last output into valid JSON
+    if (!json && raw) {
+      try {
+        const fixerPrompt = `You will be given model output that attempted to follow a JSON schema. Convert it into a single strict JSON object matching exactly this schema and field names, filling missing values with nulls if needed. Respond with JSON only, no markdown, no code fences.\n\nSchema:\n${`
+{
+  "studentInfo": { "fullName": "string", "studentId": "string | null", "class": "string", "academicYear": "string" },
+  "schoolInfo": { "name": "string" },
+  "academicPerformance": [ { "subject": "string", "term1": { "total": "number | null" }, "term2": { "total": "number | null" }, "term3": { "total": "number | null" }, "annual": { "total": "number | null", "percentage": "number | null" } } ],
+  "summary": { "overallTotal": "number | null", "overallPercentage": "number | null", "classPosition": "string | null", "verdict": "string | null", "comments": "string | null" }
+}`}
+\n\nModel output to fix:\n${raw}`;
+        const fixResp = await callGeminiWithCircuitBreaker(geminiModel, [{ text: fixerPrompt }]);
+        const fixed = fixResp?.response?.text?.() || '';
+        json = extractJson(fixed);
+      } catch (e) {
+        // ignore fixer errors
+      }
+    }
+
+    if (!json) {
+      return res.status(502).json({ error: 'Gemini returned no parseable JSON', hint: 'Try another scan or a clearer photo/PDF.' });
+    }
+
+    const normalized = normalizeReportCardJson(json);
+    res.json(normalized);
+  } catch (err) {
+    console.error('REPORT-CARD EXTRACT ERROR:', err);
+    res.status(500).json({ error: err.message || 'Extraction failed' });
+  } finally {
+    // best-effort cleanup; keep file on disk if needed for debugging
+  }
+});
 
 // Debug route to check if endpoint exists
 app.get('/api/debug/routes', (req, res) => {
@@ -192,12 +386,16 @@ app.get('/api/debug/routes', (req, res) => {
   res.json({ routes, timestamp: new Date().toISOString() });
 });
 
+// Add K.A.N.A. syllabus processing routes (alias for compatibility)
+app.use('/api/kana', syllabusRoutes);
+console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
+
 // --- API CLIENTS ---
 
 let genAI, geminiModel, quizService;
 if (process.env.GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest", systemInstruction });
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
   quizService = new QuizService(process.env.GOOGLE_API_KEY);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log('DEBUG: Quiz Service initialized.');
@@ -2695,6 +2893,250 @@ function parseGradingFromAnalysis(analysisText) {
 
 // Initialize ElizaOS agents on startup
 initializeElizaAgents();
+
+// --- REPORTS GENERATION ENDPOINTS ---
+
+// Generate AI-enhanced report data for various report types
+app.post('/api/kana/generate-report-data', async (req, res) => {
+  try {
+    const { reportType, reportData, schoolId } = req.body;
+
+    if (!reportType || !reportData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Report type and data are required'
+      });
+    }
+
+    console.log(`🤖 K.A.N.A. generating AI insights for ${reportType} report`);
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    let prompt = '';
+
+    switch (reportType) {
+      case 'student_progress':
+        prompt = `As K.A.N.A., analyze this student's academic progress and provide comprehensive insights:
+
+Student Data: ${JSON.stringify(reportData, null, 2)}
+
+Provide analysis in the following JSON format:
+{
+  "summary": "Overall progress summary",
+  "strengths": ["strength1", "strength2"],
+  "areasForImprovement": ["area1", "area2"],
+  "recommendations": ["recommendation1", "recommendation2"],
+  "trendAnalysis": "Analysis of grade trends",
+  "predictiveInsights": "Future performance predictions",
+  "interventionSuggestions": ["intervention1", "intervention2"]
+}`;
+        break;
+
+      case 'class_performance':
+        prompt = `As K.A.N.A., analyze this classroom's performance data and provide insights:
+
+Class Data: ${JSON.stringify(reportData, null, 2)}
+
+Provide analysis in the following JSON format:
+{
+  "classOverview": "Overall class performance summary",
+  "topPerformers": ["student insights"],
+  "strugglingStudents": ["student insights with suggestions"],
+  "subjectAnalysis": "Subject-specific performance analysis",
+  "engagementMetrics": "Student engagement analysis",
+  "teachingRecommendations": ["recommendation1", "recommendation2"],
+  "curricularSuggestions": ["suggestion1", "suggestion2"]
+}`;
+        break;
+
+      case 'subject_analytics':
+        prompt = `As K.A.N.A., analyze this subject's performance data:
+
+Subject Data: ${JSON.stringify(reportData, null, 2)}
+
+Provide analysis in the following JSON format:
+{
+  "subjectOverview": "Overall subject performance",
+  "difficultyAnalysis": "Analysis of challenging topics",
+  "masteryLevels": "Student mastery distribution",
+  "contentGaps": ["gap1", "gap2"],
+  "instructionalStrategies": ["strategy1", "strategy2"],
+  "resourceRecommendations": ["resource1", "resource2"],
+  "assessmentInsights": "Assessment effectiveness analysis"
+}`;
+        break;
+
+      case 'assignment_analysis':
+        prompt = `As K.A.N.A., analyze this assignment's performance data:
+
+Assignment Data: ${JSON.stringify(reportData, null, 2)}
+
+Provide analysis in the following JSON format:
+{
+  "assignmentOverview": "Overall assignment performance",
+  "questionAnalysis": "Question-by-question breakdown",
+  "commonMistakes": ["mistake1", "mistake2"],
+  "masteryIndicators": "What the results indicate about student mastery",
+  "rubricEffectiveness": "Analysis of rubric alignment",
+  "improvementSuggestions": ["suggestion1", "suggestion2"],
+  "futureAssignmentRecommendations": ["recommendation1", "recommendation2"]
+}`;
+        break;
+
+      default:
+        prompt = `As K.A.N.A., analyze this educational data and provide insights:
+
+Data: ${JSON.stringify(reportData, null, 2)}
+
+Provide comprehensive analysis with actionable recommendations.`;
+    }
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let aiInsights = response.text();
+
+    // Try to parse as JSON, fall back to text if needed
+    let parsedInsights;
+    try {
+      parsedInsights = JSON.parse(aiInsights);
+    } catch (e) {
+      parsedInsights = { analysis: aiInsights };
+    }
+
+    res.json({
+      success: true,
+      reportType,
+      aiInsights: parsedInsights,
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating report data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate AI insights for report'
+    });
+  }
+});
+
+// Generate report recommendations based on data trends
+app.post('/api/kana/report-recommendations', async (req, res) => {
+  try {
+    const { reportType, historicalData, currentData } = req.body;
+
+    console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
+
+Report Type: ${reportType}
+Historical Data: ${JSON.stringify(historicalData, null, 2)}
+Current Data: ${JSON.stringify(currentData, null, 2)}
+
+Provide recommendations in the following JSON format:
+{
+  "immediateActions": ["action1", "action2"],
+  "shortTermGoals": ["goal1", "goal2"],
+  "longTermStrategies": ["strategy1", "strategy2"],
+  "resourceNeeds": ["resource1", "resource2"],
+  "successMetrics": ["metric1", "metric2"],
+  "timelineRecommendations": {
+    "week1": ["task1", "task2"],
+    "month1": ["task1", "task2"],
+    "semester": ["goal1", "goal2"]
+  }
+}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let recommendations = response.text();
+
+    let parsedRecommendations;
+    try {
+      parsedRecommendations = JSON.parse(recommendations);
+    } catch (e) {
+      parsedRecommendations = { recommendations: recommendations };
+    }
+
+    res.json({
+      success: true,
+      reportType,
+      recommendations: parsedRecommendations,
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating recommendations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate recommendations'
+    });
+  }
+});
+
+// Generate executive summary for reports
+app.post('/api/kana/report-summary', async (req, res) => {
+  try {
+    const { reportData, reportType, timeframe } = req.body;
+
+    console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
+
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:
+
+Report Data: ${JSON.stringify(reportData, null, 2)}
+
+Create a comprehensive executive summary in the following JSON format:
+{
+  "executiveSummary": "2-3 paragraph overview highlighting key findings",
+  "keyMetrics": {
+    "metric1": "value and interpretation",
+    "metric2": "value and interpretation",
+    "metric3": "value and interpretation"
+  },
+  "majorFindings": ["finding1", "finding2", "finding3"],
+  "criticalIssues": ["issue1", "issue2"],
+  "successHighlights": ["success1", "success2"],
+  "nextSteps": ["step1", "step2", "step3"],
+  "stakeholderRecommendations": {
+    "teachers": ["rec1", "rec2"],
+    "administrators": ["rec1", "rec2"],
+    "parents": ["rec1", "rec2"]
+  }
+}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let summary = response.text();
+
+    let parsedSummary;
+    try {
+      parsedSummary = JSON.parse(summary);
+    } catch (e) {
+      parsedSummary = { summary: summary };
+    }
+
+    res.json({
+      success: true,
+      reportType,
+      timeframe,
+      summary: parsedSummary,
+      generatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate executive summary'
+    });
+  }
+});
 
 console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
 

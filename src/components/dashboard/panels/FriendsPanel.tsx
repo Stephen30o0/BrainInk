@@ -11,7 +11,7 @@ interface User {
   id: number;
   username: string;
   fname: string;
-  lname: string;  avatar: string;
+  lname: string; avatar: string;
 }
 
 interface Friend extends User {
@@ -51,7 +51,7 @@ export const FriendsPanel = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [friendSearchQuery, setFriendSearchQuery] = useState('');  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [friendSearchQuery, setFriendSearchQuery] = useState(''); const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Friend[]>([]);
@@ -181,7 +181,8 @@ export const FriendsPanel = () => {
       setSelectedFriend({
         friend: friendData,
         achievements: [], // Start with empty, will load separately
-        stats      });
+        stats
+      });
 
       setIsProfileModalOpen(true);
 
@@ -193,7 +194,8 @@ export const FriendsPanel = () => {
       setSelectedFriend(prev => prev ? {
         ...prev,
         achievements: friendAchievements.slice(0, 5) // Show recent achievements
-      } : null);    } catch (error) {
+      } : null);
+    } catch (error) {
       console.error('Error loading friend profile:', error);
       setError('Failed to load friend profile');
     }
@@ -213,7 +215,8 @@ export const FriendsPanel = () => {
 
   // Quick load friends data from apiService
   const quickLoadFriendsData = async () => {
-    try {      console.log('Quick loading friends data from apiService...');
+    try {
+      console.log('Quick loading friends data from apiService...');
 
       // Quick load from apiService cache
       const friendsList = apiService.getFriends() || [];
@@ -723,13 +726,13 @@ export const FriendsPanel = () => {
   );
 
   return (
-    <div className="p-4">
+    <div className="p-8 bg-white min-h-screen">
       {/* Header with link to Friends page */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-pixel text-lg text-primary">Friends</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-bold text-xl text-gray-800">Friends</h2>
         <button
           onClick={() => navigate('/friends')}
-          className="text-primary/70 hover:text-primary text-sm flex items-center gap-1 transition-colors"
+          className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 transition-colors"
         >
           View All
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-1">
@@ -740,18 +743,18 @@ export const FriendsPanel = () => {
 
       {/* Error Display */}
       {error && (
-        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
+        <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
           {error}
           <div className="flex gap-2 mt-2">
             <button
               onClick={() => setError(null)}
-              className="text-red-300 hover:text-red-100 text-xs underline"
+              className="text-red-500 hover:text-red-700 text-xs underline"
             >
               Dismiss
             </button>
             <button
               onClick={retryFetchData}
-              className="text-red-300 hover:text-red-100 text-xs underline"
+              className="text-red-500 hover:text-red-700 text-xs underline"
             >
               Retry
             </button>
@@ -766,7 +769,7 @@ export const FriendsPanel = () => {
           placeholder="Search friends..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-primary"
+          className="w-full bg-white border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
       </div>
@@ -776,14 +779,14 @@ export const FriendsPanel = () => {
         <button
           onClick={() => setActiveTab('friends')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${activeTab === 'friends'
-            ? 'bg-primary/20 text-primary border border-primary/30'
-            : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
+            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+            : 'bg-white text-gray-600 border border-gray-200 hover:bg-blue-50'
             }`}
         >
           <Users size={16} />
           All Friends
           {friends.length > 0 && (
-            <span className="ml-1 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-xs">
+            <span className="ml-1 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
               {friends.length}
             </span>
           )}
@@ -791,14 +794,14 @@ export const FriendsPanel = () => {
         <button
           onClick={() => setActiveTab('pending')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm ${activeTab === 'pending'
-            ? 'bg-primary/20 text-primary border border-primary/30'
-            : 'bg-dark/50 text-gray-400 hover:bg-primary/10'
+            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+            : 'bg-white text-gray-600 border border-gray-200 hover:bg-blue-50'
             }`}
         >
           <UserCheck size={16} />
           Requests
           {pendingRequests.length > 0 && (
-            <span className="ml-1 bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full text-xs">
+            <span className="ml-1 bg-yellow-100 text-yellow-600 px-2 py-0.5 rounded-full text-xs">
               {pendingRequests.length}
             </span>
           )}
@@ -808,14 +811,14 @@ export const FriendsPanel = () => {
       {/* Friends List - Simple Clean Layout */}
       <div className="space-y-4 max-h-96 overflow-y-auto">
         {filteredList.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-gray-500">
             {activeTab === 'pending' ? 'No pending friend requests' : 'No friends yet'}
             {activeTab === 'friends' && (
               <div>
                 <p className="text-sm mt-2">Add some friends to get started!</p>
                 <button
                   onClick={() => navigate('/friends')}
-                  className="mt-3 px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors text-sm"
+                  className="mt-3 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
                 >
                   Go to Friends Page
                 </button>
@@ -826,23 +829,23 @@ export const FriendsPanel = () => {
           filteredList.map((friend: Friend) => (
             <div
               key={friend.id}
-              className="bg-dark/30 border border-primary/20 rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors cursor-pointer shadow-sm"
               onClick={() => handleFriendClick(friend)}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center text-xl">
+                <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-xl text-blue-600">
                   {friend.username?.substring(0, 2).toUpperCase() || '👤'}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-pixel text-primary text-sm">
+                      <h3 className="font-semibold text-gray-800 text-sm">
                         {friend.fname && friend.lname
                           ? `${friend.fname} ${friend.lname}`
                           : friend.username
                         }
                       </h3>
-                      <p className="text-gray-400 text-xs mt-1">
+                      <p className="text-gray-600 text-xs mt-1">
                         @{friend.username}
                       </p>
                       <p className="text-gray-500 text-xs">
@@ -879,16 +882,16 @@ export const FriendsPanel = () => {
                             e.stopPropagation();
                             handleMessageClick(friend);
                           }}
-                          className="p-1 hover:bg-primary/20 rounded transition-colors"
+                          className="p-1 hover:bg-blue-50 rounded transition-colors"
                           title="Send Message"
                         >
-                          <MessageSquare size={16} className="text-primary" />
+                          <MessageSquare size={16} className="text-blue-600" />
                         </button>
                         <button
-                          className="p-1 hover:bg-primary/20 rounded transition-colors"
+                          className="p-1 hover:bg-blue-50 rounded transition-colors"
                           title="View Profile"
                         >
-                          <Shield size={16} className="text-primary" />
+                          <Shield size={16} className="text-blue-600" />
                         </button>
                       </>
                     )}
@@ -904,14 +907,14 @@ export const FriendsPanel = () => {
       <div className="mt-6 flex gap-2">
         <button
           onClick={() => setIsAddFriendModalOpen(true)}
-          className="flex-1 bg-dark/50 border border-primary/20 rounded-lg p-3 text-primary flex items-center justify-center gap-2 hover:bg-primary/10 transition-colors"
+          className="flex-1 bg-white border border-gray-200 rounded-lg p-3 text-blue-600 flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors shadow-sm"
         >
           <UserPlus size={16} />
           <span className="text-sm">Add New Friend</span>
         </button>
         <button
           onClick={() => navigate('/friends')}
-          className="px-4 bg-primary/20 border border-primary/30 rounded-lg text-primary hover:bg-primary/30 transition-colors flex items-center justify-center"
+          className="px-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center"
           title="View All Friends"
         >
           <Users size={16} />
@@ -921,7 +924,7 @@ export const FriendsPanel = () => {
       {/* Friend Profile Modal */}
       {isProfileModalOpen && selectedFriend && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-gray-200 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between p-6 border-b border-primary/20">
               <h3 className="font-pixel text-xl text-primary">User Profile</h3>
               <button
@@ -935,7 +938,7 @@ export const FriendsPanel = () => {
             <div className="p-6">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary p-[2px]">
-                  <div className="w-full h-full rounded-full bg-dark flex items-center justify-center text-2xl">
+                  <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-2xl text-blue-600 font-bold">
                     {selectedFriend.friend.username?.substring(0, 2).toUpperCase() || '👤'}
                   </div>
                 </div>
@@ -973,7 +976,7 @@ export const FriendsPanel = () => {
                   value: selectedFriend.stats.tournamentsWon.toString(),
                   icon: <Trophy size={16} />
                 }].map((stat, i) => (
-                  <div key={i} className="bg-dark/50 border border-primary/20 rounded-lg p-3">
+                  <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center gap-2 text-gray-400 mb-1">
                       {stat.icon}
                       <span className="text-xs">{stat.label}</span>
@@ -984,19 +987,19 @@ export const FriendsPanel = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-dark/30 border border-primary/20 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 mb-1">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center gap-2 text-gray-600 mb-1">
                     <Trophy size={14} />
                     <span className="text-xs">Quizzes Completed</span>
                   </div>
-                  <div className="font-pixel text-secondary">{selectedFriend.stats.quizCompleted}</div>
+                  <div className="font-bold text-lg text-green-600">{selectedFriend.stats.quizCompleted}</div>
                 </div>
-                <div className="bg-dark/30 border border-primary/20 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 mb-1">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center gap-2 text-gray-600 mb-1">
                     <Star size={14} />
                     <span className="text-xs">Courses Completed</span>
                   </div>
-                  <div className="font-pixel text-tertiary">{selectedFriend.stats.coursesCompleted}</div>
+                  <div className="font-bold text-lg text-purple-600">{selectedFriend.stats.coursesCompleted}</div>
                 </div>
               </div>
 
@@ -1006,13 +1009,13 @@ export const FriendsPanel = () => {
                 <div className="space-y-3 max-h-48 overflow-y-auto">
                   {selectedFriend.achievements.length > 0 ? (
                     selectedFriend.achievements.map((achievement) => (
-                      <div key={achievement.id} className="flex items-center gap-3 bg-dark/30 border border-primary/20 rounded-lg p-3">
+                      <div key={achievement.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div className="text-2xl">{achievement.badge_icon || '🏆'}</div>
                         <div className="flex-1">
-                          <div className="text-sm text-primary">{achievement.name}</div>
-                          <div className="text-xs text-gray-400">{achievement.description}</div>
+                          <div className="text-sm font-semibold text-gray-800">{achievement.name}</div>
+                          <div className="text-xs text-gray-600">{achievement.description}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-yellow-400">+{achievement.xp_reward} XP</span>
+                            <span className="text-xs text-yellow-600">+{achievement.xp_reward} XP</span>
                             {achievement.earned_at && (
                               <span className="text-xs text-gray-500">
                                 {new Date(achievement.earned_at).toLocaleDateString()}
@@ -1055,7 +1058,7 @@ export const FriendsPanel = () => {
                     Add Friend
                   </button>
                 )}
-                <button className="bg-dark/50 border border-primary/20 text-primary py-3 px-4 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center gap-2">
+                <button className="bg-white border border-gray-200 text-blue-600 py-3 px-4 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
                   <Shield size={16} />
                   More Options
                 </button>
@@ -1068,7 +1071,7 @@ export const FriendsPanel = () => {
       {/* Add Friend Modal - KEEPING EXACTLY AS IS */}
       {isAddFriendModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-dark border border-primary/20 rounded-lg w-full max-w-md p-6">
+          <div className="bg-white border border-gray-200 rounded-lg w-full max-w-md p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-pixel text-primary text-lg">Add Friend</h3>
               <button
@@ -1084,7 +1087,7 @@ export const FriendsPanel = () => {
                 placeholder="Search by username..."
                 value={friendSearchQuery}
                 onChange={(e) => handleSearchFriends(e.target.value)}
-                className="w-full bg-dark/50 border border-primary/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-primary"
+                className="w-full bg-white border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             </div>
@@ -1095,7 +1098,7 @@ export const FriendsPanel = () => {
                 searchResults.map(user => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-3 bg-dark/30 border border-primary/20 rounded-lg hover:border-primary/50 transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors cursor-pointer shadow-sm"
                     onClick={() => handleSearchResultClick(user)}
                   >
                     <div className="flex items-center gap-3">

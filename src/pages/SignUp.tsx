@@ -38,7 +38,7 @@ export const SignUp = () => {
 
   // Get redirect parameter from URL
   const searchParams = new URLSearchParams(location.search);
-  const redirectTo = searchParams.get('redirect') || '/townsquare';
+  const redirectTo = searchParams.get('redirect') || '/student-hub';
 
   // Set login mode based on current route
   useEffect(() => {
@@ -88,7 +88,7 @@ export const SignUp = () => {
 
     try {
       const endpoint = isLogin ? '/login' : '/register';
-      const body = isLogin 
+      const body = isLogin
         ? { username, password }
         : { fname: firstName, lname: lastName, username, email, password };
 
@@ -149,7 +149,7 @@ export const SignUp = () => {
         auto_select: false,
         cancel_on_tap_outside: false
       });
-      
+
       // Trigger the sign-in prompt
       window.google.accounts.id.prompt((notification: any) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {

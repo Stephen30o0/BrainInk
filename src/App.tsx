@@ -17,6 +17,7 @@ import { SignUp } from './pages/SignUp';
 import { RoleSelection } from './pages/RoleSelection';
 import { SchoolLogin } from './pages/SchoolLogin';
 import { TownSquare } from './pages/TownSquare';
+import { StudentHub } from './pages/StudentHub';
 import { MessagingPage } from './pages/MessagingPage';
 import { WalletProvider } from './components/shared/WalletContext';
 import Achievements from './pages/Achievements';
@@ -79,6 +80,7 @@ export function App() {
                       {/* <Route path="/customize-profile" element={<CustomizeProfilePage />} /> */}
                       {/* Routes below require authentication and profile customization */}
                       <Route element={<EnsureProfileCustomizedLayout />}>
+                        <Route path="/student-hub" element={<StudentHub />} />
                         <Route path="/townsquare" element={<TownSquare />} />
                         <Route path="/messages" element={<MessagingPage />} />
                         <Route path="/achievements" element={<Achievements />} />

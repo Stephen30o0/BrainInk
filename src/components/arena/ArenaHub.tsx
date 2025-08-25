@@ -265,73 +265,73 @@ export const ArenaHub: React.FC<ArenaHubProps> = ({
   const renderHubScreen = () => {
     return (
       <motion.div
-        className="h-full flex flex-col"
+        className="h-full flex flex-col bg-white"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
         <motion.div
-          className="bg-dark/50 border-b border-primary/30 p-4 flex justify-between items-center"
+          className="bg-white shadow-sm border-b border-gray-200 p-6 flex justify-between items-center"
           variants={itemVariants}
         >
-          <div className="flex items-center gap-2">
-            <TrophyIcon size={20} className="text-red-400" />
-            <h2 className="text-primary font-pixel text-lg">Battle Arena</h2>
+          <div className="flex items-center gap-3">
+            <TrophyIcon size={24} className="text-red-500" />
+            <h2 className="text-gray-800 font-bold text-xl">Battle Arena</h2>
           </div>
           <button
             onClick={onExit}
-            className="p-2 text-gray-400 hover:text-primary"
+            className="p-2 text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft size={20} />
           </button>
         </motion.div>
 
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-8 overflow-y-auto">
           {/* Quick access buttons */}
           <motion.div
-            className="grid grid-cols-2 gap-4 mb-8"
+            className="grid grid-cols-2 gap-6 mb-8"
             variants={itemVariants}
           >
             <button
               onClick={() => handleStartGame('quick')}
-              className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30 border border-blue-500/30 rounded-lg p-6 text-center transition-all hover-scale"
+              className="bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl p-6 text-center transition-all hover-scale shadow-lg"
             >
-              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-blue-500/20 flex items-center justify-center">
-                <ZapIcon size={24} className="text-blue-400" />
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/20 flex items-center justify-center">
+                <ZapIcon size={24} className="text-white" />
               </div>
-              <h3 className="font-pixel text-blue-400 mb-1">Quick Match</h3>
-              <p className="text-gray-400 text-xs">Fast 5-question battle</p>
+              <h3 className="font-bold text-gray-800 text-lg mb-4">Quick Match</h3>
+              <p className="text-gray-600 text-sm">Fast 5-question battle</p>
             </button>
 
             <button
               onClick={() => handleStartGame('ranked')}
-              className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-lg p-6 text-center transition-all hover-scale"
+              className="bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl p-6 text-center transition-all hover-scale shadow-lg"
             >
-              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-purple-500/20 flex items-center justify-center">
-                <Award size={24} className="text-purple-400" />
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/20 flex items-center justify-center">
+                <Award size={24} className="text-white" />
               </div>
-              <h3 className="font-pixel text-purple-400 mb-1">Ranked Match</h3>
-              <p className="text-gray-400 text-xs">Compete for leaderboard position</p>
+              <h3 className="font-bold text-lg mb-2">Ranked Match</h3>
+              <p className="text-white/80 text-sm">Compete for leaderboard position</p>
             </button>
           </motion.div>
 
           {/* Feature sections */}
           <motion.div variants={itemVariants}>
-            <h3 className="font-pixel text-primary mb-3">Arena Features</h3>
+            <h3 className="font-bold text-gray-800 text-lg mb-4">Arena Features</h3>
 
             <div className="space-y-4">
               {/* Tournaments */}
               <button
                 onClick={() => setCurrentScreen('tournaments')}
-                className="w-full bg-dark/30 border border-primary/20 hover:border-primary/50 rounded-lg p-4 flex items-center justify-between transition-all hover-scale"
+                className="w-full bg-white border border-gray-200 hover:border-blue-300 rounded-lg p-4 flex items-center justify-between transition-all hover-scale shadow-sm"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
                     <Calendar size={20} />
                   </div>
                   <div className="text-left">
-                    <h4 className="text-white font-medium">Tournaments</h4>
-                    <p className="text-gray-400 text-xs">Join or create knowledge competitions</p>
+                    <h4 className="text-gray-800 font-semibold">Tournaments</h4>
+                    <p className="text-gray-600 text-sm">Join or create knowledge competitions</p>
                   </div>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />
@@ -340,15 +340,15 @@ export const ArenaHub: React.FC<ArenaHubProps> = ({
               {/* Training */}
               <button
                 onClick={() => setCurrentScreen('training')}
-                className="w-full bg-dark/30 border border-primary/20 hover:border-primary/50 rounded-lg p-4 flex items-center justify-between transition-all hover-scale"
+                className="w-full bg-white border border-gray-200 hover:border-blue-300 rounded-lg p-4 flex items-center justify-between transition-all hover-scale shadow-sm"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
                     <Target size={20} />
                   </div>
                   <div className="text-left">
-                    <h4 className="text-white font-medium">Training Grounds</h4>
-                    <p className="text-gray-400 text-xs">Practice with AI or challenge friends</p>
+                    <h4 className="text-gray-800 font-semibold">Training Grounds</h4>
+                    <p className="text-gray-600 text-sm">Practice with AI or challenge friends</p>
                   </div>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />
@@ -357,15 +357,15 @@ export const ArenaHub: React.FC<ArenaHubProps> = ({
               {/* Leaderboard */}
               <button
                 onClick={() => setCurrentScreen('leaderboard')}
-                className="w-full bg-dark/30 border border-primary/20 hover:border-primary/50 rounded-lg p-4 flex items-center justify-between transition-all hover-scale"
+                className="w-full bg-white border border-gray-200 hover:border-blue-300 rounded-lg p-4 flex items-center justify-between transition-all hover-scale shadow-sm"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-600">
                     <TrophyIcon size={20} />
                   </div>
                   <div className="text-left">
-                    <h4 className="text-white font-medium">Leaderboard</h4>
-                    <p className="text-gray-400 text-xs">See who's on top and climb the ranks</p>
+                    <h4 className="text-gray-800 font-semibold">Leaderboard</h4>
+                    <p className="text-gray-600 text-sm">See who's on top and climb the ranks</p>
                   </div>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />
@@ -398,56 +398,56 @@ export const ArenaHub: React.FC<ArenaHubProps> = ({
   const renderTrainingScreen = () => {
     return (
       <motion.div
-        className="h-full flex flex-col"
+        className="h-full flex flex-col bg-white"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
         <motion.div
-          className="bg-dark/50 border-b border-primary/30 p-4 flex justify-between items-center"
+          className="bg-white shadow-sm border-b border-gray-200 p-6 flex justify-between items-center"
           variants={itemVariants}
         >
-          <div className="flex items-center gap-2">
-            <Target size={20} className="text-primary" />
-            <h2 className="text-primary font-pixel text-lg">Training Grounds</h2>
+          <div className="flex items-center gap-3">
+            <Target size={24} className="text-green-600" />
+            <h2 className="text-gray-800 font-bold text-xl">Training Grounds</h2>
           </div>
           <button
             onClick={() => setCurrentScreen('hub')}
-            className="p-2 text-gray-400 hover:text-primary"
+            className="p-2 text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft size={20} />
           </button>
         </motion.div>
 
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-8 overflow-y-auto">
           <motion.div variants={itemVariants}>
-            <h3 className="font-pixel text-primary mb-4">Practice Options</h3>
+            <h3 className="font-bold text-gray-800 text-lg mb-6">Practice Options</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <button
                 onClick={() => handleStartGame('practice')}
-                className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30 border border-blue-500/30 rounded-lg p-6 text-center transition-all hover-scale flex flex-col items-center"
+                className="bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl p-6 text-center transition-all hover-scale shadow-lg flex flex-col items-center"
               >
-                <div className="w-16 h-16 mb-3 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <div className="w-16 h-16 mb-4 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="text-3xl">🤖</span>
                 </div>
-                <h3 className="font-pixel text-blue-400 mb-1">AI Training</h3>
-                <p className="text-gray-400 text-xs">Practice with KANA in simulated matches</p>
+                <h3 className="font-bold text-lg mb-2">AI Training</h3>
+                <p className="text-white/80 text-sm">Practice with KANA in simulated matches</p>
               </button>
 
               <button
                 onClick={() => setCurrentScreen('friend-battle')}
-                className="bg-gradient-to-br from-green-500/20 to-teal-500/20 hover:from-green-500/30 hover:to-teal-500/30 border border-green-500/30 rounded-lg p-6 text-center transition-all hover-scale flex flex-col items-center"
+                className="bg-gradient-to-br from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-xl p-6 text-center transition-all hover-scale shadow-lg flex flex-col items-center"
               >
-                <div className="w-16 h-16 mb-3 rounded-full bg-green-500/20 flex items-center justify-center">
+                <div className="w-16 h-16 mb-4 rounded-full bg-white/20 flex items-center justify-center">
                   <span className="text-3xl">🤝</span>
                 </div>
-                <h3 className="font-pixel text-green-400 mb-1">Friend Battle</h3>
-                <p className="text-gray-400 text-xs">Challenge a friend to a private match</p>
+                <h3 className="font-bold text-lg mb-2">Friend Battle</h3>
+                <p className="text-white/80 text-sm">Challenge a friend to a private match</p>
               </button>
             </div>
 
-            <h3 className="font-pixel text-primary mb-4">Training Categories</h3>
+            <h3 className="font-bold text-gray-800 text-lg mb-6">Training Categories</h3>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
@@ -460,16 +460,16 @@ export const ArenaHub: React.FC<ArenaHubProps> = ({
               ].map(category => (
                 <button
                   key={category.name}
-                  className="bg-dark/30 border border-primary/20 hover:border-primary/50 rounded-lg p-4 text-center transition-all hover-scale flex flex-col items-center"
+                  className="bg-white border border-gray-200 hover:border-blue-300 rounded-lg p-4 text-center transition-all hover-scale shadow-sm flex flex-col items-center"
                 >
                   <div className="text-2xl mb-2">{category.icon}</div>
-                  <div className={`font-pixel text-${category.color}-400 text-sm`}>{category.name}</div>
+                  <div className="font-semibold text-gray-800 text-sm">{category.name}</div>
                 </button>
               ))}
             </div>
           </motion.div>
-        </div >
-      </motion.div >
+        </div>
+      </motion.div>
     );
   };
 

@@ -11,11 +11,12 @@ import { ClassManagement } from '../components/teacher/ClassManagement';
 import { AssignmentManager } from '../components/teacher/AssignmentManager';
 import { GradingDashboard } from '../components/teacher/GradingDashboard';
 import { TeacherSyllabus } from '../components/teacher/TeacherSyllabus';
+import { Reports } from '../components/teacher/Reports';
 import { useAuth } from '../hooks/useAuth';
 import { teacherService } from '../services/teacherService';
 import { schoolSelectionService } from '../services/schoolSelectionService';
 
-type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'syllabus' | 'ai-suggestions' | 'manage-class' | 'settings';
+type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'syllabus' | 'ai-suggestions' | 'reports' | 'manage-class' | 'settings';
 
 export const TeacherDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TeacherDashboardTab>('dashboard');
@@ -108,6 +109,8 @@ export const TeacherDashboard: React.FC = () => {
         return <TeacherSyllabus />;
       case 'ai-suggestions':
         return <AISuggestions />;
+      case 'reports':
+        return <Reports />;
       case 'manage-class':
         return <ClassManagement />;
       case 'settings':

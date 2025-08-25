@@ -274,7 +274,7 @@ export const BuildingInterior = ({
       ]
     },
     'study-centre': {
-      title: 'Study Centre',
+      title: 'Stud Centre',
       description: 'Your personalized agentic learning hub powered by K.A.N.A.',
       color: '#4ade80',
       features: [
