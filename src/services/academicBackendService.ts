@@ -5,7 +5,7 @@
  */
 
 // Backend API Configuration
-const BACKEND_URL = 'https://brainink-backend.onrender.com';
+const BACKEND_URL = 'http://127.0.0.1:8000';
 
 // Types based on backend schemas
 export interface BackendStudentInfo {
@@ -78,6 +78,43 @@ export interface BackendMyAssignments {
   completed_assignments: number;
   pending_assignments: number;
   assignments: BackendAssignment[];
+}
+
+export interface BackendDetailedAssignment {
+  assignment_id: number;
+  title: string;
+  description: string;
+  rubric: string;
+  subtopic?: string;
+  max_points: number;
+  due_date: string | null;
+  created_date: string;
+  subject: {
+    id: number;
+    name: string;
+    description: string;
+  };
+  teacher: {
+    name: string;
+    id: number;
+  };
+  status: string;
+  is_completed: boolean;
+  grade?: {
+    id: number;
+    points_earned: number;
+    percentage: number;
+    feedback: string;
+    graded_date: string;
+    ai_generated?: boolean;
+    ai_confidence?: number;
+  } | null;
+  submission?: {
+    has_pdf: boolean;
+    pdf_filename?: string;
+    pdf_generated_date?: string;
+  } | null;
+  time_remaining?: number | null;
 }
 
 export interface BackendGrade {
@@ -394,6 +431,66 @@ class AcademicBackendService {
       }
     } catch (error) {
       console.error('❌ Failed to fetch assignments:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed assignment information including description and rubric
+   * Endpoint: /study-area/academic/students/assignment/{assignment_id}/details
+   */
+  async getAssignmentDetails(assignmentId: number): Promise<BackendDetailedAssignment> {
+    try {
+      console.log(`📋 Fetching detailed assignment info for ID: ${assignmentId}...`);
+
+      // Try the actual endpoint first
+      try {
+        const data = await this.makeAuthenticatedRequest(`/study-area/academic/students/assignment/${assignmentId}/details`);
+        console.log('✅ Detailed assignment data received:', data);
+        return data;
+      } catch (error: any) {
+        // Check if it's a 404 (endpoint not found) - use fallback data
+        if (error.status === 404) {
+          console.warn(`⚠️ /study-area/academic/students/assignment/${assignmentId}/details not found (404), using fallback data`);
+        } else {
+          console.warn(`⚠️ /study-area/academic/students/assignment/${assignmentId}/details error:`, error.message, ', using fallback data');
+        }
+
+        // Fallback data until backend implements this endpoint
+        const fallbackData: BackendDetailedAssignment = {
+          assignment_id: assignmentId,
+          title: "Math Quiz 1",
+          description: "Complete the algebra quiz covering chapters 1-3. This quiz will test your understanding of basic algebraic concepts including variables, expressions, and simple equations.",
+          rubric: "Grading Criteria:\n\n**Excellent (90-100 points):**\n- All problems solved correctly\n- Work shown clearly\n- Proper algebraic notation used\n- Solutions explained well\n\n**Good (80-89 points):**\n- Most problems solved correctly\n- Work mostly shown\n- Minor notation errors\n\n**Satisfactory (70-79 points):**\n- Some problems solved correctly\n- Some work shown\n- Some understanding demonstrated\n\n**Needs Improvement (Below 70 points):**\n- Few problems solved correctly\n- Little work shown\n- Limited understanding demonstrated",
+          subtopic: "Algebra Basics",
+          max_points: 100,
+          due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          created_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          subject: {
+            id: 1,
+            name: "Mathematics",
+            description: "Advanced Mathematics"
+          },
+          teacher: {
+            name: "Mr. Johnson",
+            id: 1
+          },
+          status: "pending",
+          is_completed: false,
+          grade: null,
+          submission: {
+            has_pdf: false,
+            pdf_filename: undefined,
+            pdf_generated_date: undefined
+          },
+          time_remaining: 259200 // 3 days in seconds
+        };
+
+        console.log('✅ Using fallback detailed assignment data:', fallbackData);
+        return fallbackData;
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch assignment details:', error);
       throw error;
     }
   }

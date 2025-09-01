@@ -404,6 +404,7 @@ class TeacherServiceClass {
         due_date?: string;
         max_points?: number;
         assignment_type?: string;
+        rubric?: string;
     }): Promise<BackendAssignment | null> {
         try {
             console.log('📝 Creating assignment:', assignmentData);

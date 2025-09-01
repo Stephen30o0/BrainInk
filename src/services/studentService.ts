@@ -32,6 +32,34 @@ export interface StudentAssignment {
   progress?: number; // 0-100 percentage
 }
 
+export interface DetailedAssignment {
+  assignment_id: number;
+  title: string;
+  description: string;
+  rubric: string;
+  subtopic?: string;
+  subject_id: number;
+  subject_name: string;
+  teacher_id: number;
+  teacher_name: string;
+  teacher_email: string;
+  due_date: string | null;
+  max_points: number;
+  created_date: string;
+  is_completed: boolean;
+  grade?: {
+    points_earned: number;
+    feedback: string;
+    graded_date: string;
+  } | null;
+  submission?: {
+    submitted_date: string;
+    status: string;
+  } | null;
+  status: 'completed' | 'overdue' | 'pending' | 'in_progress';
+  time_remaining?: string;
+}
+
 export interface StudentGrade {
   grade_id: number;
   assignment_id: number;
@@ -342,6 +370,69 @@ class StudentService {
       const dueDate = new Date(assignment.due_date);
       return dueDate <= nextWeek && !assignment.is_completed;
     });
+  }
+
+  /**
+   * Get detailed assignment information including description and rubric
+   */
+  public async getAssignmentDetails(assignmentId: number): Promise<DetailedAssignment> {
+    try {
+      console.log(`📋 Getting detailed assignment info for ID: ${assignmentId}...`);
+
+      // Fetch from backend
+      const backendData = await academicBackendService.getAssignmentDetails(assignmentId);
+
+      // Determine status based on completion and due date
+      let status: 'completed' | 'overdue' | 'pending' | 'in_progress' = 'pending';
+
+      if (backendData.is_completed) {
+        status = 'completed';
+      } else if (backendData.due_date) {
+        const dueDate = new Date(backendData.due_date);
+        const now = new Date();
+        if (dueDate < now) {
+          status = 'overdue';
+        } else {
+          status = 'pending';
+        }
+      }
+
+      // Transform backend data to frontend format
+      const detailedAssignment: DetailedAssignment = {
+        assignment_id: backendData.assignment_id,
+        title: backendData.title,
+        description: backendData.description,
+        rubric: backendData.rubric,
+        subtopic: backendData.subtopic,
+        subject_id: backendData.subject.id,
+        subject_name: backendData.subject.name,
+        teacher_id: backendData.teacher.id,
+        teacher_name: backendData.teacher.name,
+        teacher_email: '', // Not provided by backend
+        due_date: backendData.due_date,
+        max_points: backendData.max_points,
+        created_date: backendData.created_date,
+        is_completed: backendData.is_completed,
+        grade: backendData.grade ? {
+          points_earned: backendData.grade.points_earned,
+          feedback: backendData.grade.feedback,
+          graded_date: backendData.grade.graded_date
+        } : null,
+        submission: backendData.submission ? {
+          submitted_date: backendData.submission.pdf_generated_date || '',
+          status: backendData.submission.has_pdf ? 'submitted' : 'not_submitted'
+        } : null,
+        status,
+        time_remaining: backendData.time_remaining ?
+          `${Math.floor(backendData.time_remaining / 86400)} days remaining` : undefined
+      };
+
+      console.log('✅ Detailed assignment loaded from backend:', detailedAssignment);
+      return detailedAssignment;
+    } catch (error) {
+      console.error('❌ Failed to get assignment details:', error);
+      throw error;
+    }
   }
 
   // ============ GRADES ============

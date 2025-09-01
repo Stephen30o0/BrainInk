@@ -47,7 +47,8 @@ export const AssignmentManager: React.FC = () => {
         subtopic: '',
         subject_id: 0,
         max_points: 100,
-        due_date: ''
+        due_date: '',
+        rubric: ''
     });
 
     useEffect(() => {
@@ -81,8 +82,8 @@ export const AssignmentManager: React.FC = () => {
 
     const handleCreateAssignment = async () => {
         try {
-            if (!newAssignment.title || !newAssignment.subject_id) {
-                alert('Please fill in required fields (title and subject)');
+            if (!newAssignment.title || !newAssignment.subject_id || !newAssignment.rubric) {
+                alert('Please fill in required fields (title, subject, and rubric)');
                 return;
             }
 
@@ -92,7 +93,8 @@ export const AssignmentManager: React.FC = () => {
                 subject_id: newAssignment.subject_id,
                 description: newAssignment.description || undefined,
                 max_points: newAssignment.max_points,
-                due_date: newAssignment.due_date || undefined
+                due_date: newAssignment.due_date || undefined,
+                rubric: newAssignment.rubric
             });
 
             if (assignment) {
@@ -104,7 +106,8 @@ export const AssignmentManager: React.FC = () => {
                     subtopic: '',
                     subject_id: 0,
                     max_points: 100,
-                    due_date: ''
+                    due_date: '',
+                    rubric: ''
                 });
                 await loadData(); // Refresh data
             }
@@ -478,6 +481,17 @@ export const AssignmentManager: React.FC = () => {
                                     onChange={(e) => setNewAssignment({ ...newAssignment, subtopic: e.target.value })}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     placeholder="Assignment subtopic"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Rubric *</label>
+                                <textarea
+                                    value={newAssignment.rubric}
+                                    onChange={(e) => setNewAssignment({ ...newAssignment, rubric: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    rows={4}
+                                    placeholder="Grading rubric and criteria (required)"
                                 />
                             </div>
 

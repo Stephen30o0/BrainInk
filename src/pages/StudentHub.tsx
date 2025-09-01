@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Brain,
@@ -22,6 +22,10 @@ import { ArenaHub } from '../components/arena/ArenaHub';
 import { StudyCentre } from '../components/study/StudyCentre';
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel';
 
+// Import services
+import { userRoleService } from '../services/userRoleService';
+import { studentService } from '../services/studentService';
+
 // Type definitions for Student Hub sections
 type StudentSection = 'dashboard' | 'profile' | 'battle-arena' | 'study-centre' | 'friends' | 'messages';
 
@@ -32,15 +36,45 @@ interface StudentNavItem {
     color: string;
 }
 
+interface StudentInfo {
+    id: number;
+    name: string;
+    email: string;
+    school_name: string;
+    enrollment_date: string;
+}
+
 // Dashboard Content Component
-const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void }> = ({ onNavigate }) => {
+const DashboardContent: React.FC<{
+    onNavigate: (section: StudentSection) => void;
+    studentData: StudentInfo | null;
+    isLoading: boolean;
+}> = ({ onNavigate, studentData, isLoading }) => {
+    const getCurrentDate = () => {
+        const now = new Date();
+        const options: Intl.DateTimeFormatOptions = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        };
+        return now.toLocaleDateString('en-US', options);
+    };
+
+    const getGreeting = () => {
+        if (isLoading) return "Loading...";
+        if (!studentData) return "Hello, Student 👋";
+        // Extract first name from full name
+        const firstName = studentData.name.split(' ')[0];
+        return `Hello, ${firstName} 👋`;
+    };
     return (
         <div className="p-8 space-y-8">
             {/* Header Section */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800 mb-2">Hello, Student 👋</h1>
-                    <p className="text-gray-600">Today is Monday, 25 October 2025</p>
+                    <h1 className="text-2xl font-bold text-gray-800 mb-2">{getGreeting()}</h1>
+                    <p className="text-gray-600">Today is {getCurrentDate()}</p>
                 </div>
             </div>
 
@@ -118,6 +152,58 @@ const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+    // State for user data
+    const [studentData, setStudentData] = useState<StudentInfo | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Fetch user data on component mount
+    useEffect(() => {
+        const fetchStudentData = async () => {
+            try {
+                setIsLoading(true);
+                const userRole = await userRoleService.getCurrentUserRole();
+
+                if (userRole && userRole.is_student) {
+                    // Fetch dashboard data which includes student info
+                    const dashboardData = await studentService.getDashboard();
+                    setStudentData(dashboardData.student_info);
+                } else {
+                    console.error('User is not authenticated as a student');
+                }
+            } catch (err) {
+                console.error('Error fetching student data:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchStudentData();
+    }, []);
+
+    // Helper functions for header
+    const getCurrentDate = () => {
+        const now = new Date();
+        const options: Intl.DateTimeFormatOptions = {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        };
+        return now.toLocaleDateString('en-US', options);
+    };
+
+    const getUserInitials = () => {
+        if (!studentData?.name) return 'U';
+        return studentData.name.split(' ').map(part => part.charAt(0)).join('').toUpperCase().slice(0, 2);
+    };
+
+    const getUserName = () => {
+        return studentData?.name || 'Student';
+    };
+
+    const getUserEmail = () => {
+        return studentData?.email || 'student@school.edu';
+    };
+
     // Modern sidebar navigation items
     const sidebarItems: StudentNavItem[] = [
         {
@@ -175,7 +261,11 @@ const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void
             case 'study-centre':
                 return <StudyCentre />;
             default:
-                return <DashboardContent onNavigate={handleNavigation} />;
+                return <DashboardContent
+                    onNavigate={handleNavigation}
+                    studentData={studentData}
+                    isLoading={isLoading}
+                />;
         }
     };
 
@@ -254,7 +344,7 @@ const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void
                         <div className="flex items-center gap-4">
                             <div className="text-right">
                                 <div className="text-sm font-medium text-gray-800">Calendar</div>
-                                <div className="text-xs text-gray-500">Oct 25, 2025</div>
+                                <div className="text-xs text-gray-500">{getCurrentDate()}</div>
                             </div>
 
                             <button
@@ -267,11 +357,11 @@ const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void
 
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                                    SC
+                                    {getUserInitials()}
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-sm font-medium text-gray-800">Sarah Connor</div>
-                                    <div className="text-xs text-gray-500">graphic.organictower</div>
+                                    <div className="text-sm font-medium text-gray-800">{getUserName()}</div>
+                                    <div className="text-xs text-gray-500">{getUserEmail()}</div>
                                 </div>
                             </div>
                         </div>
@@ -292,3 +382,4 @@ const DashboardContent: React.FC<{ onNavigate: (section: StudentSection) => void
         </div>
     );
 };
+

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { SignUp2 } from '../components/ui/clean-minimal-sign-up';
-import { apiService } from '../services/apiService';
 
 // Define the Google API interface
 interface GoogleAccountsType {
@@ -33,7 +32,6 @@ export const SignUp = () => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPreloading, setIsPreloading] = useState(false);
   const [error, setError] = useState('');
 
   // Get redirect parameter from URL
@@ -48,7 +46,7 @@ export const SignUp = () => {
   // Import from environment variable with fallback
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '969723698837-9aepndmu033gu0bk3gdrb6o1707mknp6.apps.googleusercontent.com';
 
-  // Function to handle successful authentication and preload data
+  // Function to handle successful authentication
   const handleSuccessfulAuth = async (data: any, isGoogleAuth = false) => {
     try {
       // Store tokens
@@ -57,27 +55,11 @@ export const SignUp = () => {
 
       console.log(`${isGoogleAuth ? 'Google' : 'Regular'} authentication successful:`, data);
 
-      // Start preloading data immediately
-      setIsPreloading(true);
-      setError('Loading your data...');
-
-      try {
-        await apiService.preloadAllData();
-        console.log('✅ All data preloaded successfully');
-        setError('');
-        navigate(redirectTo);
-      } catch (preloadError) {
-        console.error('⚠️ Error preloading data:', preloadError);
-        // Still navigate even if preload fails - data will load on demand
-        setError('');
-        navigate(redirectTo);
-      } finally {
-        setIsPreloading(false);
-      }
+      // Navigate immediately without preloading data
+      navigate(redirectTo);
     } catch (error) {
       console.error('Error in handleSuccessfulAuth:', error);
-      setError('Authentication succeeded but data loading failed');
-      setIsPreloading(false);
+      setError('Authentication succeeded but navigation failed');
     }
   };
 
@@ -120,45 +102,114 @@ export const SignUp = () => {
     setIsLoading(true);
     setError('');
 
-    // Initialize Google Sign-In if not already done
-    if (!window.google) {
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
+    try {
+      // Initialize Google Sign-In if not already done
+      if (!window.google) {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
 
-      script.onload = () => {
+        script.onload = () => {
+          setTimeout(() => initializeGoogleSignIn(), 100);
+        };
+
+        script.onerror = () => {
+          setError('Failed to load Google Sign-In. Please try again.');
+          setIsLoading(false);
+        };
+      } else {
         initializeGoogleSignIn();
-      };
-
-      script.onerror = () => {
-        setError('Failed to load Google Sign-In. Please try again.');
-        setIsLoading(false);
-      };
-    } else {
-      initializeGoogleSignIn();
+      }
+    } catch (error) {
+      console.error('Google auth setup error:', error);
+      setError('Google Sign-In setup failed.');
+      setIsLoading(false);
     }
   };
 
   const initializeGoogleSignIn = () => {
     if (window.google && GOOGLE_CLIENT_ID) {
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse,
-        auto_select: false,
-        cancel_on_tap_outside: false
-      });
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
 
-      // Trigger the sign-in prompt
-      window.google.accounts.id.prompt((notification: any) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          setError('Google Sign-In was cancelled or blocked.');
-          setIsLoading(false);
-        }
-      });
+        // Always render button instead of using prompt
+        renderGoogleButton();
+      } catch (error) {
+        console.error('Google Sign-In initialization error:', error);
+        setError('Google Sign-In initialization failed.');
+        setIsLoading(false);
+      }
     } else {
       setError('Google Sign-In is not properly configured.');
+      setIsLoading(false);
+    }
+  };
+
+  // Fallback method: render a Google button
+  const renderGoogleButton = () => {
+    try {
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.position = 'fixed';
+      buttonContainer.style.top = '50%';
+      buttonContainer.style.left = '50%';
+      buttonContainer.style.transform = 'translate(-50%, -50%)';
+      buttonContainer.style.zIndex = '10000';
+      buttonContainer.style.backgroundColor = 'white';
+      buttonContainer.style.padding = '20px';
+      buttonContainer.style.borderRadius = '8px';
+      buttonContainer.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+      document.body.appendChild(buttonContainer);
+
+      // Add close button
+      const closeButton = document.createElement('button');
+      closeButton.innerHTML = '×';
+      closeButton.style.position = 'absolute';
+      closeButton.style.top = '5px';
+      closeButton.style.right = '10px';
+      closeButton.style.background = 'none';
+      closeButton.style.border = 'none';
+      closeButton.style.fontSize = '20px';
+      closeButton.style.cursor = 'pointer';
+      closeButton.onclick = () => {
+        document.body.removeChild(buttonContainer);
+        setIsLoading(false);
+      };
+      buttonContainer.appendChild(closeButton);
+
+      // Add title
+      const title = document.createElement('h3');
+      title.textContent = isLogin ? 'Sign in with Google' : 'Sign up with Google';
+      title.style.margin = '0 0 20px 0';
+      title.style.textAlign = 'center';
+      buttonContainer.appendChild(title);
+
+      // Render Google button
+      if (window.google?.accounts?.id?.renderButton) {
+        window.google.accounts.id.renderButton(buttonContainer, {
+          theme: 'outline',
+          size: 'large',
+          type: 'standard',
+          width: '300'
+        });
+      }
+
+      // Auto-cleanup after 30 seconds
+      setTimeout(() => {
+        if (document.body.contains(buttonContainer)) {
+          document.body.removeChild(buttonContainer);
+          setIsLoading(false);
+        }
+      }, 30000);
+    } catch (error) {
+      console.error('Render Google button error:', error);
+      setError('Google Sign-In button failed to render.');
       setIsLoading(false);
     }
   };
@@ -169,12 +220,16 @@ export const SignUp = () => {
         throw new Error('No credential received from Google');
       }
 
+      console.log('Received Google credential, attempting authentication...');
+
       const endpoint = isLogin ? '/google-login' : '/google-register';
       const apiResponse = await fetch(`https://brainink-backend.onrender.com${endpoint}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Accept": "application/json",
         },
+        credentials: 'include', // Include cookies for CORS
         body: JSON.stringify({
           token: response.credential
         })
@@ -183,18 +238,39 @@ export const SignUp = () => {
       const data = await apiResponse.json();
 
       if (apiResponse.ok) {
+        console.log('Google authentication successful');
+        // Clean up any modal dialogs
+        const modals = document.querySelectorAll('[style*="position: fixed"]');
+        modals.forEach(modal => {
+          if (modal.parentNode === document.body) {
+            document.body.removeChild(modal);
+          }
+        });
         await handleSuccessfulAuth(data, true);
       } else {
+        console.error('Google authentication failed:', data);
         setError(data.detail || 'Google authentication failed');
       }
     } catch (error) {
-      setError('Network error during Google authentication. Please try again.');
+      console.error('Network error during Google authentication:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        setError('Network error: Unable to connect to server. Please check your internet connection and try again.');
+      } else {
+        setError('Google authentication failed. Please try again or use regular login.');
+      }
     } finally {
       setIsLoading(false);
+      // Clean up any remaining modals
+      const modals = document.querySelectorAll('[style*="position: fixed"]');
+      modals.forEach(modal => {
+        if (modal.parentNode === document.body) {
+          document.body.removeChild(modal);
+        }
+      });
     }
   };
 
-  const displayError = error || (isPreloading ? 'Loading your data...' : '');
+  const displayError = error;
 
   return (
     <SignUp2
@@ -202,7 +278,7 @@ export const SignUp = () => {
       onModeChange={(mode) => setIsLogin(mode === 'login')}
       onSignUp={handleFormSubmit}
       onGoogleSignUp={handleGoogleAuth}
-      isLoading={isLoading || isPreloading}
+      isLoading={isLoading}
       error={displayError}
     />
   );

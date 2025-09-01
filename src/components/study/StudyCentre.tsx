@@ -24,10 +24,11 @@ import {
   Eye,
   Link
 } from 'lucide-react';
-import { studentService, type StudentDashboard, type StudentAssignment, type LearningPathItem, type StudyAnalytics } from '../../services/studentService';
+import { studentService, type StudentDashboard, type StudentAssignment, type DetailedAssignment, type LearningPathItem, type StudyAnalytics } from '../../services/studentService';
 import { syllabusService, type SyllabusWithProgress } from '../../services/syllabusService';
 import { userRoleService, type UserRoleResponse } from '../../services/userRoleService';
 import { QuizButton } from '../quiz/QuizButton';
+import { CalendarTab } from './Calendar';
 
 interface StudyCentreProps {
   currentUser?: any;
@@ -39,7 +40,7 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
   const navigate = useNavigate();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [enhancedUser, setEnhancedUser] = useState<UserRoleResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assignments' | 'analytics' | 'learning'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assignments' | 'analytics' | 'learning' | 'calendar'>('dashboard');
   const [dashboard, setDashboard] = useState<StudentDashboard | null>(null);
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [learningPath, setLearningPath] = useState<LearningPathItem[]>([]);
@@ -53,6 +54,11 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
     isOpen: boolean;
     assignment: StudentAssignment | null;
   }>({ isOpen: false, assignment: null });
+  const [assignmentDetailsModal, setAssignmentDetailsModal] = useState<{
+    isOpen: boolean;
+    assignment: DetailedAssignment | null;
+    loading: boolean;
+  }>({ isOpen: false, assignment: null, loading: false });
 
   useEffect(() => {
     const checkAuthorization = async () => {
@@ -387,6 +393,22 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
     setFeedbackModal({ isOpen: false, assignment: null });
   };
 
+  const openAssignmentDetailsModal = async (assignmentId: number) => {
+    try {
+      setAssignmentDetailsModal({ isOpen: true, assignment: null, loading: true });
+      const detailedAssignment = await studentService.getAssignmentDetails(assignmentId);
+      setAssignmentDetailsModal({ isOpen: true, assignment: detailedAssignment, loading: false });
+    } catch (error) {
+      console.error('Failed to load assignment details:', error);
+      setAssignmentDetailsModal({ isOpen: false, assignment: null, loading: false });
+      setError('Failed to load assignment details');
+    }
+  };
+
+  const closeAssignmentDetailsModal = () => {
+    setAssignmentDetailsModal({ isOpen: false, assignment: null, loading: false });
+  };
+
   // Parse feedback to extract different sections
   const parseFeedback = (feedback: string) => {
     const sections = {
@@ -508,17 +530,18 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex space-x-1 mt-6 bg-gray-100 p-1 rounded-lg">
+          <div className="flex space-x-1 mt-6 bg-gray-100 p-1 rounded-lg overflow-x-auto">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: Target },
               { id: 'assignments', label: 'Assignments', icon: FileText },
               { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-              { id: 'learning', label: 'Learning Path', icon: BookOpen }
+              { id: 'learning', label: 'Learning Path', icon: BookOpen },
+              { id: 'calendar', label: 'Calendar', icon: Calendar }
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => handleTabChange(id as any)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200 ${activeTab === id
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === id
                   ? 'bg-white text-blue-600 shadow-sm font-medium'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                   }`}
@@ -561,6 +584,7 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
             getStatusColor={getStatusColor}
             formatDate={formatDate}
             openFeedbackModal={openFeedbackModal}
+            openAssignmentDetailsModal={openAssignmentDetailsModal}
           />
         )}
 
@@ -577,6 +601,14 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
             learningPath={learningPath}
             syllabuses={syllabuses}
             setSyllabuses={setSyllabuses}
+          />
+        )}
+
+        {activeTab === 'calendar' && (
+          <CalendarTab
+            currentUser={currentUser}
+            assignments={assignments}
+            syllabuses={syllabuses}
           />
         )}
       </div>
@@ -699,6 +731,172 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
                 </p>
                 <button
                   onClick={closeFeedbackModal}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assignment Details Modal */}
+      {assignmentDetailsModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Assignment Details</h2>
+                {assignmentDetailsModal.assignment && (
+                  <p className="text-sm text-gray-600">{assignmentDetailsModal.assignment.subject_name}</p>
+                )}
+              </div>
+              <button
+                onClick={closeAssignmentDetailsModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {assignmentDetailsModal.loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Loading assignment details...</span>
+                </div>
+              ) : assignmentDetailsModal.assignment ? (
+                <div className="space-y-6">
+                  {/* Assignment Header */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 className="text-2xl font-bold text-blue-900 mb-2">
+                      {assignmentDetailsModal.assignment.title}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <GraduationCap className="w-4 h-4 text-blue-600" />
+                        <span className="text-gray-700">
+                          Teacher: {assignmentDetailsModal.assignment.teacher_name}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                        <span className="text-gray-700">
+                          {assignmentDetailsModal.assignment.due_date
+                            ? `Due: ${formatDate(assignmentDetailsModal.assignment.due_date)}`
+                            : 'No due date set'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Award className="w-4 h-4 text-blue-600" />
+                        <span className="text-gray-700">
+                          Points: {assignmentDetailsModal.assignment.max_points}
+                        </span>
+                      </div>
+                      {assignmentDetailsModal.assignment.time_remaining && (
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-4 h-4 text-blue-600" />
+                          <span className="text-gray-700">
+                            {assignmentDetailsModal.assignment.time_remaining}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Assignment Description */}
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-5 h-5 text-gray-600" />
+                      <h4 className="font-semibold text-gray-900">Description</h4>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <p className="text-gray-700 whitespace-pre-wrap">
+                        {assignmentDetailsModal.assignment.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rubric */}
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Target className="w-5 h-5 text-purple-600" />
+                      <h4 className="font-semibold text-gray-900">Grading Rubric</h4>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <p className="text-gray-700 whitespace-pre-wrap">
+                        {assignmentDetailsModal.assignment.rubric}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Grade Information (if available) */}
+                  {assignmentDetailsModal.assignment.grade && (
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Trophy className="w-5 h-5 text-green-600" />
+                        <h4 className="font-semibold text-gray-900">Your Grade</h4>
+                      </div>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-2xl font-bold text-green-800">
+                            {assignmentDetailsModal.assignment.grade.points_earned}/{assignmentDetailsModal.assignment.max_points}
+                          </span>
+                          <span className="text-lg font-semibold text-green-700">
+                            {Math.round((assignmentDetailsModal.assignment.grade.points_earned / assignmentDetailsModal.assignment.max_points) * 100)}%
+                          </span>
+                        </div>
+                        <p className="text-gray-700 whitespace-pre-wrap">
+                          {assignmentDetailsModal.assignment.grade.feedback}
+                        </p>
+                        <p className="text-sm text-green-600 mt-2">
+                          Graded on: {formatDate(assignmentDetailsModal.assignment.grade.graded_date)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Submission Information (if available) */}
+                  {assignmentDetailsModal.assignment.submission && (
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-5 h-5 text-blue-600" />
+                        <h4 className="font-semibold text-gray-900">Submission Status</h4>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-gray-700">
+                          Status: <span className="font-medium">{assignmentDetailsModal.assignment.submission.status}</span>
+                        </p>
+                        <p className="text-sm text-blue-600 mt-1">
+                          Submitted on: {formatDate(assignmentDetailsModal.assignment.submission.submitted_date)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load assignment details</h3>
+                  <p className="text-gray-600">Please try again later.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t bg-gray-50">
+              <div className="flex items-center justify-between">
+                {assignmentDetailsModal.assignment && (
+                  <p className="text-sm text-gray-600">
+                    Teacher: {assignmentDetailsModal.assignment.teacher_name} ({assignmentDetailsModal.assignment.teacher_email})
+                  </p>
+                )}
+                <button
+                  onClick={closeAssignmentDetailsModal}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
                   Close
@@ -905,7 +1103,8 @@ const AssignmentsTab: React.FC<{
   getStatusColor: (status: string) => string;
   formatDate: (dateString: string) => string;
   openFeedbackModal: (assignment: StudentAssignment) => void;
-}> = ({ assignments, currentUser, getStatusColor, formatDate, openFeedbackModal }) => {
+  openAssignmentDetailsModal: (assignmentId: number) => void;
+}> = ({ assignments, currentUser, getStatusColor, formatDate, openFeedbackModal, openAssignmentDetailsModal }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const filteredAssignments = assignments.filter(assignment => {
@@ -955,7 +1154,12 @@ const AssignmentsTab: React.FC<{
             <div key={assignment.assignment_id} className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{assignment.title}</h3>
+                  <button
+                    onClick={() => openAssignmentDetailsModal(assignment.assignment_id)}
+                    className="text-lg font-semibold text-gray-900 mb-2 hover:text-blue-600 transition-colors text-left"
+                  >
+                    {assignment.title}
+                  </button>
                   <p className="text-gray-600 mb-3">{assignment.description}</p>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
                     <div className="flex items-center space-x-1">
