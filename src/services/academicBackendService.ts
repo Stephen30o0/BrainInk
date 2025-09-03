@@ -5,7 +5,7 @@
  */
 
 // Backend API Configuration
-const BACKEND_URL = 'http://127.0.0.1:8000';
+const BACKEND_URL = 'https://brainink-backend.onrender.com';
 
 // Types based on backend schemas
 export interface BackendStudentInfo {
