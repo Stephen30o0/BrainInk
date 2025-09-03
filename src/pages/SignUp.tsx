@@ -46,6 +46,14 @@ export const SignUp = () => {
   // Import from environment variable with fallback
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '969723698837-9aepndmu033gu0bk3gdrb6o1707mknp6.apps.googleusercontent.com';
 
+  // Get the correct backend URL based on environment
+  const getBackendUrl = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'https://brainink-backend.onrender.com'; // Use production backend even in dev
+    }
+    return 'https://brainink-backend.onrender.com';
+  };
+
   // Function to handle successful authentication
   const handleSuccessfulAuth = async (data: any, isGoogleAuth = false) => {
     try {
@@ -74,7 +82,7 @@ export const SignUp = () => {
         ? { username, password }
         : { fname: firstName, lname: lastName, username, email, password };
 
-      const response = await fetch(`https://brainink-backend.onrender.com${endpoint}`, {
+      const response = await fetch(`${getBackendUrl()}${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -223,13 +231,13 @@ export const SignUp = () => {
       console.log('Received Google credential, attempting authentication...');
 
       const endpoint = isLogin ? '/google-login' : '/google-register';
-      const apiResponse = await fetch(`https://brainink-backend.onrender.com${endpoint}`, {
+      const apiResponse = await fetch(`${getBackendUrl()}${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          "Accept": "application/json"
         },
-        credentials: 'include', // Include cookies for CORS
+        // Remove credentials for regular auth to avoid CORS issues
         body: JSON.stringify({
           token: response.credential
         })

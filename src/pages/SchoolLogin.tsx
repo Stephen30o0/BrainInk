@@ -51,7 +51,8 @@ export const SchoolLogin = () => {
                 const apiResponse = await fetch(`https://brainink-backend.onrender.com/google-login`, {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
                     },
                     body: JSON.stringify({
                         token: response.credential
@@ -150,7 +151,7 @@ export const SchoolLogin = () => {
                 auto_select: false,
                 cancel_on_tap_outside: false
             });
-            
+
             // Trigger the sign-in prompt
             window.google.accounts.id.prompt((notification: any) => {
                 if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
@@ -181,9 +182,9 @@ export const SchoolLogin = () => {
                 showForgotPassword={true}
                 onForgotPassword={handleForgotPassword}
             />
-            
+
             {showForgotPassword && (
-                <ForgotPasswordModal 
+                <ForgotPasswordModal
                     isOpen={showForgotPassword}
                     onClose={() => setShowForgotPassword(false)}
                 />
