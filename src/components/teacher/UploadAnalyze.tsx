@@ -64,6 +64,9 @@ interface BulkUploadStudent {
   image_count: number;
   generated_date?: string;
   is_graded: boolean;
+  pdf_size?: number;        // New: PDF size in bytes
+  content_type?: string;    // New: PDF content type
+  pdf_filename?: string;    // New: PDF filename
 }
 
 interface BulkUploadModal {
@@ -3080,9 +3083,17 @@ export const UploadAnalyze: React.FC = () => {
       const data = await response.json();
       console.log('✅ Loaded bulk upload students:', data);
 
+      // Map the response to include new database fields
+      const enhancedStudents = data.students?.map((student: any) => ({
+        ...student,
+        pdf_size: student.pdf_size || null,
+        content_type: student.content_type || 'application/pdf',
+        pdf_filename: student.pdf_filename || null
+      })) || [];
+
       setBulkUploadModal(prev => ({
         ...prev,
-        students: data.students || []
+        students: enhancedStudents
       }));
 
     } catch (error) {
@@ -3351,30 +3362,39 @@ export const UploadAnalyze: React.FC = () => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
-        throw new Error('Authentication required');
+        setError('Authentication required');
+        return;
       }
 
       const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/pdf'
         }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to download PDF');
+        if (response.status === 404) {
+          setError('PDF not found for this student');
+          return;
+        }
+        throw new Error(`Failed to download PDF: ${response.status}`);
       }
 
-      // Create download link
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${studentName}_Assignment_${assignmentId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Get PDF as blob from database
+      const pdfBlob = await response.blob();
 
+      // Create download URL and trigger download
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${studentName}_Assignment_${assignmentId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setSuccess('PDF downloaded successfully');
     } catch (error) {
       console.error('Failed to download PDF:', error);
       setError('Failed to download PDF');
