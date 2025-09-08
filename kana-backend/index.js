@@ -1962,7 +1962,29 @@ After the GRADE_END marker, provide your detailed analysis following this EXACT 
 3. **Score Justification**: 
 Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
 
-4. **Feedback**: Provide constructive feedback for improvement
+4. **Detailed Work-Specific Feedback**: 
+CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
+
+For EACH rubric section, provide feedback in this format:
+[Rubric Section Name] - [Points Given]/[Points Possible]:
+• Student wrote: "[Quote exact text/equation/solution from student work]"
+• Issue identified: [Specific problem with their approach/formula/method]
+• Correct approach should be: [What they should have written instead]
+• Why points were deducted: [Explain the specific error and its impact]
+
+Example:
+Differentiation Method - 3/10 points:
+• Student wrote: "d/dx(x²) = 2x + 1"
+• Issue identified: Added unnecessary constant (+1) to the derivative
+• Correct approach should be: "d/dx(x²) = 2x" using the power rule
+• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
+
+FEEDBACK REQUIREMENTS:
+- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
+- Point out SPECIFIC errors in their methodology, not general statements
+- Reference their actual calculations, formulas, or explanations
+- Show what they should have written instead
+- Explain WHY their approach was incorrect and how it affected the solution
 
 CRITICAL ANTI-LOOP REQUIREMENTS:
 - NEVER repeat calculations or reconsider scores once written
@@ -2173,17 +2195,38 @@ After the GRADE_END marker, provide your detailed analysis following this EXACT 
 **SCORE JUSTIFICATION**
 Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
 
-**DETAILED FEEDBACK**
-[Provide specific feedback on the work]
+**DETAILED WORK-SPECIFIC FEEDBACK**
+CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
+
+For EACH rubric section, provide feedback in this format:
+[Rubric Section Name] - [Points Given]/[Points Possible]:
+• Student wrote: "[Quote exact text/equation/solution from student work]"
+• Issue identified: [Specific problem with their approach/formula/method]
+• Correct approach should be: [What they should have written instead]
+• Why points were deducted: [Explain the specific error and its impact]
+
+Example:
+Differentiation Method - 3/10 points:
+• Student wrote: "d/dx(x²) = 2x + 1"
+• Issue identified: Added unnecessary constant (+1) to the derivative
+• Correct approach should be: "d/dx(x²) = 2x" using the power rule
+• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
 
 **LEARNING STRENGTHS**
-• [List observed strengths]
+• [List observed strengths based on actual student work]
 
 **GROWTH OPPORTUNITIES**
-• [List areas for improvement]
+• [List specific areas for improvement with references to their work]
 
 **STUDY SUGGESTIONS**
-• [Provide specific recommendations]
+• [Provide specific recommendations based on their errors]
+
+FEEDBACK REQUIREMENTS:
+- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
+- Point out SPECIFIC errors in their methodology, not general statements
+- Reference their actual calculations, formulas, or explanations
+- Show what they should have written instead
+- Explain WHY their approach was incorrect and how it affected the solution
 
 CRITICAL ANTI-LOOP REQUIREMENTS:
 - NEVER repeat calculations or reconsider scores once written
@@ -2192,7 +2235,7 @@ CRITICAL ANTI-LOOP REQUIREMENTS:
 - Calculate the rubric points ONCE and stick with that calculation
 - The final total in Score Justification MUST match the Points Earned in GRADE_START
 - If you find yourself repeating text, STOP immediately and finalize your answer
-- Maximum response length: 1000 words
+- Maximum response length: 1200 words
 - Write decisively without second-guessing
 
 MATHEMATICAL CONSISTENCY RULES:
@@ -2266,17 +2309,38 @@ Use your vision capabilities to read and understand all content comprehensively 
                Letter Grade: [A-F]
                Percentage: X%
                
-               **DETAILED FEEDBACK**
-               [Provide specific feedback on the work]
+               **DETAILED WORK-SPECIFIC FEEDBACK**
+               CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
+
+               For EACH rubric section, provide feedback in this format:
+               [Rubric Section Name] - [Points Given]/[Points Possible]:
+               • Student wrote: "[Quote exact text/equation/solution from student work]"
+               • Issue identified: [Specific problem with their approach/formula/method]
+               • Correct approach should be: [What they should have written instead]
+               • Why points were deducted: [Explain the specific error and its impact]
+
+               Example:
+               Differentiation Method - 3/10 points:
+               • Student wrote: "d/dx(x²) = 2x + 1"
+               • Issue identified: Added unnecessary constant (+1) to the derivative
+               • Correct approach should be: "d/dx(x²) = 2x" using the power rule
+               • Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
                
                **LEARNING STRENGTHS**
-               • [List observed strengths]
+               • [List observed strengths based on actual student work]
                
                **GROWTH OPPORTUNITIES**
-               • [List areas for improvement]
+               • [List specific areas for improvement with references to their work]
                
                **STUDY SUGGESTIONS**
-               • [Provide specific recommendations]`
+               • [Provide specific recommendations based on their errors]
+
+               FEEDBACK REQUIREMENTS:
+               - ALWAYS quote the student's exact work (equations, text, calculations)
+               - Point out SPECIFIC errors in their methodology, not general statements
+               - Reference their actual calculations, formulas, or explanations
+               - Show what they should have written instead
+               - Explain WHY their approach was incorrect and how it affected the solution`
             : `Analyze this student work and provide educational insights:
                
                Student Context: ${student_context || 'Not provided'}
@@ -2327,17 +2391,38 @@ GRADE_END
 
 After the GRADE_END marker, provide your detailed analysis:
 
-**DETAILED FEEDBACK**
-[Provide specific feedback on the work]
+**DETAILED WORK-SPECIFIC FEEDBACK**
+CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
+
+For EACH rubric section, provide feedback in this format:
+[Rubric Section Name] - [Points Given]/[Points Possible]:
+• Student wrote: "[Quote exact text/equation/solution from student work]"
+• Issue identified: [Specific problem with their approach/formula/method]
+• Correct approach should be: [What they should have written instead]
+• Why points were deducted: [Explain the specific error and its impact]
+
+Example:
+Differentiation Method - 3/10 points:
+• Student wrote: "d/dx(x²) = 2x + 1"
+• Issue identified: Added unnecessary constant (+1) to the derivative
+• Correct approach should be: "d/dx(x²) = 2x" using the power rule
+• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
 
 **LEARNING STRENGTHS**
-• [List observed strengths]
+• [List observed strengths based on actual student work]
 
 **GROWTH OPPORTUNITIES**
-• [List areas for improvement]
+• [List specific areas for improvement with references to their work]
 
 **STUDY SUGGESTIONS**
-• [Provide specific recommendations]
+• [Provide specific recommendations based on their errors]
+
+FEEDBACK REQUIREMENTS:
+- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
+- Point out SPECIFIC errors in their methodology, not general statements
+- Reference their actual calculations, formulas, or explanations
+- Show what they should have written instead
+- Explain WHY their approach was incorrect and how it affected the solution
 
 Use your vision capabilities to analyze all content in the image including text, handwriting, equations, and diagrams.`
             : `Analyze this student work image and provide educational insights:
