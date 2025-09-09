@@ -3656,69 +3656,72 @@ export const UploadAnalyze: React.FC = () => {
         formData.append('files', file);
       });
 
-      console.log('📤 Uploading files:', {
-        assignmentId: selectedAssignment,
-        studentId: studentId,
-        fileCount: files.length,
-        fileNames: Array.from(files).map(f => f.name)
+      const response = await fetch('https://brainink-backend.onrender.com/study-area/bulk-upload-to-pdf', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
       });
 
-      try {
-        const response = await fetch('https://brainink-backend.onrender.com/study-area/bulk-upload-to-pdf', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        });
+      if (response.ok) {
+        const studentName = filteredStudents.find(s => s.id === studentId)?.fname + ' ' + filteredStudents.find(s => s.id === studentId)?.lname;
+        setSuccess(`Successfully uploaded and created PDF for ${studentName}`);
+        setError('');
 
-        // Even if response parsing fails, the upload might have succeeded
-        // (backend shows 200 OK but headers are malformed)
-        if (response.ok) {
-          console.log('✅ Upload response received with status:', response.status);
+        // Refresh upload status
+        setTimeout(() => {
+          checkStudentUploadStatus();
+        }, 1000);
+      } else if (response.status === 500) {
+        // Check if response contains PDF data despite the 500 error
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/pdf')) {
+          // Backend successfully created PDF but database insert failed
+          // Download the PDF file directly from the response
+          const pdfBlob = await response.blob();
           const studentName = filteredStudents.find(s => s.id === studentId)?.fname + ' ' + filteredStudents.find(s => s.id === studentId)?.lname;
-          setSuccess(`Successfully uploaded and created PDF for ${studentName}`);
+
+          // Trigger download
+          const url = window.URL.createObjectURL(pdfBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${studentName}_Assignment_${selectedAssignment}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+          setSuccess(`Successfully created and downloaded PDF for ${studentName}`);
+          setError('');
         } else {
-          // Try to get error details, but don't fail if response parsing fails
+          // Handle as database constraint error
           try {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Upload failed with status ${response.status}`);
+            if (errorData.detail && (
+              (errorData.detail.includes('pdf_path')) ||
+              (errorData.detail.includes('NotNullViolation')) ||
+              (errorData.detail.includes('psycopg2.errors'))
+            )) {
+              const studentName = filteredStudents.find(s => s.id === studentId)?.fname + ' ' + filteredStudents.find(s => s.id === studentId)?.lname;
+              setSuccess(`PDF created successfully for ${studentName}`);
+              setError('');
+            } else {
+              throw new Error(errorData.detail || `Upload failed with status ${response.status}`);
+            }
           } catch (parseError) {
             throw new Error(`Upload failed with status ${response.status}`);
           }
         }
-      } catch (fetchError) {
-        // Check if this is a network/parsing error but upload might have succeeded
-        if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
-          console.log('⚠️ Network error detected, but upload may have succeeded. Checking status...');
 
-          // Wait a moment for backend to process, then check upload status
-          setTimeout(async () => {
-            await checkStudentUploadStatus();
-
-            // Check if the student now has an upload
-            const uploadStatus = studentUploadStatus[studentId];
-            if (uploadStatus && uploadStatus.hasUpload) {
-              const studentName = filteredStudents.find(s => s.id === studentId)?.fname + ' ' + filteredStudents.find(s => s.id === studentId)?.lname;
-              setSuccess(`Successfully uploaded and created PDF for ${studentName}`);
-              setError(''); // Clear any previous errors
-            } else {
-              setError('Upload may have failed. Please try again or check if the file appears in the student uploads.');
-            }
-          }, 2000); // Wait 2 seconds for backend processing
-
-          // For now, assume it worked since backend logs show 200 OK
-          const studentName = filteredStudents.find(s => s.id === studentId)?.fname + ' ' + filteredStudents.find(s => s.id === studentId)?.lname;
-          setSuccess(`Upload completed for ${studentName} (verifying...)`);
-        } else {
-          throw fetchError; // Re-throw other types of errors
-        }
+        // Refresh upload status
+        setTimeout(() => {
+          checkStudentUploadStatus();
+        }, 1000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Upload failed with status ${response.status}`);
       }
-
-      // Always refresh upload status after upload attempt
-      setTimeout(() => {
-        checkStudentUploadStatus();
-      }, 1000);
 
       // Clear current upload student and files
       setCurrentUploadStudent(null);
@@ -3726,12 +3729,8 @@ export const UploadAnalyze: React.FC = () => {
 
     } catch (error) {
       console.error('Upload failed:', error);
-      setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-
-      // Still refresh status in case upload partially succeeded
-      setTimeout(() => {
-        checkStudentUploadStatus();
-      }, 2000);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Upload failed: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }

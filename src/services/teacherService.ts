@@ -1,5 +1,5 @@
 // Backend API Configuration
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'https://brainink-backend.onrender.com';
 
 // Import classroom service
 import { teacherClassroomService } from './teacherClassroomService';
@@ -1641,122 +1641,6 @@ class TeacherServiceClass {
       subjectPerformance,
       recentTrends
     };
-  }
-
-  // PDF Management Functions for Database Storage
-
-  /**
-   * Get bulk upload students for an assignment (with database PDF storage)
-   */
-  async getBulkUploadStudents(assignmentId: number): Promise<{
-    assignment: BackendAssignment;
-    students: Array<{
-      student_id: number;
-      student_name: string;
-      has_pdf: boolean;
-      pdf_size?: number;
-      content_type?: string;
-      pdf_filename?: string;
-      upload_date?: string;
-      image_count: number;
-    }>;
-  }> {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-
-    const response = await fetch(`${BACKEND_URL}/study-area/bulk-upload/assignment/${assignmentId}/students`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch bulk upload students: ${response.status}`);
-    }
-
-    return await response.json();
-  }
-
-  /**
-   * Download student PDF from database storage
-   */
-  async downloadStudentPDF(assignmentId: number, studentId: number): Promise<Blob> {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-
-    const response = await fetch(`${BACKEND_URL}/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/pdf'
-      }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('PDF not found for this student');
-      }
-      throw new Error(`Failed to download PDF: ${response.status}`);
-    }
-
-    return await response.blob();
-  }
-
-  /**
-   * Delete student PDF from database storage
-   */
-  async deleteStudentPDF(assignmentId: number, studentId: number): Promise<void> {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-
-    const response = await fetch(`${BACKEND_URL}/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete PDF: ${response.status}`);
-    }
-  }
-
-  /**
-   * Upload files and convert to PDF (using database storage)
-   */
-  async uploadFilesToPDF(assignmentId: number, studentId: number, files: FileList): Promise<void> {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-
-    const formData = new FormData();
-    formData.append('assignment_id', assignmentId.toString());
-    formData.append('student_id', studentId.toString());
-
-    // Add all files
-    Array.from(files).forEach((file) => {
-      formData.append('files', file);
-    });
-
-    const response = await fetch(`${BACKEND_URL}/study-area/bulk-upload-to-pdf`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: formData
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.detail || `Upload failed with status ${response.status}`);
-    }
   }
 
 }
