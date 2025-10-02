@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'brainink-app
+
+  BrainInk Educational Platform Backend
+
+  '
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 1024
+    LoggingConfig:
+      LogFormat: JSON
+Resources:
+  braininkSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: brainink-secrets
+      Description: Environment variables for BrainInk backend
+      SecretString:
+        Fn::Sub: "{\n  \"GOOGLE_API_KEY\": \"${GoogleApiKey}\",\n  \"CORE_API_KEY\"\
+          : \"${CoreApiKey}\",\n  \"GMAIL_USER\": \"${GmailUser}\",\n  \"GMAIL_APP_PASSWORD\"\
+          : \"${GmailAppPassword}\"\n}\n"
+  BrainInkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      FunctionName: brainink-function
+      MemorySize: 1024
+      Environment:
+        Variables:
+          PORT: 10000
+          GOOGLE_API_KEY:
+            Fn::Sub: '{{resolve:secretsmanager:${braininkSecret}:SecretString:GOOGLE_API_KEY}}'
+          CORE_API_KEY:
+            Fn::Sub: '{{resolve:secretsmanager:${braininkSecret}:SecretString:CORE_API_KEY}}'
+          GMAIL_USER:
+            Fn::Sub: '{{resolve:secretsmanager:${braininkSecret}:SecretString:GMAIL_USER}}'
+          GMAIL_APP_PASSWORD:
+            Fn::Sub: '{{resolve:secretsmanager:${braininkSecret}:SecretString:GMAIL_APP_PASSWORD}}'
+      Policies:
+      - SecretsManagerReadWrite
+      Events:
+        root:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        allRoutes:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      ImageUri: braininkfunction:v1
+    Metadata:
+      DockerContext: /Users/dicksonvictor/Downloads/plexo-projects/BrainInk/kana-backend
+      DockerTag: v1
+      Dockerfile: Dockerfile
+      SamResourceId: BrainInkFunction
+Parameters:
+  GoogleApiKey:
+    Type: String
+    Description: Google API Key
+    NoEcho: true
+  CoreApiKey:
+    Type: String
+    Description: Core API Key
+    NoEcho: true
+  GmailUser:
+    Type: String
+    Description: Gmail User
+    NoEcho: true
+  GmailAppPassword:
+    Type: String
+    Description: Gmail App Password
+    NoEcho: true
+Outputs:
+  BrainInkApi:
+    Description: API Gateway endpoint URL for BrainInk function
+    Value:
+      Fn::Sub: https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/
+  SecretArn:
+    Description: ARN of the Secrets Manager secret
+    Value:
+      Ref: braininkSecret
