@@ -10,7 +10,6 @@ phases:
   pre_build:
     commands:
       - echo "pre_build phase"
-      - echo "Current directory: $(pwd)"
       - ls -la
       - echo "Validating sam template..."
       - sam validate
