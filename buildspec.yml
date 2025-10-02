@@ -12,15 +12,15 @@ phases:
       - echo "pre_build phase"
       - pwd
       - ls -la
-      - cd kana-backend && ls -la && echo "Validating sam template..." && sam validate
+      - cd $CODEBUILD_SRC_DIR/kana-backend && ls -la && echo "Validating sam template..." && sam validate
   build:
     commands:
       - echo Building the application...
-      - cd kana-backend && sam build && echo "SAM build completed successfully"
+      - cd $CODEBUILD_SRC_DIR/kana-backend && sam build && echo "SAM build completed successfully"
   post_build:
     commands:
       - echo Starting deployment...
-      - cd kana-backend && sam deploy --config-env prod --no-confirm-changeset && echo "SAM deploy completed successfully"
+      - cd $CODEBUILD_SRC_DIR/kana-backend && sam deploy --config-env prod --no-confirm-changeset && echo "SAM deploy completed successfully"
 
 artifacts:
   files:
