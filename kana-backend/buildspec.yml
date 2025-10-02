@@ -7,7 +7,6 @@ phases:
     commands:
       - echo Installing dependencies...
       - pip install aws-sam-cli
-  
   pre_build:
     commands:
       - echo "pre_build phase"
@@ -16,13 +15,11 @@ phases:
       - echo "Validating sam template..."
       - sam validate
       - echo "Starting SAM build..."
-  
   build:
     commands:
       - echo Building the application...
       - sam build
       - echo "SAM build completed successfully"
-  
   post_build:
     commands:
       - echo Build completed on `date`
