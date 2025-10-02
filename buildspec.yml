@@ -10,10 +10,9 @@ phases:
   pre_build:
     commands:
       - echo "pre_build phase"
-      - cd kana-backend
-      - ls -la
+      - cd kana-backend && ls -la
       - echo "Validating sam template..."
-      - sam validate
+      - cd kana-backend && sam validate
   build:
     commands:
       - echo Building the application...
