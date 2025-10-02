@@ -1,5 +1,5 @@
 # Multi-stage build for smaller image
-FROM node:20.19.2-alpine AS builder
+FROM public.ecr.aws/docker/library/node:20.19.2-alpine AS builder
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 
 WORKDIR /var/task
@@ -11,7 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Production stage
-FROM node:20.19.2-alpine AS production
+FROM public.ecr.aws/docker/library/node:20.19.2-alpine AS production
 COPY --from=builder /opt/extensions/lambda-adapter /opt/extensions/lambda-adapter
 
 WORKDIR /var/task
