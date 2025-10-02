@@ -11,6 +11,8 @@ phases:
   pre_build:
     commands:
       - echo "pre_build phase"
+      - echo "Current directory: $(pwd)"
+      - ls -la
       - echo "Validating sam template..."
       - sam validate
       - echo "Starting SAM build..."
@@ -27,11 +29,10 @@ phases:
       - echo Starting deployment...
       - sam deploy --config-env prod --no-confirm-changeset
       - echo "SAM deploy completed successfully"
-      
 
 artifacts:
   files:
-    - template.yml
+    - template.yaml
     - samconfig.toml
     - .aws-sam/**/*
   discard-paths: no
