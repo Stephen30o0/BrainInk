@@ -10,29 +10,29 @@ phases:
   pre_build:
     commands:
       - echo "pre_build phase"
-      - cd kana-backend && ls -la
+      - ls -la
       - echo "Validating sam template..."
-      - cd kana-backend && sam validate
+      - sam validate
       - echo "Starting SAM build..."
   build:
     commands:
       - echo Building the application...
-      - cd kana-backend && sam build
+      - sam build
       - echo "SAM build completed successfully"
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Starting deployment...
-      - cd kana-backend && sam deploy --config-env prod --no-confirm-changeset
+      - sam deploy --config-env prod --no-confirm-changeset
       - echo "SAM deploy completed successfully"
 
 artifacts:
   files:
-    - kana-backend/template.yaml
-    - kana-backend/samconfig.toml
-    - kana-backend/.aws-sam/**/*
+    - template.yaml
+    - samconfig.toml
+    - .aws-sam/**/*
   discard-paths: no
 
 cache:
   paths:
-    - 'kana-backend/node_modules/**/*'
+    - 'node_modules/**/*'
