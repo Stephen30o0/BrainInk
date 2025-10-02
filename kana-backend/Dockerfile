@@ -22,6 +22,9 @@ COPY --from=builder /var/task/node_modules ./node_modules
 # Copy application code
 COPY . .
 
+# Create uploads directory
+RUN mkdir -p uploads
+
 # Remove unnecessary files
 RUN rm -rf .git .gitignore README.md *.md tests/ docs/ && \
     find . -name "*.test.js" -delete && \
