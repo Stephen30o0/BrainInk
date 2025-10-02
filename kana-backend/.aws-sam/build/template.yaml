@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'brainink-app
+Description: 'brainink-app-nodejs
 
   BrainInk Educational Platform Backend
 
@@ -15,7 +15,7 @@ Resources:
   braininkSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: brainink-secrets
+      Name: brainink-secrets-prod-nodejs-api
       Description: Environment variables for BrainInk backend
       SecretString:
         Fn::Sub: "{\n  \"GOOGLE_API_KEY\": \"${GoogleApiKey}\",\n  \"CORE_API_KEY\"\
@@ -25,7 +25,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
-      FunctionName: brainink-function
+      FunctionName: brainink-function-nodejs-api
       MemorySize: 1024
       Environment:
         Variables:
@@ -41,11 +41,6 @@ Resources:
       Policies:
       - SecretsManagerReadWrite
       Events:
-        root:
-          Type: HttpApi
-          Properties:
-            Path: /
-            Method: ANY
         allRoutes:
           Type: HttpApi
           Properties:
