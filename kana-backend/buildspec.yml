@@ -10,23 +10,20 @@ phases:
   pre_build:
     commands:
       - echo "pre_build phase"
-      - cd kana-backend
-      - ls -la
+      - cd kana-backend && ls -la
       - echo "Validating sam template..."
-      - sam validate
+      - cd kana-backend && sam validate
       - echo "Starting SAM build..."
   build:
     commands:
       - echo Building the application...
-      - cd kana-backend
-      - sam build
+      - cd kana-backend && sam build
       - echo "SAM build completed successfully"
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Starting deployment...
-      - cd kana-backend
-      - sam deploy --config-env prod --no-confirm-changeset
+      - cd kana-backend && sam deploy --config-env prod --no-confirm-changeset
       - echo "SAM deploy completed successfully"
 
 artifacts:
