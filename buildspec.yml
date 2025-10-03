@@ -20,7 +20,13 @@ phases:
   post_build:
     commands:
       - echo Starting deployment...
-      - cd $CODEBUILD_SRC_DIR/kana-backend && sam deploy --config-env prod --no-confirm-changeset && echo "SAM deploy completed successfully"
+      - |
+        cd $CODEBUILD_SRC_DIR/kana-backend && sam deploy --config-env prod --no-confirm-changeset --parameter-overrides \
+        GoogleApiKey=$(aws secretsmanager get-secret-value --secret-id brainink-secrets-prod-nodejs-api --query SecretString --output text | jq -r .GOOGLE_API_KEY) \
+        CoreApiKey=$(aws secretsmanager get-secret-value --secret-id brainink-secrets-prod-nodejs-api --query SecretString --output text | jq -r .CORE_API_KEY) \
+        GmailUser=$(aws secretsmanager get-secret-value --secret-id brainink-secrets-prod-nodejs-api --query SecretString --output text | jq -r .GMAIL_USER) \
+        GmailAppPassword=$(aws secretsmanager get-secret-value --secret-id brainink-secrets-prod-nodejs-api --query SecretString --output text | jq -r .GMAIL_APP_PASSWORD) \
+        && echo "SAM deploy completed successfully"
 
 artifacts:
   files:

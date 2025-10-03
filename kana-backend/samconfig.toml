@@ -9,9 +9,3 @@ confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 disable_rollback = true
 image_repositories = ["BrainInkFunction=503515996770.dkr.ecr.eu-west-1.amazonaws.com/braininkapinodejs054aea3a/braininkfunction57fa4b2arepo"]
-parameter_overrides = [
-  "GoogleApiKey=AIzaSyC80qfsDieSQM3tH7bIJa8L_0RJ31872Is",
-  "CoreApiKey=KSVCh9M2eAaJ5uBQw0tfEWOT7gs8pPyc", 
-  "GmailUser=braininkedu@gmail.com",
-  "GmailAppPassword=nbxa uuuo glqk pmjx"
-]
