@@ -22,8 +22,8 @@ COPY --from=builder /var/task/node_modules ./node_modules
 # Copy application code
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p uploads
+# Create required directories
+RUN mkdir -p uploads/images uploads/study_materials uploads/textbooks
 
 # Remove unnecessary files
 RUN rm -rf .git .gitignore README.md *.md tests/ docs/ && \
