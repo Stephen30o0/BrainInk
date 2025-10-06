@@ -20,8 +20,8 @@ coverage
 .nuxt
 dist
 build
-.aws-sam
-.vscode
+.aws-sam/
+.vscode/
 .idea
 *.swp
 *.swo
