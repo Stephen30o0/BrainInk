@@ -14,7 +14,7 @@ class QuizService {
   constructor(googleApiKey) {
     if (googleApiKey) {
       this.genAI = new GoogleGenerativeAI(googleApiKey);
-      this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest" });
       console.log('✅ Quiz Service: Gemini AI initialized');
     } else {
       console.warn('⚠️ Quiz Service: No Google API key provided, will use fallback generation only');
