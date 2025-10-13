@@ -8,7 +8,7 @@ require('dotenv').config();
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
