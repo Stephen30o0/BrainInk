@@ -395,7 +395,7 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 let genAI, geminiModel, quizService;
 if (process.env.GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
+  geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest", systemInstruction });
   quizService = new QuizService(process.env.GOOGLE_API_KEY);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log('DEBUG: Quiz Service initialized.');
