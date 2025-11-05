@@ -43,7 +43,7 @@ export interface KanaQuizRequest {
 }
 
 class QuizGeneratorServiceClass {
-    private baseUrl = 'https://brainink-backend.onrender.com';
+    private baseUrl = 'http://localhost:8000';
     private storageKey = 'generated_quizzes';
 
     /**
@@ -72,7 +72,8 @@ class QuizGeneratorServiceClass {
         feedback: string,
         weaknessAreas: string[],
         subject: string,
-        grade: number
+        grade: number,
+        forceRefresh: boolean = false
     ): Promise<GeneratedQuiz | null> {
         try {
             console.log('🧠 Generating quiz from assignment feedback...');
@@ -89,7 +90,8 @@ class QuizGeneratorServiceClass {
                     feedback,
                     weakness_areas: weaknessAreas,
                     subject,
-                    grade
+                    grade,
+                    force_refresh: forceRefresh
                 })
             });
 

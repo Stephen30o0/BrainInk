@@ -10,12 +10,16 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+// Use a stable, widely available Gemini model for QUIZ generation only.
+// Allow override via env var. Defaults to gemini-1.5-flash (no "-latest" suffix to avoid 404s).
+const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash';
+
 class QuizService {
   constructor(googleApiKey) {
     if (googleApiKey) {
       this.genAI = new GoogleGenerativeAI(googleApiKey);
-      this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-      console.log('✅ Quiz Service: Gemini AI initialized');
+      this.model = this.genAI.getGenerativeModel({ model: QUIZ_MODEL });
+      console.log(`✅ Quiz Service: Gemini AI initialized (model: ${QUIZ_MODEL})`);
     } else {
       console.warn('⚠️ Quiz Service: No Google API key provided, will use fallback generation only');
     }

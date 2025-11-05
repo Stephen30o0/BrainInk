@@ -69,7 +69,8 @@ This quiz should target the specific areas mentioned in the feedback above to he
                 enhancedFeedback, // Use enhanced feedback with full context
                 extractedWeaknessAreas,
                 subject,
-                grade
+                grade,
+                Boolean(error) // force refresh on retry to bypass backend cache
             );
 
             if (newQuiz) {

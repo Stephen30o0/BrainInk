@@ -41,8 +41,8 @@ const port = process.env.PORT || 10000;
 
 // --- CONFIGURATION & INITIALIZATION ---
 
-console.log('DEBUG: Loaded GOOGLE_API_KEY:', process.env.GOOGLE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
-console.log('DEBUG: Loaded CORE_API_KEY:', process.env.CORE_API_KEY ? 'Key Loaded' : 'Key NOT Loaded');
+console.log('DEBUG: Loaded GOOGLE_API_:', process.env.GOOGLE_API_ ? ' Loaded' : ' NOT Loaded');
+console.log('DEBUG: Loaded CORE_API_:', process.env.CORE_API_ ? ' Loaded' : ' NOT Loaded');
 
 const conversationContexts = {};
 
@@ -50,7 +50,7 @@ const systemInstruction = {
   parts: [{
     text: `You are K.A.N.A., an advanced academic AI assistant. Your primary goal is to help users.
 
-Key characteristics:
+ characteristics:
 - Knowledgeable & Context-Aware: Provide accurate, in-depth information. Use context from uploads when available.
 - Versatile & Interactive: Assist with a wide range of academic subjects.
 - **Conversational Memory & Variables**: Pay close attention to the entire conversation history. If the user defines a variable (e.g., 'let a = 5'), you must remember and use that value in subsequent calculations or plots. The variables 'x' and 'y' are RESERVED for graphing axes and cannot be assigned values. If a user tries to assign a value to 'x' or 'y', you must inform them of this rule and refuse the assignment.
@@ -254,7 +254,7 @@ app.post('/api/kana/report-card/extract', uploadOcrFile.single('file'), async (r
     const base64 = buffer.toString('base64');
 
     if (!genAI || !geminiModel) {
-      return res.status(503).json({ error: 'Gemini not configured. Set GOOGLE_API_KEY in .env' });
+      return res.status(503).json({ error: 'Gemini not configured. Set GOOGLE_API_ in .env' });
     }
 
     const prompt = `You will receive a school report card as an image or PDF. Extract and return ONLY a single valid JSON object with this exact structure and field names:
@@ -370,14 +370,14 @@ app.get('/api/debug/routes', (req, res) => {
     if (middleware.route) {
       routes.push({
         path: middleware.route.path,
-        methods: Object.keys(middleware.route.methods)
+        methods: Object.s(middleware.route.methods)
       });
     } else if (middleware.name === 'router') {
       middleware.handle.stack.forEach(function (handler) {
         if (handler.route) {
           routes.push({
             path: handler.route.path,
-            methods: Object.keys(handler.route.methods)
+            methods: Object.s(handler.route.methods)
           });
         }
       });
@@ -393,15 +393,15 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 // --- API CLIENTS ---
 
 let genAI, geminiModel, quizService;
-if (process.env.GOOGLE_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+if (process.env.GOOGLE_API_) {
+  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
   geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
-  quizService = new QuizService(process.env.GOOGLE_API_KEY);
+  quizService = new QuizService(process.env.GOOGLE_API_);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log('DEBUG: Quiz Service initialized.');
 } else {
-  console.error('FATAL: GOOGLE_API_KEY not found. AI services will not work.');
-  quizService = new QuizService(); // Initialize without API key for fallback
+  console.error('FATAL: GOOGLE_API_ not found. AI services will not work.');
+  quizService = new QuizService(); // Initialize without API  for fallback
 }
 
 // --- Gemini API Retry Helper ---
@@ -1118,8 +1118,8 @@ app.get('/api/core-search', async (req, res) => {
   if (!q) {
     return res.status(400).json({ error: 'Query parameter "q" is required.' });
   }
-  if (!process.env.CORE_API_KEY) {
-    console.log('CORE_API_KEY is not set. Returning mock data for demo purposes.');
+  if (!process.env.CORE_API_) {
+    console.log('CORE_API_ is not set. Returning mock data for demo purposes.');
     // Return mock search results for demo purposes
     const mockResults = [
       {
@@ -1136,7 +1136,7 @@ app.get('/api/core-search', async (req, res) => {
         coreId: 'mock-2',
         title: `Advanced Studies in ${q}`,
         authors: ['Academic Researcher'],
-        abstract: `An example research paper abstract related to ${q}. This is mock data shown when CORE API key is not configured.`,
+        abstract: `An example research paper abstract related to ${q}. This is mock data shown when CORE API  is not configured.`,
         year: 2023,
         downloadUrl: null,
         doi: `10.1000/demo.${q}`,
@@ -1157,7 +1157,7 @@ app.get('/api/core-search', async (req, res) => {
         { q: `title:(${q}) OR abstract:(${q})` },
         {
           headers: {
-            'Authorization': `Bearer ${process.env.CORE_API_KEY}`,
+            'Authorization': `Bearer ${process.env.CORE_API_}`,
             'Content-Type': 'application/json'
           }
         }
@@ -1475,7 +1475,7 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
     const textContent = await extractTextFromFile(material.mimetype, fileBuffer);
     if (!textContent) return res.status(400).json({ error: 'Could not extract text from the material.' });
 
-    const prompt = `Based on the following text, generate a quiz with ${numQuestions} questions at a ${difficulty} difficulty level. Format the output as a single JSON object. Each question should be an object with "question", "options" (an array of 4 strings), and "answer" (the correct string from options). The root of the JSON should be a single object with a key "quiz".\n\nTEXT: ${textContent.substring(0, 10000)}`;
+    const prompt = `Based on the following text, generate a quiz with ${numQuestions} questions at a ${difficulty} difficulty level. Format the output as a single JSON object. Each question should be an object with "question", "options" (an array of 4 strings), and "answer" (the correct string from options). The root of the JSON should be a single object with a  "quiz".\n\nTEXT: ${textContent.substring(0, 10000)}`;
 
     const result = await geminiModel.generateContent(prompt);
     const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
@@ -1876,7 +1876,7 @@ const startServer = async () => {
 
       // Check if Gemini AI is initialized
       if (!genAI) {
-        console.error('ERROR: Google AI not initialized - check GOOGLE_API_KEY');
+        console.error('ERROR: Google AI not initialized - check GOOGLE_API_');
         return res.status(500).json({ error: 'AI service not configured' });
       }
 
@@ -2041,14 +2041,14 @@ The document is provided as a PDF. Use your vision capabilities to read and unde
               console.log(raw);
 
               // Final attempt: try to generate a reasonable default based on response content
-              const hasPositiveKeywords = /excellent|good|correct|well|accurate|strong/i.test(raw);
-              const hasNegativeKeywords = /poor|incorrect|wrong|missing|weak|inadequate/i.test(raw);
+              const hasPositivewords = /excellent|good|correct|well|accurate|strong/i.test(raw);
+              const hasNegativewords = /poor|incorrect|wrong|missing|weak|inadequate/i.test(raw);
 
               let fallbackScore = null;
-              if (hasPositiveKeywords && !hasNegativeKeywords) {
+              if (hasPositivewords && !hasNegativewords) {
                 fallbackScore = Math.round(max_points * 0.8); // Assume 80% if positive feedback
                 console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on positive feedback`);
-              } else if (hasNegativeKeywords && !hasPositiveKeywords) {
+              } else if (hasNegativewords && !hasPositivewords) {
                 fallbackScore = Math.round(max_points * 0.5); // Assume 50% if negative feedback
                 console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on negative feedback`);
               } else {
@@ -2111,9 +2111,9 @@ The document is provided as a PDF. Use your vision capabilities to read and unde
             } else if (e.message.includes('quota') || e.message.includes('rate limit')) {
               errorCategory = 'quota';
               errorDetails = 'API quota or rate limit exceeded';
-            } else if (e.message.includes('authentication') || e.message.includes('API key')) {
+            } else if (e.message.includes('authentication') || e.message.includes('API ')) {
               errorCategory = 'auth';
-              errorDetails = 'Authentication failed - check API key';
+              errorDetails = 'Authentication failed - check API ';
             } else if (e.message.includes('PDF') || e.message.includes('buffer')) {
               errorCategory = 'pdf_processing';
               errorDetails = 'PDF processing failed';
@@ -2618,7 +2618,7 @@ Style: Educational, clear, and engaging`;
       // Return a fallback quiz
       const fallbackQuiz = {
         quiz: [{
-          question: `What is a key concept in ${topic}?`,
+          question: `What is a  concept in ${topic}?`,
           options: [
             "Centralized control",
             "Decentralized architecture",
@@ -2833,16 +2833,16 @@ function classifyMessageForAgent(message) {
 function getClassificationConfidence(message, classification) {
   const lowerMessage = message.toLowerCase();
 
-  const keywordCounts = {
+  const wordCounts = {
     'K.A.N.A. Educational Tutor': (lowerMessage.match(/help|explain|quiz|study|homework|learn|understand|concept/g) || []).length,
     'Squad Learning Coordinator': (lowerMessage.match(/group|team|squad|partner|collaborate|together/g) || []).length,
     'Learning Progress Analyst': (lowerMessage.match(/progress|performance|analytics|data|improvement|track/g) || []).length
   };
 
-  const maxCount = Math.max(...Object.values(keywordCounts));
-  const currentCount = keywordCounts[classification] || 0;
+  const maxCount = Math.max(...Object.values(wordCounts));
+  const currentCount = wordCounts[classification] || 0;
 
-  if (maxCount === 0) return 0.5; // No keywords found
+  if (maxCount === 0) return 0.5; // No words found
   return Math.min(0.95, 0.6 + (currentCount / maxCount) * 0.35);
 }
 
@@ -2995,7 +2995,7 @@ app.post('/api/kana/generate-report-data', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating AI insights for ${reportType} report`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     let prompt = '';
@@ -3112,7 +3112,7 @@ app.post('/api/kana/report-recommendations', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
@@ -3169,7 +3169,7 @@ app.post('/api/kana/report-summary', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:
@@ -3178,8 +3178,8 @@ Report Data: ${JSON.stringify(reportData, null, 2)}
 
 Create a comprehensive executive summary in the following JSON format:
 {
-  "executiveSummary": "2-3 paragraph overview highlighting key findings",
-  "keyMetrics": {
+  "executiveSummary": "2-3 paragraph overview highlighting  findings",
+  "Metrics": {
     "metric1": "value and interpretation",
     "metric2": "value and interpretation",
     "metric3": "value and interpretation"
