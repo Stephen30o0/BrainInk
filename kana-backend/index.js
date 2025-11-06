@@ -393,22 +393,19 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 // --- API CLIENTS ---
 
 let genAI, geminiModel, quizService;
-<<<<<<< HEAD
-if (process.env.GOOGLE_API_) {
-  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", systemInstruction });
-  quizService = new QuizService(process.env.GOOGLE_API_);
-=======
-if (process.env.GOOGLE_API_KEY) {
-  genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest", systemInstruction });
-  quizService = new QuizService(process.env.GOOGLE_API_KEY);
->>>>>>> 66d090b1095efd60e88414ea8e4efe170cfa31ea
+
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash';
+if (GOOGLE_API_KEY) {
+  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
+  quizService = new QuizService(GOOGLE_API_KEY);
   console.log('DEBUG: Google AI SDK initialized.');
+  console.log(`DEBUG: Base Gemini model: ${BASE_MODEL}`);
   console.log('DEBUG: Quiz Service initialized.');
 } else {
-  console.error('FATAL: GOOGLE_API_ not found. AI services will not work.');
-  quizService = new QuizService(); // Initialize without API  for fallback
+  console.error('FATAL: GOOGLE_API_KEY / GOOGLE_API_ not found. AI services will not work.');
+  quizService = new QuizService(); // Initialize without API for fallback
 }
 
 // --- Gemini API Retry Helper ---
