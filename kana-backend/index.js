@@ -412,10 +412,12 @@ let genAI, geminiModel, quizService;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
 // Prefer a broadly available base model (without -latest); allow override via env
 const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-001';
+const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
-  quizService = new QuizService(GOOGLE_API_KEY);
+  // Reuse the same model instance for quiz generation to avoid SDK/model-version mismatches
+  quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log(`DEBUG: Base Gemini model: ${BASE_MODEL}`);
   console.log('DEBUG: Quiz Service initialized.');

@@ -15,8 +15,13 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash';
 
 class QuizService {
-  constructor(googleApiKey) {
-    if (googleApiKey) {
+  constructor(googleApiKey, externalModel = null) {
+    if (externalModel) {
+      // Reuse an already-working model instance from the host app (index.js)
+      this.model = externalModel;
+      this.genAI = null;
+      console.log('✅ Quiz Service: Using external Gemini model instance');
+    } else if (googleApiKey) {
       this.genAI = new GoogleGenerativeAI(googleApiKey);
       this.model = this.genAI.getGenerativeModel({ model: QUIZ_MODEL });
       console.log(`✅ Quiz Service: Gemini AI initialized (model: ${QUIZ_MODEL})`);
