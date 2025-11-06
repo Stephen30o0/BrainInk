@@ -16,16 +16,31 @@ const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMI
 
 class QuizService {
   constructor(googleApiKey, externalModel = null) {
+    // Always remember the key so we can lazy-init a fallback client if needed
+    this.apiKey = googleApiKey || null;
+
     if (externalModel) {
       // Reuse an already-working model instance from the host app (index.js)
       this.model = externalModel;
       this.genAI = null;
       console.log('✅ Quiz Service: Using external Gemini model instance');
+      // Prepare a fallback client (without changing the primary model) so we can recover from 404s
+      if (googleApiKey) {
+        try {
+          this.genAI = new GoogleGenerativeAI(googleApiKey);
+          console.log('🔄 Quiz Service: Fallback Gemini client initialized for model failover');
+        } catch (e) {
+          this.genAI = null;
+          console.warn('⚠️ Quiz Service: Failed to initialize fallback Gemini client:', e?.message || e);
+        }
+      }
     } else if (googleApiKey) {
       this.genAI = new GoogleGenerativeAI(googleApiKey);
       this.model = this.genAI.getGenerativeModel({ model: QUIZ_MODEL });
       console.log(`✅ Quiz Service: Gemini AI initialized (model: ${QUIZ_MODEL})`);
     } else {
+      this.model = null;
+      this.genAI = null;
       console.warn('⚠️ Quiz Service: No Google API key provided, will use fallback generation only');
     }
   }
@@ -132,28 +147,44 @@ Generate the quiz now:`;
       // If model not found for this API version, try known compatible fallbacks
       const isModelNotFound = (error && (error.status === 404 || /not found.*v1beta|not supported for generateContent/i.test(String(error))))
 
-      if (isModelNotFound && this.genAI) {
-        const attempted = [];
-        const fallbacks = [];
-        const primary = QUIZ_MODEL;
-        // Prefer -001 and pro variants which are broadly available
-        if (primary && !/-001$/.test(primary)) fallbacks.push(`${primary}-001`);
-        // Map common aliases
-        if (!/1\.5-flash/.test(primary)) fallbacks.push('gemini-1.5-flash');
-        fallbacks.push('gemini-1.5-flash-001', 'gemini-1.5-pro', 'gemini-1.5-pro-001', 'gemini-1.0-pro');
-
-        for (const modelName of fallbacks) {
-          if (attempted.includes(modelName)) continue;
-          attempted.push(modelName);
+      if (isModelNotFound) {
+        // Ensure we have a client to create alternative model instances
+        if (!this.genAI && this.apiKey) {
           try {
-            console.warn(`⚠️ QUIZ model fallback: trying ${modelName} due to 404 on ${primary}`);
-            this.model = this.genAI.getGenerativeModel({ model: modelName });
-            const parsed = await tryGenerate();
-            console.log(`✅ QUIZ model fallback succeeded with: ${modelName}`);
-            return parsed;
+            this.genAI = new GoogleGenerativeAI(this.apiKey);
+            console.warn('🔄 QUIZ: Initialized fallback Gemini client after model 404');
           } catch (e) {
-            // Continue to next fallback
-            console.warn(`⚠️ QUIZ model fallback failed for ${modelName}: ${e?.message || e}`);
+            console.warn('⚠️ QUIZ: Could not initialize fallback Gemini client:', e?.message || e);
+          }
+        }
+
+        if (this.genAI) {
+          const attempted = [];
+          const fallbacks = [];
+          const primary = QUIZ_MODEL;
+
+          // Start with the safest broadly available names
+          // Prefer base (no -001) first, then -001 and pro variants
+          const baseFromPrimary = primary?.replace(/-001$/, '') || 'gemini-1.5-flash';
+          if (baseFromPrimary) fallbacks.push(baseFromPrimary);
+          if (!fallbacks.includes('gemini-1.5-flash')) fallbacks.push('gemini-1.5-flash');
+          if (!/-001$/.test(baseFromPrimary)) fallbacks.push(`${baseFromPrimary}-001`);
+          // Additional common fallbacks
+          fallbacks.push('gemini-1.5-flash-001', 'gemini-1.5-pro', 'gemini-1.5-pro-001', 'gemini-1.0-pro');
+
+          for (const modelName of fallbacks) {
+            if (!modelName || attempted.includes(modelName)) continue;
+            attempted.push(modelName);
+            try {
+              console.warn(`⚠️ QUIZ model fallback: trying ${modelName} due to 404 on ${primary}`);
+              this.model = this.genAI.getGenerativeModel({ model: modelName });
+              const parsed = await tryGenerate();
+              console.log(`✅ QUIZ model fallback succeeded with: ${modelName}`);
+              return parsed;
+            } catch (e) {
+              // Continue to next fallback
+              console.warn(`⚠️ QUIZ model fallback failed for ${modelName}: ${e?.message || e}`);
+            }
           }
         }
       }
