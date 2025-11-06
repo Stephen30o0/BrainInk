@@ -115,13 +115,43 @@ RESPONSE FORMAT - Return ONLY valid JSON in this exact structure:
 
 Generate the quiz now:`;
 
-    try {
+    const tryGenerate = async () => {
       const result = await this.model.generateContent(prompt);
       const responseText = result.response.text();
-
-      // Parse the AI response
       return this.parseAIResponse(responseText, options);
+    };
+
+    try {
+      return await tryGenerate();
     } catch (error) {
+      // If model not found for this API version, try known compatible fallbacks
+      const isModelNotFound = (error && (error.status === 404 || /not found.*v1beta|not supported for generateContent/i.test(String(error))))
+
+      if (isModelNotFound && this.genAI) {
+        const attempted = [];
+        const fallbacks = [];
+        const primary = QUIZ_MODEL;
+        // Prefer -001 and pro variants which are broadly available
+        if (primary && !/-001$/.test(primary)) fallbacks.push(`${primary}-001`);
+        // Map common aliases
+        if (!/1\.5-flash/.test(primary)) fallbacks.push('gemini-1.5-flash');
+        fallbacks.push('gemini-1.5-flash-001', 'gemini-1.5-pro', 'gemini-1.5-pro-001', 'gemini-1.0-pro');
+
+        for (const modelName of fallbacks) {
+          if (attempted.includes(modelName)) continue;
+          attempted.push(modelName);
+          try {
+            console.warn(`⚠️ QUIZ model fallback: trying ${modelName} due to 404 on ${primary}`);
+            this.model = this.genAI.getGenerativeModel({ model: modelName });
+            const parsed = await tryGenerate();
+            console.log(`✅ QUIZ model fallback succeeded with: ${modelName}`);
+            return parsed;
+          } catch (e) {
+            // Continue to next fallback
+            console.warn(`⚠️ QUIZ model fallback failed for ${modelName}: ${e?.message || e}`);
+          }
+        }
+      }
       console.error('❌ AI generation failed:', error);
       throw error;
     }

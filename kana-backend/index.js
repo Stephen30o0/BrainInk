@@ -85,15 +85,30 @@ const allowedOrigins = [
   'http://localhost:5173',
   'https://mozilla.github.io'
 ];
-app.use(cors({
+
+const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
-  }
-}));
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204
+};
+
+// Set Vary: Origin to help caches and ensure correct CORS behavior
+app.use((req, res, next) => {
+  res.header('Vary', 'Origin');
+  next();
+});
+
+app.use(cors(corsOptions));
+// Explicitly enable preflight across all routes
+app.options('*', cors(corsOptions));
+
 app.use(express.json({ limit: '50mb' }));
 
 // --- FILE UPLOAD (Multer) ---
@@ -395,7 +410,8 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 let genAI, geminiModel, quizService;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash';
+// Prefer a broadly available base model (without -latest); allow override via env
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-001';
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });

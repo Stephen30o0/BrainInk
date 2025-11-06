@@ -43,7 +43,7 @@ export interface KanaQuizRequest {
 }
 
 class QuizGeneratorServiceClass {
-    private baseUrl = 'http://localhost:8000';
+    private baseUrl = 'https://brainink-backend.onrender.com';
     private storageKey = 'generated_quizzes';
 
     /**
