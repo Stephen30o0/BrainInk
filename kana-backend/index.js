@@ -2027,18 +2027,18 @@ const startServer = async () => {
   // Initialize syllabus integration with conversation contexts
   initializeConversationContexts(conversationContexts);
 
-// Helper previously used for vision endpoints (temporarily disabled for cleanup)
-const fileToGenerativePart = (filePath, mimeType) => ({
-  inlineData: {
-    data: Buffer.from(fs.readFileSync(filePath)).toString('base64'),
-    mimeType
-  }
-});
+  // Helper previously used for vision endpoints (temporarily disabled for cleanup)
+  const fileToGenerativePart = (filePath, mimeType) => ({
+    inlineData: {
+      data: Buffer.from(fs.readFileSync(filePath)).toString('base64'),
+      mimeType
+    }
+  });
 
-// Removed obsolete grading snippet with undefined variables (response, studentName, max_points, results, pdfBuffer, etc.)
-// This cleanup prevents runtime errors like "Jump target cannot cross function boundary" from a stray 'continue;' outside any loop.
+  // Removed obsolete grading snippet with undefined variables (response, studentName, max_points, results, pdfBuffer, etc.)
+  // This cleanup prevents runtime errors like "Jump target cannot cross function boundary" from a stray 'continue;' outside any loop.
 
-// --- ELIZAOS AGENT INTEGRATION ---
+  // --- ELIZAOS AGENT INTEGRATION ---
 
   // ElizaOS Agent Manager (placeholder - will be implemented when ElizaOS is installed)
   let elizaAgentManager = null;
@@ -2580,8 +2580,24 @@ Create a comprehensive executive summary in the following JSON format:
   });
 
   // Close any lingering block (cleanup)
-}
 
+  // Start HTTP server after all routes and services are ready
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`Express listening on port ${port}`);
+  });
+
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}, closing HTTP server...`);
+    server.close(() => {
+      console.log('HTTP server closed. Exiting process.');
+      process.exit(0);
+    });
+  };
+
+  ['SIGTERM', 'SIGINT'].forEach((signal) => {
+    process.on(signal, () => shutdown(signal));
+  });
+}
 console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
 // Ensure startServer is defined above; invoke to start services
 startServer();
