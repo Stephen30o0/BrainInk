@@ -3,7 +3,13 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const pdf = require('pdf-parse');
+// Load environment variables from local .env first, then parent .env as fallback
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+// Normalize API key names: prefer GEMINI_API_KEY if GOOGLE_API_KEY is not set
+if (!process.env.GOOGLE_API_KEY && process.env.GEMINI_API_KEY) {
+  process.env.GOOGLE_API_KEY = process.env.GEMINI_API_KEY;
+}
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { fromBuffer: pdfFromBuffer } = require('pdf2pic');
 const multer = require('multer');
@@ -412,8 +418,110 @@ let genAI, geminiModel, quizService;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
 // Use gemini-2.0-flash-exp which works with v1beta and has vision capabilities
 // This is the ONLY model that successfully works for grading in production
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-2.0-flash-exp';
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-latest';
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
+
+// Build a model fallback sequence similar to the Python GeminiService
+function getModelSequence() {
+  const allowPaid = (process.env.ALLOW_PAID_MODELS || 'false').toLowerCase() === 'true';
+  const seq = [];
+  const add = (name) => { if (name && !seq.includes(name)) seq.push(name); };
+  // Preferred first
+  add(BASE_MODEL);
+  add(process.env.GEMINI_MODEL);
+  // Free-tier fallbacks
+  ['gemini-2.5-flash', 'gemini-2.0-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+    .forEach(add);
+  // Paid models if allowed
+  if (allowPaid) {
+    ['gemini-1.5-pro-latest', 'gemini-1.0-pro-vision-latest', 'gemini-pro-vision'].forEach(add);
+  }
+  // Ensure a sane last resort
+  if (seq.length === 0) add('gemini-1.5-flash-latest');
+  return seq;
+}
+
+// Generic text/multimodal generate with fallback across models
+async function generateWithFallback(input, { temperature = 0.3, maxOutputTokens = 2048 } = {}) {
+  const models = getModelSequence();
+  let lastErr = null;
+  for (const name of models) {
+    try {
+      const model = genAI.getGenerativeModel({ model: name, systemInstruction });
+      const started = Date.now();
+      const resp = await model.generateContent(input, {
+        generationConfig: { temperature, maxOutputTokens }
+      });
+      const text = resp?.response?.text?.() || resp?.response?.text?.call?.(resp?.response);
+      if (text && String(text).trim()) {
+        const ms = Date.now() - started;
+        console.log(`✅ Gemini succeeded on model=${name} (${ms}ms)`);
+        return { response: resp, modelName: name, text: String(text) };
+      }
+      console.warn(`⚠️ Empty text on model=${name}, trying next`);
+      lastErr = new Error('Empty response');
+    } catch (err) {
+      const msg = String(err?.message || err);
+      const status = err?.status || err?.response?.status;
+      // Bubble up quota/rate limits immediately (no point trying other models)
+      if (status === 429 || /quota|rate.*limit|too many requests/i.test(msg)) {
+        console.error(`🚨 Quota/Rate limit on model=${name}: ${msg}`);
+        err.status = 429;
+        throw err;
+      }
+      console.warn(`❌ Model ${name} failed: ${msg}`);
+      lastErr = err;
+      // Try next model
+    }
+  }
+  throw lastErr || new Error('All Gemini models failed');
+}
+
+// Function to validate API key has sufficient quota
+// DISABLED BY DEFAULT to avoid wasting quota on startup
+async function validateGeminiApiKey() {
+  // Skip validation unless explicitly enabled via environment variable
+  // This prevents wasting free-tier quota on startup tests
+  // if (process.env.VALIDATE_API_KEY_ON_STARTUP !== 'true') {
+  //   console.log('ℹ️ API key validation skipped (set VALIDATE_API_KEY_ON_STARTUP=true to enable)');
+  //   console.log('💡 First actual grading request will validate the API key');
+  //   return true;
+  // }
+
+  if (!GOOGLE_API_KEY) {
+    console.error('❌ FATAL: No Google API key configured');
+    return false;
+  }
+
+  try {
+    console.log('🔍 Validating Gemini API key and quota...');
+    const testModel = genAI.getGenerativeModel({ model: BASE_MODEL });
+
+    // Make a minimal test request to check quota
+    const testResult = await testModel.generateContent('Test');
+
+    console.log('✅ API key validation successful - quota available');
+    return true;
+  } catch (error) {
+    if (error.status === 429 || /quota.*exceeded|rate.*limit/i.test(String(error))) {
+      console.error('❌ API KEY VALIDATION FAILED: Free-tier quota already exhausted');
+      console.error('📋 SOLUTION OPTIONS:');
+      console.error('   1. Enable billing in Google Cloud Console: https://console.cloud.google.com/billing');
+      console.error('   2. Wait for quota reset (typically resets daily)');
+      console.error('   3. Create a new Google Cloud project with a fresh API key');
+      console.error('   4. Upgrade to paid tier for production use');
+      console.error('\n⚠️ Server will start but grading will fail until quota is available');
+      return false;
+    } else if (error.status === 404) {
+      console.error(`❌ Model ${BASE_MODEL} not found - check model name`);
+      return false;
+    } else {
+      console.error('❌ API key validation error:', error.message);
+      return false;
+    }
+  }
+}
+
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
@@ -422,11 +530,36 @@ if (GOOGLE_API_KEY) {
   quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log(`DEBUG: Base Gemini model: ${BASE_MODEL}`);
+  try {
+    const masked = `${GOOGLE_API_KEY.slice(0, 6)}...${GOOGLE_API_KEY.slice(-4)}`;
+    console.log(`DEBUG: Gemini API key in use: ${masked}`);
+  } catch { }
   console.log('DEBUG: Quiz Service initialized with SHARED model instance.');
+
+  // Validate API key on startup (non-blocking) only if explicitly enabled
+  if (process.env.VALIDATE_API_KEY_ON_STARTUP === 'true') {
+    validateGeminiApiKey().catch(err => {
+      console.error('⚠️ API key validation failed:', err.message);
+    });
+  } else {
+    console.log('ℹ️ API key validation skipped (set VALIDATE_API_KEY_ON_STARTUP=true to enable)');
+  }
 } else {
   console.error('FATAL: GOOGLE_API_KEY / GOOGLE_API_ not found. AI services will not work.');
   quizService = new QuizService(); // Initialize without API for fallback
 }
+
+// Debug endpoint to inspect Gemini configuration safely
+app.get('/api/debug/gemini', (req, res) => {
+  const apiKeyPreview = GOOGLE_API_KEY ? `${GOOGLE_API_KEY.slice(0, 6)}...${GOOGLE_API_KEY.slice(-4)}` : null;
+  res.json({
+    hasKey: Boolean(GOOGLE_API_KEY),
+    apiKeyPreview,
+    baseModel: BASE_MODEL,
+    quizModel: QUIZ_MODEL_NAME,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // --- Gemini API Retry Helper ---
 async function callGeminiWithRetry(payload, maxRetries = 3, delay = 2000) {
@@ -566,6 +699,51 @@ let circuitBreakerOpen = false;
 let failureCount = 0;
 const MAX_FAILURES = 3;
 const RESET_TIMEOUT = 30000; // 30 seconds
+
+// Rate limiting for free tier (15 RPM = 1 request per 4 seconds)
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 4000; // 4 seconds between requests for free tier
+const requestQueue = [];
+let isProcessingQueue = false;
+
+// Intelligent rate limiter that queues requests
+const rateLimitedRequest = async (requestFn) => {
+  return new Promise((resolve, reject) => {
+    requestQueue.push({ fn: requestFn, resolve, reject });
+    processQueue();
+  });
+};
+
+const processQueue = async () => {
+  if (isProcessingQueue || requestQueue.length === 0) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`⏱️ Rate limiting: waiting ${waitTime}ms before next request (queue: ${requestQueue.length})`);
+      await sleep(waitTime);
+    }
+
+    const { fn, resolve, reject } = requestQueue.shift();
+    lastRequestTime = Date.now();
+
+    try {
+      const result = await fn();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+  }
+
+  isProcessingQueue = false;
+};
 
 const callGeminiWithCircuitBreaker = async (model, input, maxRetries = 3, retryDelay = 2000) => {
   if (circuitBreakerOpen) {
@@ -1510,21 +1688,36 @@ app.post('/api/kana/generate-quiz', async (req, res) => {
     if (!material) {
       return res.status(404).json({ error: 'Study material not found.' });
     }
+    if (!genAI) {
+      return res.status(503).json({ error: 'Gemini AI not initialized (missing API key).' });
+    }
 
+    // Extract text from study material first
     const fileBuffer = await fsPromises.readFile(material.filePath);
     const textContent = await extractTextFromFile(material.mimetype, fileBuffer);
-    if (!textContent) return res.status(400).json({ error: 'Could not extract text from the material.' });
+    if (!textContent) {
+      return res.status(400).json({ error: 'Could not extract text from the material.' });
+    }
 
-    const prompt = `Based on the following text, generate a quiz with ${numQuestions} questions at a ${difficulty} difficulty level. Format the output as a single JSON object. Each question should be an object with "question", "options" (an array of 4 strings), and "answer" (the correct string from options). The root of the JSON should be a single object with a  "quiz".\n\nTEXT: ${textContent.substring(0, 10000)}`;
+    const prompt = `Based on the following text, generate a quiz with ${numQuestions} questions at a ${difficulty} difficulty level. Format the output as a single JSON object. Each question should be an object with "question", "options" (an array of 4 strings), and "answer" (the correct string from options). The root of the JSON should be a single object with a "quiz".\n\nTEXT: ${textContent.substring(0, 10000)}`;
 
-    const result = await geminiModel.generateContent(prompt);
-    const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
-    const quizJson = JSON.parse(responseText);
+    let quizJson;
+    try {
+      const { text: rawQuizText, modelName } = await generateWithFallback(prompt, { temperature: 0.2, maxOutputTokens: 2048 });
+      console.log(`📘 /generate-quiz used model: ${modelName}`);
+      const cleaned = String(rawQuizText).trim().replace(/^```json\s*\n?|```$/g, '');
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('No JSON object found in AI response');
+      quizJson = JSON.parse(match[0]);
+    } catch (genErr) {
+      console.error('❌ Quiz generation failed across fallback models:', genErr.message);
+      return res.status(502).json({ error: 'Quiz generation failed: ' + genErr.message });
+    }
 
-    res.json(quizJson);
+    return res.json(quizJson);
   } catch (error) {
     console.error('Error in /generate-quiz:', error);
-    res.status(500).json({ error: 'Failed to generate quiz: ' + error.message });
+    return res.status(500).json({ error: 'Failed to generate quiz: ' + error.message });
   }
 });
 
@@ -1546,49 +1739,51 @@ app.post('/api/kana/generate-quiz-by-description', async (req, res) => {
       context = ''
     } = req.body;
 
-    // Validate required fields
-    if (!description || description.trim().length === 0) {
-      return res.status(400).json({
-        error: 'Description is required for quiz generation',
-        message: 'Please provide a description of what the quiz should cover'
-      });
+    if (!description || !description.trim()) {
+      return res.status(400).json({ error: 'Description is required for quiz generation.' });
+    }
+    if (!genAI) {
+      return res.status(503).json({ error: 'Gemini AI not initialized (missing API key).' });
     }
 
-    console.log(`🧠 Quiz generation request: "${description}" - ${numQuestions} questions, ${difficulty} difficulty`);
+    const weaknessText = weaknessAreas.length ? weaknessAreas.join(', ') : 'general understanding';
+    const prompt = `You are K.A.N.A., generate a quiz.
+DESCRIPTION: ${description}
+SUBJECT: ${subject}
+DIFFICULTY: ${difficulty}
+STUDENT LEVEL: ${studentLevel}
+WEAKNESS AREAS: ${weaknessText}
+CONTEXT: ${context}
 
-    // Generate quiz using Gemini with retry logic
-    let quiz;
+Rules:
+- EXACTLY ${numQuestions} questions
+- Each question has 4 options
+- Provide correctAnswer index (0-3) and an explanation
+Return ONLY JSON:
+{
+  "title": "string",
+  "description": "string",
+  "difficulty": "${difficulty}",
+  "subject": "${subject}",
+  "questions": [
+    {"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"...","topic":"...","weaknessArea":"..."}
+  ]
+}`;
+
+    let quizPayload;
     try {
-      quiz = await callGeminiWithRetry(
-        `Generate a quiz: ${description}\nQuestions: ${numQuestions}\nDifficulty: ${difficulty}\nSubject: ${subject}\nStudent Level: ${studentLevel}\nWeakness Areas: ${Array.isArray(weaknessAreas) ? weaknessAreas.join(', ') : ''}\nContext: ${context}`
-      );
-    } catch (error) {
-      console.error('Gemini quiz generation failed:', error.message);
-      return res.status(503).json({
-        error: 'Gemini AI service is overloaded. Please try again later.'
-      });
+      const { text: rawQuizText, modelName } = await generateWithFallback(prompt, { temperature: 0.3, maxOutputTokens: 2048 });
+      console.log(`📘 /generate-quiz-by-description used model: ${modelName}`);
+      const cleaned = String(rawQuizText).trim().replace(/^```json\s*\n?|```$/g, '');
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found in AI response');
+      quizPayload = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.error('❌ Quiz-by-description failed:', err.message);
+      return res.status(502).json({ error: 'Quiz generation failed: ' + err.message });
     }
 
-    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
-      return res.status(500).json({
-        error: 'Failed to generate quiz questions',
-        message: 'The quiz generation service was unable to create questions. Please try again.'
-      });
-    }
-
-    console.log(`✅ Quiz generated successfully: ${quiz.questions.length} questions`);
-
-    res.json({
-      success: true,
-      quiz: quiz,
-      metadata: {
-        generatedBy: quiz.generatedBy,
-        questionCount: quiz.questions.length,
-        estimatedTime: quiz.timeLimitMinutes,
-        createdAt: quiz.createdAt
-      }
-    });
-
+    return res.json({ success: true, quiz: quizPayload });
   } catch (error) {
     console.error('❌ Error in quiz generation by description:', error);
     res.status(500).json({
@@ -1832,1351 +2027,451 @@ const startServer = async () => {
   // Initialize syllabus integration with conversation contexts
   initializeConversationContexts(conversationContexts);
 
-  const fileToGenerativePart = (filePath, mimeType) => {
-    return {
-      inlineData: {
-        data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
-        mimeType
-      },
-    };
-  };
-
-  app.post('/api/analyze-image', uploadImage.single('imageFile'), async (req, res) => {
-    try {
-      const { conversationId, message } = req.body;
-      const imageFile = req.file;
-
-      if (!imageFile) {
-        return res.status(400).json({ error: 'No image file uploaded.' });
-      }
-      if (!conversationId) {
-        return res.status(400).json({ error: 'Missing conversationId.' });
-      }
-
-      console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
-
-      const conversation = getOrCreateConversation(conversationId);
-      const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
-
-      const userMessageText = message || 'Please analyze this image.';
-      conversation.history.push({ role: 'user', parts: [{ text: userMessageText }] });
-
-      const result = await visionModel.generateContent([userMessageText, imagePart]);
-      const kanaResponseText = result.response.text();
-
-      conversation.history.push({ role: 'model', parts: [{ text: kanaResponseText }] });
-
-      const imageUrl = `/images/${imageFile.filename}`;
-
-      res.json({
-        kanaResponse: kanaResponseText,
-        imageUrl: imageUrl,
-        explanation: kanaResponseText
-      });
-
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-      res.status(500).json({ error: 'Failed to analyze image.' });
-    } finally {
-      if (req.file) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error(`Error deleting temp image file: ${req.file.path}`, err);
-        });
-      }
-    }
-  });
-
-  // New endpoint for direct K.A.N.A. analysis (used by teacher dashboard and Python backend)
-  app.post('/api/kana/bulk-grade-pdfs', async (req, res) => {
-    try {
-      const {
-        image_data,
-        pdf_data,
-        pdf_files,  // New: Array of PDFs for bulk processing
-        pdf_text,
-        student_context = 'General student assessment',  // Default value
-        analysis_type = 'educational_analysis',          // Default value
-        task_type = 'grade_assignment',                   // Default value
-        assignment_title = 'Assignment',                  // Default value
-        max_points = 100,                                // Default value
-        grading_rubric = 'Standard academic rubric',     // Default value
-        student_names = []  // New: Array of student names for bulk processing
-      } = req.body;
-
-      // Check if at least one type of data is provided
-      if (!image_data && !pdf_data && !pdf_text && !pdf_files) {
-        return res.status(400).json({ error: 'Either image_data, pdf_data, pdf_text, or pdf_files is required' });
-      }
-
-      console.log(`DEBUG: /kana-direct called with task_type: ${task_type}, analysis_type: ${analysis_type}, student_context: ${student_context}`);
-      console.log(`DEBUG: Assignment: "${assignment_title}", Max Points: ${max_points}, Has Rubric: ${grading_rubric ? 'Yes' : 'No'}`);
-      console.log(`DEBUG: Data types - pdf_files: ${pdf_files ? 'Array' : 'None'}, pdf_data: ${pdf_data ? 'Base64' : 'None'}, pdf_text: ${pdf_text ? 'Text' : 'None'}`);
-
-      // Check if Gemini AI is initialized
-      if (!genAI) {
-        console.error('ERROR: Google AI not initialized - check GOOGLE_API_');
-        return res.status(500).json({ error: 'AI service not configured' });
-      }
-
-      const isGradingMode = task_type === 'grade_assignment';
-
-      // Handle bulk PDF processing
-      if (pdf_files && Array.isArray(pdf_files) && pdf_files.length > 0) {
-        console.log(`🎓 Enhanced PDF grading start: ${pdf_files.length} PDFs (Assignment: ${assignment_title})`);
-        console.log(`📋 Using Gemini 2.5 Pro with visual analysis capabilities`);
-
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-2.0-flash-exp',
-          generationConfig: {
-            temperature: 0,
-            topP: 1,
-            topK: 1,
-            maxOutputTokens: 4096,
-            candidateCount: 1
-          }
-        });
-
-        const results = [];
-
-        for (let i = 0; i < pdf_files.length; i++) {
-          const pdfData = pdf_files[i];
-          const studentName = (student_names[i] && student_names[i].trim()) || `Student ${i + 1}`;
-
-          console.log(`📄 [${i + 1}/${pdf_files.length}] Processing ${studentName}`);
-
-          if (typeof pdfData !== 'string' || !pdfData.trim()) {
-            results.push({
-              student_name: studentName,
-              student_index: i,
-              error: 'invalid_pdf_data',
-              success: false
-            });
-            continue;
-          }
-
-          try {
-            const pdfBuffer = Buffer.from(pdfData, 'base64');
-            const basicInfo = await extractPDFBasicInfo(pdfBuffer);
-
-            // Always use Gemini Vision for comprehensive analysis (text + images)
-            console.log(`👁️ Using Gemini Vision for comprehensive analysis of ${studentName}`);
-
-            // Enhanced prompt for better parsing reliability
-            const prompt = `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
-
-ASSIGNMENT: ${assignment_title}
-STUDENT: ${studentName}
-MAX POINTS: ${max_points}
-RUBRIC: ${grading_rubric}
-
-CRITICAL: You MUST start your response with EXACTLY this format (no variations):
-
-GRADE_START
-Points Earned: [NUMBER]/${max_points}
-Letter Grade: [LETTER]
-Percentage: [NUMBER]%
-GRADE_END
-
-EXAMPLE FORMAT:
-GRADE_START
-Points Earned: 85/${max_points}
-Letter Grade: B+
-Percentage: 85%
-GRADE_END
-
-After the GRADE_END marker, provide your detailed analysis following this EXACT structure:
-
-1. **Content Analysis**: Read all text, handwriting, equations, diagrams
-
-2. **Rubric Application**: 
-[List EACH rubric section with points awarded. Example:]
-• Forward Propagation: 15/20 points
-• Activation Function: 0/15 points  
-• Loss Function: 0/15 points
-• Backward Propagation: 20/25 points
-• Gradient Descent: 15/15 points
-• Presentation: 8/10 points
-
-3. **Score Justification**: 
-Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
-
-4. **Detailed Work-Specific Feedback**: 
-CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
-
-For EACH rubric section, provide feedback in this format:
-[Rubric Section Name] - [Points Given]/[Points Possible]:
-• Student wrote: "[Quote exact text/equation/solution from student work]"
-• Issue identified: [Specific problem with their approach/formula/method]
-• Correct approach should be: [What they should have written instead]
-• Why points were deducted: [Explain the specific error and its impact]
-
-Example:
-Differentiation Method - 3/10 points:
-• Student wrote: "d/dx(x²) = 2x + 1"
-• Issue identified: Added unnecessary constant (+1) to the derivative
-• Correct approach should be: "d/dx(x²) = 2x" using the power rule
-• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
-
-FEEDBACK REQUIREMENTS:
-- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
-- Point out SPECIFIC errors in their methodology, not general statements
-- Reference their actual calculations, formulas, or explanations
-- Show what they should have written instead
-- Explain WHY their approach was incorrect and how it affected the solution
-
-CRITICAL ANTI-LOOP REQUIREMENTS:
-- NEVER repeat calculations or reconsider scores once written
-- NEVER write multiple "Total:" lines
-- NEVER go back and forth between different point values
-- Calculate the rubric points ONCE and stick with that calculation
-- The final total in Score Justification MUST match the Points Earned in GRADE_START
-- If you find yourself repeating text, STOP immediately and finalize your answer
-- Maximum response length: 1000 words
-- Write decisively without second-guessing
-
-MATHEMATICAL CONSISTENCY RULES:
-- THE POINTS EARNED IN GRADE_START MUST EQUAL THE SUM OF ALL RUBRIC SECTION POINTS
-- Show your math ONCE: add up all rubric sections to get final total
-- Use exact format with no extra words or symbols in GRADE_START section
-- Ensure points earned ≤ max points
-- Be consistent with percentage calculation
-
-The document is provided as a PDF. Use your vision capabilities to read and understand all content comprehensively.`;            // Create model input with PDF for comprehensive vision analysis
-            const modelInput = [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: "application/pdf",
-                  data: basicInfo.pdfBase64
-                }
-              }
-            ];
-
-            console.log(`🤖 Comprehensive vision analysis for ${studentName}...`);
-
-            // Use the circuit breaker with retry logic
-            let response;
-            try {
-              response = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
-            } catch (error) {
-              // Check if this is a quota error (429)
-              if (error.message === 'QUOTA_EXCEEDED' || error.status === 429) {
-                console.error(`⚠️ Quota exceeded for ${studentName} - cannot grade with AI`);
-                results.push({
-                  student_name: studentName,
-                  student_index: i,
-                  error: 'quota_exceeded',
-                  error_detail: 'Gemini API free-tier quota exhausted. Please upgrade to paid tier or wait for quota reset.',
-                  success: false,
-                  fallback_available: false,
-                  processed_at: new Date().toISOString()
-                });
-                continue;
-              }
-              // Re-throw other errors
-              throw error;
-            }
-
-            const rawResponse = response.response.text();
-
-            if (!rawResponse || rawResponse.trim().length === 0) {
-              throw new Error('Empty response from Gemini API');
-            }
-
-            // Validate and clean the response to prevent looping
-            const raw = validateAndCleanGradingResponse(rawResponse);
-
-            console.log(`📝 AI Response preview for ${studentName}: ${raw.substring(0, 200)}...`);
-
-            // Validate response format before parsing
-            if (!raw.includes('GRADE_START') || !raw.includes('GRADE_END')) {
-              console.log(`⚠️ Response missing grade markers for ${studentName}, but attempting to parse anyway...`);
-            }
-
-            const gradeData = parseGradeSingle(raw, studentName, max_points);
-            if (gradeData.score === null) {
-              console.error(`❌ Parse failed for ${studentName}`);
-              console.log(`📄 Full AI response for debugging:`);
-              console.log(raw);
-
-              // Final attempt: try to generate a reasonable default based on response content
-              const hasPositivewords = /excellent|good|correct|well|accurate|strong/i.test(raw);
-              const hasNegativewords = /poor|incorrect|wrong|missing|weak|inadequate/i.test(raw);
-
-              let fallbackScore = null;
-              if (hasPositivewords && !hasNegativewords) {
-                fallbackScore = Math.round(max_points * 0.8); // Assume 80% if positive feedback
-                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on positive feedback`);
-              } else if (hasNegativewords && !hasPositivewords) {
-                fallbackScore = Math.round(max_points * 0.5); // Assume 50% if negative feedback
-                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} based on negative feedback`);
-              } else {
-                fallbackScore = Math.round(max_points * 0.7); // Neutral fallback
-                console.log(`🔄 Fallback: Assigning ${fallbackScore}/${max_points} as neutral default`);
-              }
-
-              results.push({
-                student_name: studentName,
-                student_index: i,
-                pdf_pages: basicInfo.numPages,
-                score: fallbackScore,
-                max_points: max_points,
-                letter_grade: calculateLetterGrade(fallbackScore, max_points),
-                percentage: Math.round((fallbackScore / max_points) * 100),
-                feedback: raw,
-                raw_feedback: raw,
-                parse_method: 'sentiment_fallback',
-                analysis_type: 'vision',
-                success: true,
-                warning: 'Grade extracted using sentiment analysis fallback',
-                processed_at: new Date().toISOString()
-              });
-              continue;
-            }
-
-            const resultObj = {
-              student_name: studentName,
-              student_index: i,
-              pdf_pages: basicInfo.numPages,
-              score: gradeData.score,
-              max_points: gradeData.maxPoints,
-              letter_grade: gradeData.letterGrade,
-              percentage: gradeData.percentage,
-              feedback: raw,
-              raw_feedback: raw,
-              parse_method: gradeData.parseMethod,
-              analysis_type: 'vision',
-              success: true,
-              processed_at: new Date().toISOString()
-            };
-            results.push(resultObj);
-            console.log(`✅ ${studentName} graded ${gradeData.score}/${gradeData.maxPoints} (vision analysis)`);
-          } catch (e) {
-            console.error(`❌ Error grading ${studentName}:`, e.message);
-
-            // Categorize errors for better debugging
-            let errorCategory = 'unknown';
-            let errorDetails = e.message;
-
-            if (e.message.includes('Circuit breaker')) {
-              errorCategory = 'circuit_breaker';
-              errorDetails = 'Service temporarily unavailable due to repeated failures';
-            } else if (e.message.includes('fetch failed') || e.message.includes('network')) {
-              errorCategory = 'network';
-              errorDetails = 'Network connection failed';
-            } else if (e.message.includes('500 Internal Server Error')) {
-              errorCategory = 'server';
-              errorDetails = 'Gemini API server error';
-            } else if (e.message.includes('quota') || e.message.includes('rate limit')) {
-              errorCategory = 'quota';
-              errorDetails = 'API quota or rate limit exceeded';
-            } else if (e.message.includes('authentication') || e.message.includes('API ')) {
-              errorCategory = 'auth';
-              errorDetails = 'Authentication failed - check API ';
-            } else if (e.message.includes('PDF') || e.message.includes('buffer')) {
-              errorCategory = 'pdf_processing';
-              errorDetails = 'PDF processing failed';
-            }
-
-            results.push({
-              student_name: studentName,
-              student_index: i,
-              error: errorCategory,
-              error_detail: errorDetails,
-              technical_detail: process.env.NODE_ENV === 'development' ? e.message : undefined,
-              success: false,
-              processed_at: new Date().toISOString()
-            });
-          }
-        }
-
-        const successful = results.filter(r => r.success);
-        console.log(`🎯 Enhanced PDF grading completed (vision analysis): ${successful.length}/${pdf_files.length} successful`);
-
-        return res.json({
-          assignment_title,
-          max_points,
-          grading_rubric,
-          total_pdfs: pdf_files.length,
-          successful: successful.length,
-          failed: pdf_files.length - successful.length,
-          student_results: results,
-          bulk_processing: true,
-          analysis_type: 'vision',
-          success: true
-        });
-      }
-
-      // Use Gemini Vision model for enhanced analysis (for single PDFs and images)
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-      let analysisResult;
-
-      // Handle single PDF analysis with enhanced Gemini Vision
-      if (pdf_data || pdf_text) {
-        let textContent = pdf_text;
-
-        // If we have pdf_data (base64), use Gemini Vision for comprehensive analysis
-        if (pdf_data && !pdf_text) {
-          try {
-            const pdfBuffer = Buffer.from(pdf_data, 'base64');
-            const basicInfo = await extractPDFBasicInfo(pdfBuffer);
-
-            console.log(`👁️ Using Gemini Vision for comprehensive PDF analysis`);
-
-            // Generate enhanced analysis prompt for PDF content
-            const analysisPrompt = isGradingMode
-              ? `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
-
-ASSIGNMENT: ${assignment_title}
-MAX POINTS: ${max_points}
-RUBRIC: ${grading_rubric}
-
-CRITICAL: You MUST start your response with EXACTLY this format (no variations):
-
-GRADE_START
-Points Earned: [NUMBER]/${max_points}
-Letter Grade: [LETTER]
-Percentage: [NUMBER]%
-GRADE_END
-
-After the GRADE_END marker, provide your detailed analysis following this EXACT structure:
-
-**RUBRIC APPLICATION**
-[List EACH rubric section with points awarded. Example:]
-• Forward Propagation: 15/20 points
-• Activation Function: 0/15 points  
-• Loss Function: 0/15 points
-• Backward Propagation: 20/25 points
-• Gradient Descent: 15/15 points
-• Presentation: 8/10 points
-
-**SCORE JUSTIFICATION**
-Total Points Calculation: 15 + 0 + 0 + 20 + 15 + 8 = 58 points
-
-**DETAILED WORK-SPECIFIC FEEDBACK**
-CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
-
-For EACH rubric section, provide feedback in this format:
-[Rubric Section Name] - [Points Given]/[Points Possible]:
-• Student wrote: "[Quote exact text/equation/solution from student work]"
-• Issue identified: [Specific problem with their approach/formula/method]
-• Correct approach should be: [What they should have written instead]
-• Why points were deducted: [Explain the specific error and its impact]
-
-Example:
-Differentiation Method - 3/10 points:
-• Student wrote: "d/dx(x²) = 2x + 1"
-• Issue identified: Added unnecessary constant (+1) to the derivative
-• Correct approach should be: "d/dx(x²) = 2x" using the power rule
-• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
-
-**LEARNING STRENGTHS**
-• [List observed strengths based on actual student work]
-
-**GROWTH OPPORTUNITIES**
-• [List specific areas for improvement with references to their work]
-
-**STUDY SUGGESTIONS**
-• [Provide specific recommendations based on their errors]
-
-FEEDBACK REQUIREMENTS:
-- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
-- Point out SPECIFIC errors in their methodology, not general statements
-- Reference their actual calculations, formulas, or explanations
-- Show what they should have written instead
-- Explain WHY their approach was incorrect and how it affected the solution
-
-CRITICAL ANTI-LOOP REQUIREMENTS:
-- NEVER repeat calculations or reconsider scores once written
-- NEVER write multiple "Total:" lines
-- NEVER go back and forth between different point values
-- Calculate the rubric points ONCE and stick with that calculation
-- The final total in Score Justification MUST match the Points Earned in GRADE_START
-- If you find yourself repeating text, STOP immediately and finalize your answer
-- Maximum response length: 1200 words
-- Write decisively without second-guessing
-
-MATHEMATICAL CONSISTENCY RULES:
-- THE POINTS EARNED IN GRADE_START MUST EQUAL THE SUM OF ALL RUBRIC SECTION POINTS
-- Show your math ONCE: add up all rubric sections to get final total
-- Use exact format with no extra words or symbols in GRADE_START section
-
-Use your vision capabilities to read and understand all content comprehensively including text, handwriting, equations, and diagrams.`
-              : `Analyze this student work and provide educational insights:
-                 
-                 Student Context: ${student_context || 'Not provided'}
-                 
-                 Please provide:
-                 **LEARNING ANALYSIS**
-                 [Overall assessment of understanding]
-                 
-                 **LEARNING STRENGTHS**
-                 • [List observed strengths]
-                 
-                 **GROWTH OPPORTUNITIES**
-                 • [List areas for improvement]
-                 
-                 **STUDY SUGGESTIONS**
-                 • [Provide specific recommendations]
-                 
-                 Use your vision capabilities to analyze all content in the PDF.`;
-
-            // Create model input with PDF for comprehensive vision analysis
-            const modelInput = [
-              { text: analysisPrompt },
-              {
-                inlineData: {
-                  mimeType: "application/pdf",
-                  data: basicInfo.pdfBase64
-                }
-              }
-            ];
-
-            const result = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
-            analysisResult = result.response.text();
-
-          } catch (pdfError) {
-            console.error('Error with Gemini Vision PDF analysis, falling back to text extraction:', pdfError);
-
-            // Fallback to text extraction
-            try {
-              const pdfBuffer = Buffer.from(pdf_data, 'base64');
-              textContent = await extractTextFromFile('application/pdf', pdfBuffer);
-            } catch (textError) {
-              console.error('Error extracting text from PDF:', textError);
-              return res.status(500).json({ error: 'Failed to process PDF' });
-            }
-          }
-        }
-
-        // If we still need to process text content (fallback or direct text input)
-        if (!analysisResult && textContent) {
-          // Generate analysis prompt for PDF text content
-          const analysisPrompt = isGradingMode
-            ? `Grade this student assignment based on the following criteria:
-               Assignment: ${assignment_title}
-               Max Points: ${max_points}
-               Grading Rubric: ${grading_rubric}
-               
-               Student Work:
-               ${textContent}
-               
-               Provide a detailed analysis including:
-               **GRADE BREAKDOWN**
-               Points Earned: X/${max_points}
-               Letter Grade: [A-F]
-               Percentage: X%
-               
-               **DETAILED WORK-SPECIFIC FEEDBACK**
-               CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
-
-               For EACH rubric section, provide feedback in this format:
-               [Rubric Section Name] - [Points Given]/[Points Possible]:
-               • Student wrote: "[Quote exact text/equation/solution from student work]"
-               • Issue identified: [Specific problem with their approach/formula/method]
-               • Correct approach should be: [What they should have written instead]
-               • Why points were deducted: [Explain the specific error and its impact]
-
-               Example:
-               Differentiation Method - 3/10 points:
-               • Student wrote: "d/dx(x²) = 2x + 1"
-               • Issue identified: Added unnecessary constant (+1) to the derivative
-               • Correct approach should be: "d/dx(x²) = 2x" using the power rule
-               • Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
-               
-               **LEARNING STRENGTHS**
-               • [List observed strengths based on actual student work]
-               
-               **GROWTH OPPORTUNITIES**
-               • [List specific areas for improvement with references to their work]
-               
-               **STUDY SUGGESTIONS**
-               • [Provide specific recommendations based on their errors]
-
-               FEEDBACK REQUIREMENTS:
-               - ALWAYS quote the student's exact work (equations, text, calculations)
-               - Point out SPECIFIC errors in their methodology, not general statements
-               - Reference their actual calculations, formulas, or explanations
-               - Show what they should have written instead
-               - Explain WHY their approach was incorrect and how it affected the solution`
-            : `Analyze this student work and provide educational insights:
-               
-               Student Context: ${student_context || 'Not provided'}
-               Content: ${textContent}
-               
-               Please provide:
-               **LEARNING ANALYSIS**
-               [Overall assessment of understanding]
-               
-               **LEARNING STRENGTHS**
-               • [List observed strengths]
-               
-               **GROWTH OPPORTUNITIES**
-               • [List areas for improvement]
-               
-               **STUDY SUGGESTIONS**
-               • [Provide specific recommendations]`;
-
-          const result = await model.generateContent(analysisPrompt);
-          analysisResult = result.response.text();
-        }
-
-      } else if (image_data) {
-        // Handle image analysis with enhanced Gemini Vision
-        try {
-          const imageBuffer = Buffer.from(image_data, 'base64');
-          const imagePart = {
-            inlineData: {
-              data: image_data,
-              mimeType: 'image/jpeg' // Assume JPEG, could be made dynamic
-            }
-          };
-
-          const analysisPrompt = isGradingMode
-            ? `You are an expert educator analyzing and grading a student assignment using advanced vision capabilities.
-
-ASSIGNMENT: ${assignment_title}
-MAX POINTS: ${max_points}
-RUBRIC: ${grading_rubric}
-
-CRITICAL: You MUST start your response with EXACTLY this format (no variations):
-
-GRADE_START
-Points Earned: [NUMBER]/${max_points}
-Letter Grade: [LETTER]
-Percentage: [NUMBER]%
-GRADE_END
-
-After the GRADE_END marker, provide your detailed analysis:
-
-**DETAILED WORK-SPECIFIC FEEDBACK**
-CRITICAL: Base your feedback EXACTLY on what the student wrote. Quote their work directly and explain specific issues.
-
-For EACH rubric section, provide feedback in this format:
-[Rubric Section Name] - [Points Given]/[Points Possible]:
-• Student wrote: "[Quote exact text/equation/solution from student work]"
-• Issue identified: [Specific problem with their approach/formula/method]
-• Correct approach should be: [What they should have written instead]
-• Why points were deducted: [Explain the specific error and its impact]
-
-Example:
-Differentiation Method - 3/10 points:
-• Student wrote: "d/dx(x²) = 2x + 1"
-• Issue identified: Added unnecessary constant (+1) to the derivative
-• Correct approach should be: "d/dx(x²) = 2x" using the power rule
-• Why points were deducted: The derivative of x² is 2x, not 2x+1. Adding the constant shows misunderstanding of basic differentiation rules.
-
-**LEARNING STRENGTHS**
-• [List observed strengths based on actual student work]
-
-**GROWTH OPPORTUNITIES**
-• [List specific areas for improvement with references to their work]
-
-**STUDY SUGGESTIONS**
-• [Provide specific recommendations based on their errors]
-
-FEEDBACK REQUIREMENTS:
-- ALWAYS quote the student's exact work (equations, text, diagrams descriptions)
-- Point out SPECIFIC errors in their methodology, not general statements
-- Reference their actual calculations, formulas, or explanations
-- Show what they should have written instead
-- Explain WHY their approach was incorrect and how it affected the solution
-
-Use your vision capabilities to analyze all content in the image including text, handwriting, equations, and diagrams.`
-            : `Analyze this student work image and provide educational insights:
-               
-               Student Context: ${student_context || 'Not provided'}
-               
-               Please provide:
-               **LEARNING ANALYSIS**
-               [Overall assessment of understanding]
-               
-               **LEARNING STRENGTHS**
-               • [List observed strengths]
-               
-               **GROWTH OPPORTUNITIES**
-               • [List areas for improvement]
-               
-               **STUDY SUGGESTIONS**
-               • [Provide specific recommendations]
-               
-               Use your vision capabilities to analyze all content in the image.`;
-
-          const result = await callGeminiWithCircuitBreaker(model, [analysisPrompt, imagePart], 3, 2000);
-          analysisResult = result.response.text();
-
-        } catch (imageError) {
-          console.error('Error analyzing image:', imageError);
-          return res.status(500).json({ error: 'Failed to analyze image' });
-        }
-      }
-
-      // Check if analysisResult is available before parsing
-      if (!analysisResult || typeof analysisResult !== 'string') {
-        console.error('❌ analysisResult is undefined or not a string');
-        return res.status(500).json({
-          error: 'Failed to analyze content',
-          details: 'Analysis result is empty or invalid'
-        });
-      }
-
-      // Parse the analysis result
-      const knowledgeGaps = parseKnowledgeGaps(analysisResult);
-      const recommendations = parseRecommendations(analysisResult);
-      const strengths = parseStrengths(analysisResult);
-      const confidence = parseConfidenceFromAnalysis(analysisResult);
-      const gradingData = parseGradingFromAnalysis(analysisResult);
-
-      // Prepare response data
-      const responseData = {
-        analysis: analysisResult,
-        success: true,
-
-        // Frontend-compatible structured fields
-        knowledge_gaps: knowledgeGaps,
-        recommendations: recommendations,
-        student_strengths: strengths,
-        strengths: strengths, // For compatibility with newer frontend versions
-        confidence: confidence,
-
-        // Add extracted text for frontend display
-        extracted_text: pdf_text || (pdf_data ? 'Text extracted from PDF' : 'Text extracted from image'),
-
-        // Enhanced analysis metadata
-        analysis_type: pdf_data ? 'pdf_vision' : (image_data ? 'image_vision' : 'text'),
-        model_used: 'gemini-2.5-flash'
-      };
-
-      // Add grading information if available
-      if (isGradingMode && gradingData.score !== null) {
-        responseData.grade = gradingData.score;
-        responseData.score = gradingData.score;
-        responseData.max_points = gradingData.maxPoints || max_points;
-        responseData.letter_grade = gradingData.letterGrade;
-        responseData.percentage = gradingData.percentage;
-
-        // Parse improvement areas from grading analysis
-        responseData.improvement_areas = parseKnowledgeGaps(analysisResult);
-        responseData.areas_for_improvement = parseKnowledgeGaps(analysisResult);
-
-        // Overall feedback from the analysis (with null check)
-        if (analysisResult && typeof analysisResult === 'string') {
-          responseData.overall_feedback = analysisResult.split('**DETAILED FEEDBACK**')[1]?.split('**')[0]?.trim() ||
-            analysisResult.substring(0, 200) + '...';
-        } else {
-          responseData.overall_feedback = 'Analysis feedback not available';
-        }
-      }
-
-      // Add assignment details if in grading mode
-      if (isGradingMode) {
-        responseData.assignment_details = {
-          title: assignment_title,
-          max_points: max_points,
-          grading_rubric: grading_rubric
-        };
-      }
-
-      res.json(responseData);
-
-    } catch (error) {
-      console.error('Error in /api/kana/bulk-grade-pdfs:', error);
-      res.status(500).json({
-        error: 'Failed to analyze content',
-        details: error.message
-      });
-    }
-  });
-
-  // Alias endpoints for compatibility with different naming conventions
-  app.post('/kana-direct', async (req, res) => {
-    // Redirect to the main endpoint
-    req.url = '/api/kana/bulk-grade-pdfs';
-    app._router.handle(req, res);
-  });
-
-  app.post('/api/kana/grade-pdfs', async (req, res) => {
-    // Another alias for Python backend compatibility
-    req.url = '/api/kana/bulk-grade-pdfs';
-    app._router.handle(req, res);
-  });
-
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`K.A.N.A. Backend listening at http://localhost:${port}`);
-    console.log(`📋 Available grading endpoints:`);
-    console.log(`  - POST /api/kana/bulk-grade-pdfs (main endpoint)`);
-    console.log(`  - POST /kana-direct (alias)`);
-    console.log(`  - POST /api/kana/grade-pdfs (alias)`);
-  });
-};
-
-// New endpoint for Chainlink Functions - Daily Quiz Generation
-app.post('/api/kana/generate-daily-quiz', async (req, res) => {
-  const { topic, difficulty = 'medium', numQuestions = 1 } = req.body;
-
-  if (!topic) {
-    return res.status(400).json({ error: 'Topic is required for daily quiz generation.' });
-  }
-
-  try {
-    // Create a more focused prompt for daily challenges
-    const prompt = `Generate a single educational quiz question about ${topic} at ${difficulty} difficulty level. 
-    
-Focus on:
-- Practical knowledge and real-world applications
-- Current trends and developments in ${topic}
-- Fundamental concepts that learners should know
-- Make it engaging and thought-provoking
-
-Format the output as a single JSON object with this exact structure:
-{
-  "quiz": [
-    {
-      "question": "The question text here",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "answer": "The exact text of the correct option from the options array"
-    }
-  ]
-}
-
-Topic: ${topic}
-Difficulty: ${difficulty}
-Style: Educational, clear, and engaging`;
-
-    console.log(`Generating daily quiz for topic: ${topic}, difficulty: ${difficulty}`);
-
-    const result = await geminiModel.generateContent(prompt);
-    const responseText = result.response.text().trim().replace(/^```json\n|```$/g, '');
-
-    try {
-      const quizJson = JSON.parse(responseText);
-
-      // Validate the structure
-      if (!quizJson.quiz || !Array.isArray(quizJson.quiz) || quizJson.quiz.length === 0) {
-        throw new Error('Invalid quiz structure');
-      }
-
-      const quiz = quizJson.quiz[0];
-      if (!quiz.question || !quiz.options || !Array.isArray(quiz.options) || quiz.options.length !== 4 || !quiz.answer) {
-        throw new Error('Invalid quiz question structure');
-      }
-
-      // Verify the answer is in the options
-      if (!quiz.options.includes(quiz.answer)) {
-        throw new Error('Answer not found in options');
-      }
-
-      console.log(`Successfully generated daily quiz for ${topic}`);
-      res.json(quizJson);
-
-    } catch (parseError) {
-      console.error('JSON parsing error:', parseError);
-      console.error('Raw response:', responseText);
-
-      // Return a fallback quiz
-      const fallbackQuiz = {
-        quiz: [{
-          question: `What is a  concept in ${topic}?`,
-          options: [
-            "Centralized control",
-            "Decentralized architecture",
-            "Single point of failure",
-            "Manual processes"
-          ],
-          answer: "Decentralized architecture"
-        }]
-      };
-
-      res.json(fallbackQuiz);
-    }
-
-  } catch (error) {
-    console.error('Error in /generate-daily-quiz:', error);
-
-    // Return a fallback quiz in case of error
-    const fallbackQuiz = {
-      quiz: [{
-        question: `What is an important aspect of ${topic || 'technology'}?`,
-        options: [
-          "Innovation and progress",
-          "Maintaining status quo",
-          "Avoiding change",
-          "Limiting access"
-        ],
-        answer: "Innovation and progress"
-      }]
-    };
-
-    res.json(fallbackQuiz);
+// Helper previously used for vision endpoints (temporarily disabled for cleanup)
+const fileToGenerativePart = (filePath, mimeType) => ({
+  inlineData: {
+    data: Buffer.from(fs.readFileSync(filePath)).toString('base64'),
+    mimeType
   }
 });
+
+// Removed obsolete grading snippet with undefined variables (response, studentName, max_points, results, pdfBuffer, etc.)
+// This cleanup prevents runtime errors like "Jump target cannot cross function boundary" from a stray 'continue;' outside any loop.
 
 // --- ELIZAOS AGENT INTEGRATION ---
 
-// ElizaOS Agent Manager (placeholder - will be implemented when ElizaOS is installed)
-let elizaAgentManager = null;
+  // ElizaOS Agent Manager (placeholder - will be implemented when ElizaOS is installed)
+  let elizaAgentManager = null;
 
-// Initialize ElizaOS agents if available
-async function initializeElizaAgents() {
-  try {
-    // This will be uncommented when ElizaOS is properly installed
-    // const { BrainInkAgentManager } = require('../elizaos-agents/dist/index.js');
-    // elizaAgentManager = new BrainInkAgentManager();
-    // await elizaAgentManager.initialize();
-    console.log('📡 ElizaOS agent integration ready (placeholder mode)');
-  } catch (error) {
-    console.log('⚠️ ElizaOS agents not available, using fallback mode');
-    elizaAgentManager = null;
-  }
-}
-
-// ElizaOS agent communication endpoint
-app.post('/api/eliza/chat', async (req, res) => {
-  try {
-    const { message, agentName, context } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+  // Initialize ElizaOS agents if available
+  async function initializeElizaAgents() {
+    try {
+      // This will be uncommented when ElizaOS is properly installed
+      // const { BrainInkAgentManager } = require('../elizaos-agents/dist/index.js');
+      // elizaAgentManager = new BrainInkAgentManager();
+      // await elizaAgentManager.initialize();
+      console.log('📡 ElizaOS agent integration ready (placeholder mode)');
+    } catch (error) {
+      console.log('⚠️ ElizaOS agents not available, using fallback mode');
+      elizaAgentManager = null;
     }
+  }
 
-    // If ElizaOS is available, use it
-    if (elizaAgentManager) {
-      const result = await elizaAgentManager.routeMessage(
-        agentName || 'K.A.N.A. Educational Tutor',
-        message,
-        context
+  // ElizaOS agent communication endpoint
+  app.post('/api/eliza/chat', async (req, res) => {
+    try {
+      const { message, agentName, context } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+
+      // If ElizaOS is available, use it
+      if (elizaAgentManager) {
+        const result = await elizaAgentManager.routeMessage(
+          agentName || 'K.A.N.A. Educational Tutor',
+          message,
+          context
+        );
+        return res.json(result);
+      }
+
+      // Fallback to existing KANA logic with agent classification
+      const agentType = classifyMessageForAgent(message);
+      const conversationId = context?.conversationId || 'default';
+
+      // Enhanced KANA response with agent personality
+      const enhancedPrompt = `As the ${agentType}, respond to: ${message}`;
+
+      if (!geminiModel) {
+        return res.status(500).json({ error: 'AI service not available' });
+      }
+
+      const conversation = getOrCreateConversation(conversationId);
+
+      const chat = geminiModel.startChat({
+        history: conversation.history,
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.7,
+        },
+      });
+
+      const result = await chat.sendMessage(enhancedPrompt);
+      const response = result.response.text();
+
+      // Update conversation history
+      conversation.history.push(
+        { role: 'user', parts: [{ text: enhancedPrompt }] },
+        { role: 'model', parts: [{ text: response }] }
       );
-      return res.json(result);
+
+      res.json({
+        success: true,
+        agent: agentType,
+        response: response,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          mode: 'fallback',
+          context
+        }
+      });
+
+    } catch (error) {
+      console.error('ElizaOS chat error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
+  });
 
-    // Fallback to existing KANA logic with agent classification
-    const agentType = classifyMessageForAgent(message);
-    const conversationId = context?.conversationId || 'default';
+  // Agent classification endpoint
+  app.post('/api/eliza/classify', async (req, res) => {
+    try {
+      const { message } = req.body;
 
-    // Enhanced KANA response with agent personality
-    const enhancedPrompt = `As the ${agentType}, respond to: ${message}`;
-
-    if (!geminiModel) {
-      return res.status(500).json({ error: 'AI service not available' });
-    }
-
-    const conversation = getOrCreateConversation(conversationId);
-
-    const chat = geminiModel.startChat({
-      history: conversation.history,
-      generationConfig: {
-        maxOutputTokens: 1000,
-        temperature: 0.7,
-      },
-    });
-
-    const result = await chat.sendMessage(enhancedPrompt);
-    const response = result.response.text();
-
-    // Update conversation history
-    conversation.history.push(
-      { role: 'user', parts: [{ text: enhancedPrompt }] },
-      { role: 'model', parts: [{ text: response }] }
-    );
-
-    res.json({
-      success: true,
-      agent: agentType,
-      response: response,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        mode: 'fallback',
-        context
+      if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
       }
-    });
 
-  } catch (error) {
-    console.error('ElizaOS chat error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+      const classification = classifyMessageForAgent(message);
 
-// Agent classification endpoint
-app.post('/api/eliza/classify', async (req, res) => {
-  try {
-    const { message } = req.body;
+      res.json({
+        success: true,
+        classification: {
+          agent: classification,
+          confidence: getClassificationConfidence(message, classification),
+          timestamp: new Date().toISOString()
+        }
+      });
 
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+    } catch (error) {
+      console.error('Classification error:', error);
+      res.status(500).json({ error: error.message });
     }
+  });
 
-    const classification = classifyMessageForAgent(message);
+  // Agent status endpoint
+  app.get('/api/eliza/status', async (req, res) => {
+    try {
+      let agentStatus = [];
 
-    res.json({
-      success: true,
-      classification: {
-        agent: classification,
-        confidence: getClassificationConfidence(message, classification),
+      if (elizaAgentManager) {
+        agentStatus = await elizaAgentManager.getAgentStatus();
+      } else {
+        // Fallback status
+        agentStatus = [
+          { name: 'K.A.N.A. Educational Tutor', status: 'active (fallback)', lastActive: new Date().toISOString() },
+          { name: 'Squad Learning Coordinator', status: 'available (fallback)', lastActive: new Date().toISOString() },
+          { name: 'Learning Progress Analyst', status: 'available (fallback)', lastActive: new Date().toISOString() }
+        ];
+      }
+
+      res.json({
+        success: true,
+        elizaIntegration: elizaAgentManager ? 'active' : 'fallback',
+        agents: agentStatus,
         timestamp: new Date().toISOString()
-      }
-    });
+      });
 
-  } catch (error) {
-    console.error('Classification error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    } catch (error) {
+      console.error('Status error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
-// Agent status endpoint
-app.get('/api/eliza/status', async (req, res) => {
-  try {
-    let agentStatus = [];
+  // Helper function for message classification
+  function classifyMessageForAgent(message) {
+    const lowerMessage = message.toLowerCase();
 
-    if (elizaAgentManager) {
-      agentStatus = await elizaAgentManager.getAgentStatus();
-    } else {
-      // Fallback status
-      agentStatus = [
-        { name: 'K.A.N.A. Educational Tutor', status: 'active (fallback)', lastActive: new Date().toISOString() },
-        { name: 'Squad Learning Coordinator', status: 'available (fallback)', lastActive: new Date().toISOString() },
-        { name: 'Learning Progress Analyst', status: 'available (fallback)', lastActive: new Date().toISOString() }
-      ];
+    // Educational content and tutoring
+    if (lowerMessage.includes('help') || lowerMessage.includes('explain') ||
+      lowerMessage.includes('quiz') || lowerMessage.includes('study') ||
+      lowerMessage.includes('homework') || lowerMessage.includes('learn') ||
+      lowerMessage.includes('understand') || lowerMessage.includes('concept')) {
+      return 'K.A.N.A. Educational Tutor';
     }
 
-    res.json({
-      success: true,
-      elizaIntegration: elizaAgentManager ? 'active' : 'fallback',
-      agents: agentStatus,
-      timestamp: new Date().toISOString()
-    });
+    // Group formation and collaboration
+    if (lowerMessage.includes('group') || lowerMessage.includes('team') ||
+      lowerMessage.includes('squad') || lowerMessage.includes('partner') ||
+      lowerMessage.includes('collaborate') || lowerMessage.includes('together') ||
+      lowerMessage.includes('study buddy') || lowerMessage.includes('work with')) {
+      return 'Squad Learning Coordinator';
+    }
 
-  } catch (error) {
-    console.error('Status error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    // Progress and analytics
+    if (lowerMessage.includes('progress') || lowerMessage.includes('performance') ||
+      lowerMessage.includes('analytics') || lowerMessage.includes('data') ||
+      lowerMessage.includes('improvement') || lowerMessage.includes('track') ||
+      lowerMessage.includes('score') || lowerMessage.includes('grade') ||
+      lowerMessage.includes('statistics') || lowerMessage.includes('analysis')) {
+      return 'Learning Progress Analyst';
+    }
 
-// Helper function for message classification
-function classifyMessageForAgent(message) {
-  const lowerMessage = message.toLowerCase();
-
-  // Educational content and tutoring
-  if (lowerMessage.includes('help') || lowerMessage.includes('explain') ||
-    lowerMessage.includes('quiz') || lowerMessage.includes('study') ||
-    lowerMessage.includes('homework') || lowerMessage.includes('learn') ||
-    lowerMessage.includes('understand') || lowerMessage.includes('concept')) {
+    // Default to main tutor
     return 'K.A.N.A. Educational Tutor';
   }
 
-  // Group formation and collaboration
-  if (lowerMessage.includes('group') || lowerMessage.includes('team') ||
-    lowerMessage.includes('squad') || lowerMessage.includes('partner') ||
-    lowerMessage.includes('collaborate') || lowerMessage.includes('together') ||
-    lowerMessage.includes('study buddy') || lowerMessage.includes('work with')) {
-    return 'Squad Learning Coordinator';
+  // Helper function for classification confidence
+  function getClassificationConfidence(message, classification) {
+    const lowerMessage = message.toLowerCase();
+
+    const wordCounts = {
+      'K.A.N.A. Educational Tutor': (lowerMessage.match(/help|explain|quiz|study|homework|learn|understand|concept/g) || []).length,
+      'Squad Learning Coordinator': (lowerMessage.match(/group|team|squad|partner|collaborate|together/g) || []).length,
+      'Learning Progress Analyst': (lowerMessage.match(/progress|performance|analytics|data|improvement|track/g) || []).length
+    };
+
+    const maxCount = Math.max(...Object.values(wordCounts));
+    const currentCount = wordCounts[classification] || 0;
+
+    if (maxCount === 0) return 0.5; // No words found
+    return Math.min(0.95, 0.6 + (currentCount / maxCount) * 0.35);
   }
 
-  // Progress and analytics
-  if (lowerMessage.includes('progress') || lowerMessage.includes('performance') ||
-    lowerMessage.includes('analytics') || lowerMessage.includes('data') ||
-    lowerMessage.includes('improvement') || lowerMessage.includes('track') ||
-    lowerMessage.includes('score') || lowerMessage.includes('grade') ||
-    lowerMessage.includes('statistics') || lowerMessage.includes('analysis')) {
-    return 'Learning Progress Analyst';
-  }
-
-  // Default to main tutor
-  return 'K.A.N.A. Educational Tutor';
-}
-
-// Helper function for classification confidence
-function getClassificationConfidence(message, classification) {
-  const lowerMessage = message.toLowerCase();
-
-  const wordCounts = {
-    'K.A.N.A. Educational Tutor': (lowerMessage.match(/help|explain|quiz|study|homework|learn|understand|concept/g) || []).length,
-    'Squad Learning Coordinator': (lowerMessage.match(/group|team|squad|partner|collaborate|together/g) || []).length,
-    'Learning Progress Analyst': (lowerMessage.match(/progress|performance|analytics|data|improvement|track/g) || []).length
-  };
-
-  const maxCount = Math.max(...Object.values(wordCounts));
-  const currentCount = wordCounts[classification] || 0;
-
-  if (maxCount === 0) return 0.5; // No words found
-  return Math.min(0.95, 0.6 + (currentCount / maxCount) * 0.35);
-}
-
-// Helper functions to parse structured data from K.A.N.A.'s formatted analysis
-function parseKnowledgeGaps(analysisText) {
-  // Add null/undefined check
-  if (!analysisText || typeof analysisText !== 'string') {
-    console.warn('⚠️ parseKnowledgeGaps: analysisText is undefined or not a string');
-    return [];
-  }
-
-  const gaps = [];
-  const lines = analysisText.split('\n');
-  let inGapsSection = false;
-
-  for (const line of lines) {
-    if (line.includes('Growth Opportunities:') || line.includes('Areas for Improvement:') ||
-      line.includes('Knowledge Gaps:') || line.includes('Areas for development')) {
-      inGapsSection = true;
-      continue;
-    }
-    if (line.includes('**') && inGapsSection) {
-      inGapsSection = false;
-    }
-    if (inGapsSection && line.trim().startsWith('•')) {
-      gaps.push(line.replace(/^[•*]\s*/, '').trim());
-    }
-  }
-  return gaps;
-}
-
-function parseRecommendations(analysisText) {
-  // Add null/undefined check
-  if (!analysisText || typeof analysisText !== 'string') {
-    console.warn('⚠️ parseRecommendations: analysisText is undefined or not a string');
-    return [];
-  }
-
-  const recommendations = [];
-  const lines = analysisText.split('\n');
-  let inRecommendationsSection = false;
-
-  for (const line of lines) {
-    if (line.includes('Study Suggestions:') || line.includes('Recommendations:') ||
-      line.includes('Next Steps:') || line.includes('Teaching suggestions:')) {
-      inRecommendationsSection = true;
-      continue;
-    }
-    if (line.includes('**') && inRecommendationsSection) {
-      inRecommendationsSection = false;
-    }
-    if (inRecommendationsSection && (line.trim().startsWith('•') || line.trim().match(/^\d+\./))) {
-      recommendations.push(line.replace(/^[•*\d\.]\s*/, '').trim());
-    }
-  }
-  return recommendations;
-}
-
-function parseStrengths(analysisText) {
-  // Add null/undefined check
-  if (!analysisText || typeof analysisText !== 'string') {
-    console.warn('⚠️ parseStrengths: analysisText is undefined or not a string');
-    return [];
-  }
-
-  const strengths = [];
-  const lines = analysisText.split('\n');
-  let inStrengthsSection = false;
-
-  for (const line of lines) {
-    if (line.includes('Learning Strengths:') || line.includes('Strengths:') ||
-      line.includes('Strengths Observed:')) {
-      inStrengthsSection = true;
-      continue;
-    }
-    if (line.includes('**') && inStrengthsSection) {
-      inStrengthsSection = false;
-    }
-    if (inStrengthsSection && line.trim().startsWith('•')) {
-      strengths.push(line.replace(/^[•*]\s*/, '').trim());
-    }
-  }
-  return strengths;
-}
-
-function parseConfidenceFromAnalysis(analysisText) {
-  // Add null/undefined check
-  if (!analysisText || typeof analysisText !== 'string') {
-    console.warn('⚠️ parseConfidenceFromAnalysis: analysisText is undefined or not a string');
-    return 50; // Default confidence
-  }
-
-  // Extract a confidence score based on the depth and structure of the analysis
-  const hasDetailedSections = analysisText.includes('**') && analysisText.includes('•');
-  const wordCount = analysisText.split(' ').length;
-  const hasSpecificConcepts = analysisText.toLowerCase().includes('understanding') ||
-    analysisText.toLowerCase().includes('demonstrates') ||
-    analysisText.toLowerCase().includes('concepts');
-
-  let confidence = 70; // Base confidence
-  if (hasDetailedSections) confidence += 10;
-  if (wordCount > 200) confidence += 10;
-  if (hasSpecificConcepts) confidence += 10;
-
-  return Math.min(95, confidence);
-}
-
-function parseGradingFromAnalysis(analysisText) {
-  // Add null/undefined check
-  if (!analysisText || typeof analysisText !== 'string') {
-    console.warn('⚠️ parseGradingFromAnalysis: analysisText is undefined or not a string');
-    return { score: null, letterGrade: null, percentage: null };
-  }
-
-  // First try the enhanced parsing
-  const enhancedResult = parseGradeSingle(analysisText, 'Student', 100);
-  if (enhancedResult.score !== null) {
-    return enhancedResult;
-  }
-
-  // Fallback to original simple parsing
-  const gradeMatch = analysisText.match(/Points Earned:\s*(\d+)\/(\d+)/);
-  const letterGradeMatch = analysisText.match(/Letter Grade:\s*([A-F][+-]?)/);
-  const percentageMatch = analysisText.match(/Percentage:\s*(\d+)%/);
-
-  return {
-    score: gradeMatch ? parseInt(gradeMatch[1]) : null,
-    maxPoints: gradeMatch ? parseInt(gradeMatch[2]) : null,
-    letterGrade: letterGradeMatch ? letterGradeMatch[1] : null,
-    percentage: percentageMatch ? parseInt(percentageMatch[1]) : null
-  };
-}
-
-// Initialize ElizaOS agents on startup
-initializeElizaAgents();
-
-// --- REPORTS GENERATION ENDPOINTS ---
-
-// Generate AI-enhanced report data for various report types
-app.post('/api/kana/generate-report-data', async (req, res) => {
-  try {
-    const { reportType, reportData, schoolId } = req.body;
-
-    if (!reportType || !reportData) {
-      return res.status(400).json({
-        success: false,
-        error: 'Report type and data are required'
-      });
+  // Helper functions to parse structured data from K.A.N.A.'s formatted analysis
+  function parseKnowledgeGaps(analysisText) {
+    // Add null/undefined check
+    if (!analysisText || typeof analysisText !== 'string') {
+      console.warn('⚠️ parseKnowledgeGaps: analysisText is undefined or not a string');
+      return [];
     }
 
-    console.log(`🤖 K.A.N.A. generating AI insights for ${reportType} report`);
+    const gaps = [];
+    const lines = analysisText.split('\n');
+    let inGapsSection = false;
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    for (const line of lines) {
+      if (line.includes('Growth Opportunities:') || line.includes('Areas for Improvement:') ||
+        line.includes('Knowledge Gaps:') || line.includes('Areas for development')) {
+        inGapsSection = true;
+        continue;
+      }
+      if (line.includes('**') && inGapsSection) {
+        inGapsSection = false;
+      }
+      if (inGapsSection && line.trim().startsWith('•')) {
+        gaps.push(line.replace(/^[•*]\s*/, '').trim());
+      }
+    }
+    return gaps;
+  }
 
-    let prompt = '';
+  function parseRecommendations(analysisText) {
+    // Add null/undefined check
+    if (!analysisText || typeof analysisText !== 'string') {
+      console.warn('⚠️ parseRecommendations: analysisText is undefined or not a string');
+      return [];
+    }
 
-    switch (reportType) {
-      case 'student_progress':
-        prompt = `As K.A.N.A., analyze this student's academic progress and provide comprehensive insights:
+    const recommendations = [];
+    const lines = analysisText.split('\n');
+    let inRecommendationsSection = false;
 
-Student Data: ${JSON.stringify(reportData, null, 2)}
+    for (const line of lines) {
+      if (line.includes('Study Suggestions:') || line.includes('Recommendations:') ||
+        line.includes('Next Steps:') || line.includes('Teaching suggestions:')) {
+        inRecommendationsSection = true;
+        continue;
+      }
+      if (line.includes('**') && inRecommendationsSection) {
+        inRecommendationsSection = false;
+      }
+      if (inRecommendationsSection && (line.trim().startsWith('•') || line.trim().match(/^\d+\./))) {
+        recommendations.push(line.replace(/^[•*\d\.]\s*/, '').trim());
+      }
+    }
+    return recommendations;
+  }
 
-Provide analysis in the following JSON format:
-{
-  "summary": "Overall progress summary",
-  "strengths": ["strength1", "strength2"],
-  "areasForImprovement": ["area1", "area2"],
-  "recommendations": ["recommendation1", "recommendation2"],
-  "trendAnalysis": "Analysis of grade trends",
-  "predictiveInsights": "Future performance predictions",
-  "interventionSuggestions": ["intervention1", "intervention2"]
-}`;
-        break;
+  function parseStrengths(analysisText) {
+    // Add null/undefined check
+    if (!analysisText || typeof analysisText !== 'string') {
+      console.warn('⚠️ parseStrengths: analysisText is undefined or not a string');
+      return [];
+    }
 
-      case 'class_performance':
-        prompt = `As K.A.N.A., analyze this classroom's performance data and provide insights:
+    const strengths = [];
+    const lines = analysisText.split('\n');
+    let inStrengthsSection = false;
 
-Class Data: ${JSON.stringify(reportData, null, 2)}
+    for (const line of lines) {
+      if (line.includes('Learning Strengths:') || line.includes('Strengths:') ||
+        line.includes('Strengths Observed:')) {
+        inStrengthsSection = true;
+        continue;
+      }
+      if (line.includes('**') && inStrengthsSection) {
+        inStrengthsSection = false;
+      }
+      if (inStrengthsSection && line.trim().startsWith('•')) {
+        strengths.push(line.replace(/^[•*]\s*/, '').trim());
+      }
+    }
+    return strengths;
+  }
 
-Provide analysis in the following JSON format:
-{
-  "classOverview": "Overall class performance summary",
-  "topPerformers": ["student insights"],
-  "strugglingStudents": ["student insights with suggestions"],
-  "subjectAnalysis": "Subject-specific performance analysis",
-  "engagementMetrics": "Student engagement analysis",
-  "teachingRecommendations": ["recommendation1", "recommendation2"],
-  "curricularSuggestions": ["suggestion1", "suggestion2"]
-}`;
-        break;
+  function parseConfidenceFromAnalysis(analysisText) {
+    // Add null/undefined check
+    if (!analysisText || typeof analysisText !== 'string') {
+      console.warn('⚠️ parseConfidenceFromAnalysis: analysisText is undefined or not a string');
+      return 50; // Default confidence
+    }
 
-      case 'subject_analytics':
-        prompt = `As K.A.N.A., analyze this subject's performance data:
+    // Extract a confidence score based on the depth and structure of the analysis
+    const hasDetailedSections = analysisText.includes('**') && analysisText.includes('•');
+    const wordCount = analysisText.split(' ').length;
+    const hasSpecificConcepts = analysisText.toLowerCase().includes('understanding') ||
+      analysisText.toLowerCase().includes('demonstrates') ||
+      analysisText.toLowerCase().includes('concepts');
 
-Subject Data: ${JSON.stringify(reportData, null, 2)}
+    let confidence = 70; // Base confidence
+    if (hasDetailedSections) confidence += 10;
+    if (wordCount > 200) confidence += 10;
+    if (hasSpecificConcepts) confidence += 10;
 
-Provide analysis in the following JSON format:
-{
-  "subjectOverview": "Overall subject performance",
-  "difficultyAnalysis": "Analysis of challenging topics",
-  "masteryLevels": "Student mastery distribution",
-  "contentGaps": ["gap1", "gap2"],
-  "instructionalStrategies": ["strategy1", "strategy2"],
-  "resourceRecommendations": ["resource1", "resource2"],
-  "assessmentInsights": "Assessment effectiveness analysis"
-}`;
-        break;
+    return Math.min(95, confidence);
+  }
 
-      case 'assignment_analysis':
-        prompt = `As K.A.N.A., analyze this assignment's performance data:
+  function parseGradingFromAnalysis(analysisText) {
+    // Add null/undefined check
+    if (!analysisText || typeof analysisText !== 'string') {
+      console.warn('⚠️ parseGradingFromAnalysis: analysisText is undefined or not a string');
+      return { score: null, letterGrade: null, percentage: null };
+    }
 
-Assignment Data: ${JSON.stringify(reportData, null, 2)}
+    // First try the enhanced parsing
+    const enhancedResult = parseGradeSingle(analysisText, 'Student', 100);
+    if (enhancedResult.score !== null) {
+      return enhancedResult;
+    }
 
-Provide analysis in the following JSON format:
-{
-  "assignmentOverview": "Overall assignment performance",
-  "questionAnalysis": "Question-by-question breakdown",
-  "commonMistakes": ["mistake1", "mistake2"],
-  "masteryIndicators": "What the results indicate about student mastery",
-  "rubricEffectiveness": "Analysis of rubric alignment",
-  "improvementSuggestions": ["suggestion1", "suggestion2"],
-  "futureAssignmentRecommendations": ["recommendation1", "recommendation2"]
-}`;
-        break;
+    // Fallback to original simple parsing
+    const gradeMatch = analysisText.match(/Points Earned:\s*(\d+)\/(\d+)/);
+    const letterGradeMatch = analysisText.match(/Letter Grade:\s*([A-F][+-]?)/);
+    const percentageMatch = analysisText.match(/Percentage:\s*(\d+)%/);
 
-      default:
-        prompt = `As K.A.N.A., analyze this educational data and provide insights:
+    return {
+      score: gradeMatch ? parseInt(gradeMatch[1]) : null,
+      maxPoints: gradeMatch ? parseInt(gradeMatch[2]) : null,
+      letterGrade: letterGradeMatch ? letterGradeMatch[1] : null,
+      percentage: percentageMatch ? parseInt(percentageMatch[1]) : null
+    };
+  }
+
+  // Initialize ElizaOS agents on startup
+  initializeElizaAgents();
+
+  // --- REPORTS GENERATION ENDPOINTS ---
+
+  // Generate AI-enhanced report data for various report types
+  app.post('/api/kana/generate-report-data', async (req, res) => {
+    try {
+      const { reportType, reportData } = req.body;
+
+      if (!reportType) {
+        return res.status(400).json({ success: false, error: 'reportType is required' });
+      }
+
+      const gen = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_);
+      const model = gen.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+      let prompt;
+      switch (reportType) {
+        case 'classroom_overview':
+          prompt = `As K.A.N.A., analyze this classroom performance data and return JSON only.
 
 Data: ${JSON.stringify(reportData, null, 2)}
 
-Provide comprehensive analysis with actionable recommendations.`;
+JSON shape:
+{
+  "overview": "",
+  "strengths": [""],
+  "gaps": [""],
+  "teachingRecommendations": [""],
+  "curricularSuggestions": [""],
+  "riskSignals": [""],
+  "nextSteps": [""]
+}`;
+          break;
+        case 'subject_analytics':
+          prompt = `As K.A.N.A., analyze this subject's performance and return JSON only.
+
+Subject Data: ${JSON.stringify(reportData, null, 2)}
+
+JSON shape:
+{
+  "subjectOverview": "",
+  "difficultyAnalysis": "",
+  "masteryLevels": "",
+  "contentGaps": [""],
+  "instructionalStrategies": [""],
+  "resourceRecommendations": [""],
+  "assessmentInsights": ""
+}`;
+          break;
+        case 'assignment_analysis':
+          prompt = `As K.A.N.A., analyze this assignment performance and return JSON only.
+
+Assignment Data: ${JSON.stringify(reportData, null, 2)}
+
+JSON shape:
+{
+  "assignmentOverview": "",
+  "questionAnalysis": "",
+  "commonMistakes": [""],
+  "masteryIndicators": "",
+  "rubricEffectiveness": "",
+  "improvementSuggestions": [""],
+  "futureAssignmentRecommendations": [""]
+}`;
+          break;
+        default:
+          prompt = `As K.A.N.A., analyze the following educational data and provide actionable insights. Return JSON only.
+
+Data: ${JSON.stringify(reportData, null, 2)}
+
+JSON shape:
+{
+  "analysis": "",
+  "insights": [""],
+  "recommendations": [""],
+  "risks": [""],
+  "nextSteps": [""]
+}`;
+      }
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {
+        const m = String(text).match(/\{[\s\S]*\}/);
+        parsed = m ? JSON.parse(m[0]) : { analysis: text };
+      }
+
+      return res.json({ success: true, reportType, aiInsights: parsed, generatedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error('❌ Error generating report data:', error);
+      return res.status(500).json({ success: false, error: 'Failed to generate AI insights for report' });
     }
+  });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let aiInsights = response.text();
-
-    // Try to parse as JSON, fall back to text if needed
-    let parsedInsights;
+  // Generate report recommendations based on data trends
+  app.post('/api/kana/report-recommendations', async (req, res) => {
     try {
-      parsedInsights = JSON.parse(aiInsights);
-    } catch (e) {
-      parsedInsights = { analysis: aiInsights };
-    }
+      const { reportType, historicalData, currentData } = req.body;
 
-    res.json({
-      success: true,
-      reportType,
-      aiInsights: parsedInsights,
-      generatedAt: new Date().toISOString()
-    });
+      console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
 
-  } catch (error) {
-    console.error('❌ Error generating report data:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate AI insights for report'
-    });
-  }
-});
+      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// Generate report recommendations based on data trends
-app.post('/api/kana/report-recommendations', async (req, res) => {
-  try {
-    const { reportType, historicalData, currentData } = req.body;
-
-    console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
-
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
+      const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
 
 Report Type: ${reportType}
 Historical Data: ${JSON.stringify(historicalData, null, 2)}
@@ -3196,44 +2491,44 @@ Provide recommendations in the following JSON format:
   }
 }`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let recommendations = response.text();
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let recommendations = response.text();
 
-    let parsedRecommendations;
-    try {
-      parsedRecommendations = JSON.parse(recommendations);
-    } catch (e) {
-      parsedRecommendations = { recommendations: recommendations };
+      let parsedRecommendations;
+      try {
+        parsedRecommendations = JSON.parse(recommendations);
+      } catch (e) {
+        parsedRecommendations = { recommendations: recommendations };
+      }
+
+      res.json({
+        success: true,
+        reportType,
+        recommendations: parsedRecommendations,
+        generatedAt: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error generating recommendations:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate recommendations'
+      });
     }
+  });
 
-    res.json({
-      success: true,
-      reportType,
-      recommendations: parsedRecommendations,
-      generatedAt: new Date().toISOString()
-    });
+  // Generate executive summary for reports
+  app.post('/api/kana/report-summary', async (req, res) => {
+    try {
+      const { reportData, reportType, timeframe } = req.body;
 
-  } catch (error) {
-    console.error('❌ Error generating recommendations:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate recommendations'
-    });
-  }
-});
+      console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
 
-// Generate executive summary for reports
-app.post('/api/kana/report-summary', async (req, res) => {
-  try {
-    const { reportData, reportType, timeframe } = req.body;
+      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
-
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:
+      const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:
 
 Report Data: ${JSON.stringify(reportData, null, 2)}
 
@@ -3256,34 +2551,37 @@ Create a comprehensive executive summary in the following JSON format:
   }
 }`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let summary = response.text();
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let summary = response.text();
 
-    let parsedSummary;
-    try {
-      parsedSummary = JSON.parse(summary);
-    } catch (e) {
-      parsedSummary = { summary: summary };
+      let parsedSummary;
+      try {
+        parsedSummary = JSON.parse(summary);
+      } catch (e) {
+        parsedSummary = { summary: summary };
+      }
+
+      res.json({
+        success: true,
+        reportType,
+        timeframe,
+        summary: parsedSummary,
+        generatedAt: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error generating summary:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate executive summary'
+      });
     }
+  });
 
-    res.json({
-      success: true,
-      reportType,
-      timeframe,
-      summary: parsedSummary,
-      generatedAt: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ Error generating summary:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate executive summary'
-    });
-  }
-});
+  // Close any lingering block (cleanup)
+}
 
 console.log('🚀 K.A.N.A. Backend with ElizaOS integration ready!');
-
+// Ensure startServer is defined above; invoke to start services
 startServer();
