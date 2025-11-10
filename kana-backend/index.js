@@ -416,7 +416,6 @@ const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
-  quizService = new QuizService(GOOGLE_API_KEY);
   // Reuse the same model instance for quiz generation to avoid SDK/model-version mismatches
   quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
   console.log('DEBUG: Google AI SDK initialized.');

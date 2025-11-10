@@ -14,7 +14,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // Allow override via env var. Defaults to gemini-1.5-flash (no "-latest" suffix to avoid 404s).
 const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash';
 // Use the SAME model that works for grading to ensure compatibility.
-
+// The grading system successfully uses gemini-2.0-flash-exp, so we default to that.
+// Allow override via env var if needed.
 
 class QuizService {
   constructor(googleApiKey, externalModel = null) {
@@ -165,17 +166,10 @@ Generate the quiz now:`;
           const fallbacks = [];
           const primary = QUIZ_MODEL;
 
-          // Start with the safest broadly available names
-          // Prefer base (no -001) first, then -001 and pro variants
-          const baseFromPrimary = primary?.replace(/-001$/, '') || 'gemini-1.5-flash';
-          if (baseFromPrimary) fallbacks.push(baseFromPrimary);
           // Start with experimental/preview models that work with v1beta endpoint
           // These are the models that successfully work for grading
           if (!fallbacks.includes('gemini-2.0-flash-exp')) fallbacks.push('gemini-2.0-flash-exp');
           if (!fallbacks.includes('gemini-1.5-flash')) fallbacks.push('gemini-1.5-flash');
-          if (!/-001$/.test(baseFromPrimary)) fallbacks.push(`${baseFromPrimary}-001`);
-          // Additional common fallbacks
-          fallbacks.push('gemini-1.5-flash-001', 'gemini-1.5-pro', 'gemini-1.5-pro-001', 'gemini-1.0-pro');
           if (!fallbacks.includes('gemini-1.5-pro')) fallbacks.push('gemini-1.5-pro');
           // Try -latest variants which sometimes have better v1beta support
           fallbacks.push('gemini-1.5-flash-latest', 'gemini-1.5-pro-latest');
