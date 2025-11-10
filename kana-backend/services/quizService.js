@@ -12,9 +12,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Use a stable, widely available Gemini model for QUIZ generation only.
 // Allow override via env var. Defaults to gemini-1.5-flash-latest (no "-latest" suffix to avoid 404s).
-const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash-latest';
+const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-2.0-flash';
 // Use the SAME model that works for grading to ensure compatibility.
-// The grading system successfully uses gemini-1.5-flash-latest, so we default to that.
+// The grading system successfully uses gemini-2.0-flash, so we default to that.
 // Allow override via env var if needed.
 
 class QuizService {
@@ -168,7 +168,7 @@ Generate the quiz now:`;
 
           // Start with experimental/preview models that work with v1beta endpoint
           // These are the models that successfully work for grading
-          if (!fallbacks.includes('gemini-1.5-flash-latest')) fallbacks.push('gemini-1.5-flash-latest');
+          if (!fallbacks.includes('gemini-2.0-flash')) fallbacks.push('gemini-2.0-flash');
           if (!fallbacks.includes('gemini-1.5-flash-latest')) fallbacks.push('gemini-1.5-flash-latest');
           if (!fallbacks.includes('gemini-1.5-pro')) fallbacks.push('gemini-1.5-pro');
           // Try -latest variants which sometimes have better v1beta support

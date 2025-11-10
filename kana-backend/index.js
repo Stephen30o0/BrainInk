@@ -411,7 +411,7 @@ let genAI, geminiModel, quizService;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
 // Prefer a broadly available base model (without -latest); allow override via env
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-latest';
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-2.0-flash';
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
@@ -1838,7 +1838,7 @@ const startServer = async () => {
       console.log(`DEBUG: Analyzing image for conversation ${conversationId}. Message: "${message}"`);
 
       const conversation = getOrCreateConversation(conversationId);
-      const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      const visionModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const imagePart = fileToGenerativePart(imageFile.path, imageFile.mimetype);
 
@@ -1910,7 +1910,7 @@ const startServer = async () => {
         console.log(`📋 Using Gemini 2.5 Pro with visual analysis capabilities`);
 
         const model = genAI.getGenerativeModel({
-          model: 'gemini-1.5-flash-latest',
+          model: 'gemini-2.0-flash',
           generationConfig: {
             temperature: 0,
             topP: 1,
@@ -2171,7 +2171,7 @@ The document is provided as a PDF. Use your vision capabilities to read and unde
       }
 
       // Use Gemini Vision model for enhanced analysis (for single PDFs and images)
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       let analysisResult;
 
@@ -2508,7 +2508,7 @@ Use your vision capabilities to analyze all content in the image including text,
 
         // Enhanced analysis metadata
         analysis_type: pdf_data ? 'pdf_vision' : (image_data ? 'image_vision' : 'text'),
-        model_used: 'gemini-1.5-flash-latest'
+        model_used: 'gemini-2.0-flash'
       };
 
       // Add grading information if available
@@ -3018,7 +3018,7 @@ app.post('/api/kana/generate-report-data', async (req, res) => {
     console.log(`🤖 K.A.N.A. generating AI insights for ${reportType} report`);
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     let prompt = '';
 
@@ -3135,7 +3135,7 @@ app.post('/api/kana/report-recommendations', async (req, res) => {
     console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
 
@@ -3192,7 +3192,7 @@ app.post('/api/kana/report-summary', async (req, res) => {
     console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:
 
