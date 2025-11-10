@@ -411,11 +411,12 @@ let genAI, geminiModel, quizService;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
 // Prefer a broadly available base model (without -latest); allow override via env
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-001';
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash';
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
+  quizService = new QuizService(GOOGLE_API_KEY);
   // Reuse the same model instance for quiz generation to avoid SDK/model-version mismatches
   quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
   console.log('DEBUG: Google AI SDK initialized.');
@@ -1910,7 +1911,7 @@ const startServer = async () => {
         console.log(`📋 Using Gemini 2.5 Pro with visual analysis capabilities`);
 
         const model = genAI.getGenerativeModel({
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-1.5-flash',
           generationConfig: {
             temperature: 0,
             topP: 1,
@@ -2171,7 +2172,7 @@ The document is provided as a PDF. Use your vision capabilities to read and unde
       }
 
       // Use Gemini Vision model for enhanced analysis (for single PDFs and images)
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       let analysisResult;
 
@@ -2508,7 +2509,7 @@ Use your vision capabilities to analyze all content in the image including text,
 
         // Enhanced analysis metadata
         analysis_type: pdf_data ? 'pdf_vision' : (image_data ? 'image_vision' : 'text'),
-        model_used: 'gemini-2.5-flash'
+        model_used: 'gemini-1.5-flash'
       };
 
       // Add grading information if available
