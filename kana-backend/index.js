@@ -407,20 +407,49 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 
 // --- API CLIENTS ---
 
-let genAI, geminiModel, quizService;
+let genAI, geminiModel, quizService, visionModel;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
-// Prefer a broadly available base model (without -latest); allow override via env
+// Base text model preference (avoid -latest to reduce 404); configurable via env
 const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-2.0-flash';
+// Dedicated vision/PDF model (1.5-pro has better vision capacity); configurable via env
+const VISION_MODEL = process.env.KANA_GEMINI_VISION_MODEL || 'gemini-1.5-pro';
+// Quiz model; defaults to base
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
+// Ordered fallback list (will attempt in sequence on 404). Allow override with comma-separated env.
+const FALLBACK_MODELS = (process.env.KANA_GEMINI_FALLBACK_MODELS?.split(',').map(s => s.trim()).filter(Boolean)) || [
+  BASE_MODEL,
+  QUIZ_MODEL_NAME,
+  VISION_MODEL,
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro-exp',
+  'gemini-pro',
+  'gemini-1.0-pro'
+];
+
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
-  // Reuse the same model instance for quiz generation to avoid SDK/model-version mismatches
-  quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
-  console.log('DEBUG: Google AI SDK initialized.');
-  console.log(`DEBUG: Base Gemini model: ${BASE_MODEL}`);
-  console.log('DEBUG: Quiz Service initialized.');
+  try {
+    geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
+    console.log(`DEBUG: Initialized base model: ${BASE_MODEL}`);
+  } catch (e) {
+    console.warn(`WARN: Failed to init base model ${BASE_MODEL}: ${e?.message || e}`);
+    geminiModel = null;
+  }
+  try {
+    visionModel = genAI.getGenerativeModel({ model: VISION_MODEL, systemInstruction });
+    console.log(`DEBUG: Initialized vision model: ${VISION_MODEL}`);
+  } catch (e) {
+    console.warn(`WARN: Failed to init vision model ${VISION_MODEL}: ${e?.message || e}`);
+    visionModel = geminiModel; // fallback to base if vision init fails
+  }
+  // Reuse an existing successful model for QuizService (prefer base, else vision)
+  const primaryForQuiz = geminiModel || visionModel || null;
+  quizService = new QuizService(GOOGLE_API_KEY, primaryForQuiz);
+  console.log('DEBUG: Quiz Service initialized with shared model instance.');
+  console.log('DEBUG: Fallback model order:', FALLBACK_MODELS.join(' -> '));
 } else {
   console.error('FATAL: GOOGLE_API_KEY / GOOGLE_API_ not found. AI services will not work.');
   quizService = new QuizService(); // Initialize without API for fallback
