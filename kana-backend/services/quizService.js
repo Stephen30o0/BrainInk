@@ -10,9 +10,8 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Use the SAME model that works for grading to ensure compatibility.
-// The grading system successfully uses gemini-2.0-flash-exp, so we default to that.
-// Allow override via env var if needed.
+// CRITICAL: This model is passed FROM index.js - do NOT override it
+// Using gemini-2.0-flash-exp which is the ONLY model that works on v1beta endpoint
 const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-2.0-flash-exp';
 
 class QuizService {
@@ -21,24 +20,16 @@ class QuizService {
     this.apiKey = googleApiKey || null;
 
     if (externalModel) {
-      // Reuse an already-working model instance from the host app (index.js)
+      // PREFERRED PATH: Reuse an already-working model instance from the host app (index.js)
+      // This prevents 404 errors by using the same gemini-2.0-flash-exp instance
       this.model = externalModel;
       this.genAI = null;
-      console.log('✅ Quiz Service: Using external Gemini model instance');
-      // Prepare a fallback client (without changing the primary model) so we can recover from 404s
-      if (googleApiKey) {
-        try {
-          this.genAI = new GoogleGenerativeAI(googleApiKey);
-          console.log('🔄 Quiz Service: Fallback Gemini client initialized for model failover');
-        } catch (e) {
-          this.genAI = null;
-          console.warn('⚠️ Quiz Service: Failed to initialize fallback Gemini client:', e?.message || e);
-        }
-      }
+      console.log('✅ Quiz Service: Using external Gemini model instance (RECOMMENDED)');
     } else if (googleApiKey) {
+      // Fallback: create our own client (only if no external model provided)
       this.genAI = new GoogleGenerativeAI(googleApiKey);
       this.model = this.genAI.getGenerativeModel({ model: QUIZ_MODEL });
-      console.log(`✅ Quiz Service: Gemini AI initialized (model: ${QUIZ_MODEL})`);
+      console.log(`⚠️ Quiz Service: Created new Gemini client (model: ${QUIZ_MODEL})`);
     } else {
       this.model = null;
       this.genAI = null;
@@ -145,52 +136,18 @@ Generate the quiz now:`;
     try {
       return await tryGenerate();
     } catch (error) {
-      // If model not found for this API version, try known compatible fallbacks
-      const isModelNotFound = (error && (error.status === 404 || /not found.*v1beta|not supported for generateContent/i.test(String(error))))
+      // Check if it's a quota/rate-limit error (429) - these are EXPECTED in free tier
+      const isQuotaError = (error && (error.status === 429 || /quota.*exceeded|rate.*limit|too many requests/i.test(String(error))));
 
-      if (isModelNotFound) {
-        // Ensure we have a client to create alternative model instances
-        if (!this.genAI && this.apiKey) {
-          try {
-            this.genAI = new GoogleGenerativeAI(this.apiKey);
-            console.warn('🔄 QUIZ: Initialized fallback Gemini client after model 404');
-          } catch (e) {
-            console.warn('⚠️ QUIZ: Could not initialize fallback Gemini client:', e?.message || e);
-          }
-        }
-
-        if (this.genAI) {
-          const attempted = [];
-          const fallbacks = [];
-          const primary = QUIZ_MODEL;
-
-          // Start with experimental/preview models that work with v1beta endpoint
-          // These are the models that successfully work for grading
-          if (!fallbacks.includes('gemini-2.0-flash-exp')) fallbacks.push('gemini-2.0-flash-exp');
-          if (!fallbacks.includes('gemini-1.5-flash')) fallbacks.push('gemini-1.5-flash');
-          if (!fallbacks.includes('gemini-1.5-pro')) fallbacks.push('gemini-1.5-pro');
-          // Try -latest variants which sometimes have better v1beta support
-          fallbacks.push('gemini-1.5-flash-latest', 'gemini-1.5-pro-latest');
-          // Older stable models as last resort
-          fallbacks.push('gemini-1.0-pro', 'gemini-pro');
-
-          for (const modelName of fallbacks) {
-            if (!modelName || attempted.includes(modelName)) continue;
-            attempted.push(modelName);
-            try {
-              console.warn(`⚠️ QUIZ model fallback: trying ${modelName} due to 404 on ${primary}`);
-              this.model = this.genAI.getGenerativeModel({ model: modelName });
-              const parsed = await tryGenerate();
-              console.log(`✅ QUIZ model fallback succeeded with: ${modelName}`);
-              return parsed;
-            } catch (e) {
-              // Continue to next fallback
-              console.warn(`⚠️ QUIZ model fallback failed for ${modelName}: ${e?.message || e}`);
-            }
-          }
-        }
+      if (isQuotaError) {
+        console.warn('⚠️ QUIZ: Gemini quota exceeded - using fallback quiz generation');
+        // Don't try other models - they'll all fail with same quota issue
+        // Just fall through to catch block which returns fallback
+        throw error;
       }
-      console.error('❌ AI generation failed:', error);
+
+      // For other errors, log and fall through to fallback
+      console.error('❌ QUIZ generation error:', error?.message || error);
       throw error;
     }
   }

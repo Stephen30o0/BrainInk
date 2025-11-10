@@ -410,17 +410,19 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 let genAI, geminiModel, quizService;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
-// Prefer a broadly available base model (without -latest); allow override via env
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-001';
+// Use gemini-2.0-flash-exp which works with v1beta and has vision capabilities
+// This is the ONLY model that successfully works for grading in production
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-2.0-flash-exp';
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 if (GOOGLE_API_KEY) {
   genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
   geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
-  // Reuse the same model instance for quiz generation to avoid SDK/model-version mismatches
+  // CRITICAL: Pass the SAME working model instance to quiz service to prevent 404 errors
+  // This ensures quiz generation uses gemini-2.0-flash-exp instead of trying invalid models
   quizService = new QuizService(GOOGLE_API_KEY, geminiModel);
   console.log('DEBUG: Google AI SDK initialized.');
   console.log(`DEBUG: Base Gemini model: ${BASE_MODEL}`);
-  console.log('DEBUG: Quiz Service initialized.');
+  console.log('DEBUG: Quiz Service initialized with SHARED model instance.');
 } else {
   console.error('FATAL: GOOGLE_API_KEY / GOOGLE_API_ not found. AI services will not work.');
   quizService = new QuizService(); // Initialize without API for fallback
@@ -610,14 +612,30 @@ const callGeminiWithCircuitBreaker = async (model, input, maxRetries = 3, retryD
     } catch (error) {
       console.error(`❌ Gemini API attempt ${attempt}/${maxRetries} failed:`, error.message);
 
-      // Log more details for debugging
+      // CRITICAL: Check if this is a quota/rate-limit error (429)
+      const isQuotaError = (error.status === 429 || /quota.*exceeded|rate.*limit|too many requests/i.test(String(error.message)));
+
+      if (isQuotaError) {
+        console.error('🚨 QUOTA EXCEEDED: Free-tier Gemini API limit reached');
+        console.error('💡 Solution: Upgrade to paid tier or wait for quota reset');
+        console.error('📊 Check usage: https://ai.dev/usage?tab=rate-limit');
+
+        // DON'T count quota errors toward circuit breaker failures
+        // These are expected in free tier and should use fallback immediately
+        const quotaError = new Error('QUOTA_EXCEEDED');
+        quotaError.status = 429;
+        quotaError.originalError = error;
+        throw quotaError;
+      }
+
+      // Log more details for debugging non-quota errors
       if (error.message.includes('Empty response')) {
         console.error('🔍 Debug: Gemini returned empty response - possible PDF processing issue');
       }
 
       failureCount++;
 
-      // Open circuit breaker if too many failures
+      // Open circuit breaker if too many NON-QUOTA failures
       if (failureCount >= MAX_FAILURES) {
         circuitBreakerOpen = true;
         console.error('🚫 Circuit breaker opened - too many failures');
@@ -2039,7 +2057,28 @@ The document is provided as a PDF. Use your vision capabilities to read and unde
             console.log(`🤖 Comprehensive vision analysis for ${studentName}...`);
 
             // Use the circuit breaker with retry logic
-            const response = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
+            let response;
+            try {
+              response = await callGeminiWithCircuitBreaker(model, modelInput, 3, 2000);
+            } catch (error) {
+              // Check if this is a quota error (429)
+              if (error.message === 'QUOTA_EXCEEDED' || error.status === 429) {
+                console.error(`⚠️ Quota exceeded for ${studentName} - cannot grade with AI`);
+                results.push({
+                  student_name: studentName,
+                  student_index: i,
+                  error: 'quota_exceeded',
+                  error_detail: 'Gemini API free-tier quota exhausted. Please upgrade to paid tier or wait for quota reset.',
+                  success: false,
+                  fallback_available: false,
+                  processed_at: new Date().toISOString()
+                });
+                continue;
+              }
+              // Re-throw other errors
+              throw error;
+            }
+
             const rawResponse = response.response.text();
 
             if (!rawResponse || rawResponse.trim().length === 0) {
