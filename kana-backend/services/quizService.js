@@ -8,11 +8,15 @@
  * - Managing quiz data and responses
  */
 
+// Allow overriding API endpoint/version to force v1 (some 1.5 models 404 on v1beta)
+const GOOGLE_API_ENDPOINT = process.env.GOOGLE_API_ENDPOINT || 'https://generativelanguage.googleapis.com';
+const GOOGLE_API_VERSION = process.env.GOOGLE_API_VERSION || 'v1';
+const CLIENT_OPTS = { apiEndpoint: `${GOOGLE_API_ENDPOINT}/${GOOGLE_API_VERSION}` };
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Use a stable, widely available Gemini model for QUIZ generation only.
-// Favor free-tier 1.5-flash by default; allow override via env vars.
-const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash';
+// Default to gemini-2.0-flash to avoid 404s on 1.5 models with v1beta; allow override via env vars.
+const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash-latest';
 // Use the SAME model that works for grading to ensure compatibility.
 // Allow override via env var if needed.
 
@@ -37,7 +41,7 @@ class QuizService {
         }
       }
     } else if (googleApiKey) {
-      this.genAI = new GoogleGenerativeAI(googleApiKey);
+      this.genAI = new GoogleGenerativeAI(googleApiKey, CLIENT_OPTS);
       this.model = this.genAI.getGenerativeModel({ model: QUIZ_MODEL });
       console.log(`✅ Quiz Service: Gemini AI initialized (model: ${QUIZ_MODEL})`);
     } else {
@@ -153,7 +157,7 @@ Generate the quiz now:`;
         // Ensure we have a client to create alternative model instances
         if (!this.genAI && this.apiKey) {
           try {
-            this.genAI = new GoogleGenerativeAI(this.apiKey);
+            this.genAI = new GoogleGenerativeAI(this.apiKey, CLIENT_OPTS);
             console.warn('🔄 QUIZ: Initialized fallback Gemini client after model 404');
           } catch (e) {
             console.warn('⚠️ QUIZ: Could not initialize fallback Gemini client:', e?.message || e);
@@ -165,14 +169,13 @@ Generate the quiz now:`;
           const fallbacks = [];
           const primary = QUIZ_MODEL;
 
-          // Prefer free-tier 1.5 models first
-          fallbacks.push('gemini-1.5-flash');
-          fallbacks.push('gemini-1.5-flash-8b');
+          // Prefer 1.5 (v1) options first, then 2.0, then legacy
           fallbacks.push('gemini-1.5-flash-latest');
-          // Then move to pro / higher tiers
+          fallbacks.push('gemini-1.5-flash-8b');
           fallbacks.push('gemini-1.5-pro');
           fallbacks.push('gemini-1.5-pro-latest');
           fallbacks.push('gemini-2.0-flash');
+          fallbacks.push('gemini-2.0-pro');
           // Older stable models as last resort
           fallbacks.push('gemini-1.0-pro', 'gemini-pro');
 

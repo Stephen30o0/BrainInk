@@ -410,27 +410,34 @@ console.log('DEBUG: K.A.N.A. syllabus processing routes enabled');
 let genAI, geminiModel, quizService, visionModel;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
-// Base text model preference (favor free-tier 1.5-flash); configurable via env
-const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash';
-// Dedicated vision/PDF model (default to free-tier 1.5-flash; override to pro if available)
-const VISION_MODEL = process.env.KANA_GEMINI_VISION_MODEL || 'gemini-1.5-flash';
+// Allow forcing API endpoint/version to hit v1 for 1.5 models (v1beta returns 404 for some projects)
+const GOOGLE_API_ENDPOINT = process.env.GOOGLE_API_ENDPOINT || 'https://generativelanguage.googleapis.com';
+const GOOGLE_API_VERSION = process.env.GOOGLE_API_VERSION || 'v1';
+const clientOptions = { apiEndpoint: `${GOOGLE_API_ENDPOINT}/${GOOGLE_API_VERSION}` };
+
+// Prefer free/lenient 1.5 flash first; users can override via env
+const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-latest';
+// Vision/PDF model; default to 1.5-pro-latest for better vision; override via env
+const VISION_MODEL = process.env.KANA_GEMINI_VISION_MODEL || 'gemini-1.5-pro-latest';
 // Quiz model; defaults to base
 const QUIZ_MODEL_NAME = process.env.KANA_GEMINI_QUIZ_MODEL || BASE_MODEL;
 // Ordered fallback list (will attempt in sequence on 404). Allow override with comma-separated env.
 const FALLBACK_MODELS = (process.env.KANA_GEMINI_FALLBACK_MODELS?.split(',').map(s => s.trim()).filter(Boolean)) || [
   BASE_MODEL,
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-pro',
-  'gemini-1.5-pro-exp',
   VISION_MODEL,
   QUIZ_MODEL_NAME,
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro',
+  'gemini-1.5-pro-latest',
   'gemini-2.0-flash',
-  'gemini-pro',
-  'gemini-1.0-pro'
+  'gemini-2.0-pro',
+  'gemini-1.0-pro',
+  'gemini-pro'
 ];
 
 if (GOOGLE_API_KEY) {
-  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY, clientOptions);
   try {
     geminiModel = genAI.getGenerativeModel({ model: BASE_MODEL, systemInstruction });
     console.log(`DEBUG: Initialized base model: ${BASE_MODEL}`);
