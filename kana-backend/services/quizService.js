@@ -11,7 +11,7 @@
 // Allow overriding API endpoint/version to force v1 (some 1.5 models 404 on v1beta)
 const GOOGLE_API_ENDPOINT = process.env.GOOGLE_API_ENDPOINT || 'https://generativelanguage.googleapis.com';
 const GOOGLE_API_VERSION = process.env.GOOGLE_API_VERSION || 'v1';
-const CLIENT_OPTS = { apiEndpoint: `${GOOGLE_API_ENDPOINT}/${GOOGLE_API_VERSION}` };
+const CLIENT_OPTS = { apiEndpoint: GOOGLE_API_ENDPOINT, apiVersion: GOOGLE_API_VERSION };
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Use a stable, widely available Gemini model for QUIZ generation only.

@@ -411,9 +411,10 @@ let genAI, geminiModel, quizService, visionModel;
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_;
 // Allow forcing API endpoint/version to hit v1 for 1.5 models (v1beta returns 404 for some projects)
+// Configure API host/version (set GOOGLE_API_VERSION=v1 to avoid v1beta 404s for 1.5 models)
 const GOOGLE_API_ENDPOINT = process.env.GOOGLE_API_ENDPOINT || 'https://generativelanguage.googleapis.com';
 const GOOGLE_API_VERSION = process.env.GOOGLE_API_VERSION || 'v1';
-const clientOptions = { apiEndpoint: `${GOOGLE_API_ENDPOINT}/${GOOGLE_API_VERSION}` };
+const clientOptions = { apiEndpoint: GOOGLE_API_ENDPOINT, apiVersion: GOOGLE_API_VERSION };
 
 // Prefer free/lenient 1.5 flash first; users can override via env
 const BASE_MODEL = process.env.KANA_GEMINI_BASE_MODEL || 'gemini-1.5-flash-latest';
