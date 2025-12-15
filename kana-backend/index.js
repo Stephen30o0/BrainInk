@@ -431,8 +431,6 @@ const FALLBACK_MODELS = (process.env.KANA_GEMINI_FALLBACK_MODELS?.split(',').map
   'gemini-1.5-flash-8b',
   'gemini-1.5-pro',
   'gemini-1.5-pro-latest',
-  'gemini-2.0-flash',
-  'gemini-2.0-pro',
   'gemini-1.0-pro',
   'gemini-pro'
 ];
@@ -3054,7 +3052,7 @@ app.post('/api/kana/generate-report-data', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating AI insights for ${reportType} report`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
+    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY, clientOptions);
     const model = genAI.getGenerativeModel({ model: BASE_MODEL });
 
     let prompt = '';
@@ -3171,7 +3169,7 @@ app.post('/api/kana/report-recommendations', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating recommendations for ${reportType}`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
+    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY, clientOptions);
     const model = genAI.getGenerativeModel({ model: BASE_MODEL });
 
     const prompt = `As K.A.N.A., analyze the historical and current data to provide actionable recommendations:
@@ -3228,7 +3226,7 @@ app.post('/api/kana/report-summary', async (req, res) => {
 
     console.log(`🤖 K.A.N.A. generating executive summary for ${reportType}`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_);
+    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY, clientOptions);
     const model = genAI.getGenerativeModel({ model: BASE_MODEL });
 
     const prompt = `As K.A.N.A., create an executive summary for this ${reportType} report covering ${timeframe}:

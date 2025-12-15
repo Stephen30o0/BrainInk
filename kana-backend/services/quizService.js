@@ -15,7 +15,7 @@ const CLIENT_OPTS = { apiEndpoint: GOOGLE_API_ENDPOINT, apiVersion: GOOGLE_API_V
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Use a stable, widely available Gemini model for QUIZ generation only.
-// Default to gemini-2.0-flash to avoid 404s on 1.5 models with v1beta; allow override via env vars.
+// Default to gemini-1.5-flash-latest (free-tier friendly, v1); allow override via env vars.
 const QUIZ_MODEL = process.env.KANA_GEMINI_QUIZ_MODEL || process.env.GOOGLE_GEMINI_QUIZ_MODEL || 'gemini-1.5-flash-latest';
 // Use the SAME model that works for grading to ensure compatibility.
 // Allow override via env var if needed.
@@ -33,7 +33,7 @@ class QuizService {
       // Prepare a fallback client (without changing the primary model) so we can recover from 404s
       if (googleApiKey) {
         try {
-          this.genAI = new GoogleGenerativeAI(googleApiKey);
+          this.genAI = new GoogleGenerativeAI(googleApiKey, CLIENT_OPTS);
           console.log('🔄 Quiz Service: Fallback Gemini client initialized for model failover');
         } catch (e) {
           this.genAI = null;
@@ -169,13 +169,11 @@ Generate the quiz now:`;
           const fallbacks = [];
           const primary = QUIZ_MODEL;
 
-          // Prefer 1.5 (v1) options first, then 2.0, then legacy
+          // Prefer 1.5 (v1) options first, then legacy
           fallbacks.push('gemini-1.5-flash-latest');
           fallbacks.push('gemini-1.5-flash-8b');
           fallbacks.push('gemini-1.5-pro');
           fallbacks.push('gemini-1.5-pro-latest');
-          fallbacks.push('gemini-2.0-flash');
-          fallbacks.push('gemini-2.0-pro');
           // Older stable models as last resort
           fallbacks.push('gemini-1.0-pro', 'gemini-pro');
 
