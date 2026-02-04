@@ -4629,7 +4629,7 @@ export const UploadAnalyze: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-900">Upload & Analyze</h2>
           <p className="text-gray-600 mt-1">AI-powered analysis and grading of student work with K.A.N.A.</p>
         </div>
-        <div className="flex items-center space-x-4">
+        {/* <div className="flex items-center space-x-4">
           <button
             onClick={() => window.location.hash = '#image-gallery'}
             className="flex items-center px-3 py-2 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg transition-colors text-sm"
@@ -4641,7 +4641,7 @@ export const UploadAnalyze: React.FC = () => {
             <Brain className="w-5 h-5 text-blue-600" />
             <span className="text-blue-800 font-medium">K.A.N.A. {assignmentType === 'grading' ? 'Grading' : 'Analysis'}</span>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Classroom and Subject Selection */}
@@ -4749,7 +4749,7 @@ export const UploadAnalyze: React.FC = () => {
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
             <FileText className="w-6 h-6 text-green-600 mr-2" />
-            <h3 className="text-lg font-semibold text-green-900">Assignment & Grading Mode</h3>
+            <h3 className="text-lg font-semibold text-green-900">Assignments</h3>
           </div>
 
           {/* Show info if not in grading mode */}
@@ -4819,7 +4819,7 @@ export const UploadAnalyze: React.FC = () => {
                       </div>
                     </div>
                   </label>
-                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  {/* <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                     <input
                       type="radio"
                       value="manual"
@@ -4833,7 +4833,7 @@ export const UploadAnalyze: React.FC = () => {
                         Review and manually submit grades after AI analysis
                       </div>
                     </div>
-                  </label>
+                  </label> */}
                 </div>
               </div>
             </div>
@@ -5212,7 +5212,6 @@ export const UploadAnalyze: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <label className="block text-lg font-semibold text-gray-800">
-                    Upload Student Work
                   </label>
                   {files && files.length > 0 && (
                     <span className="text-sm text-gray-600">
@@ -5221,7 +5220,7 @@ export const UploadAnalyze: React.FC = () => {
                   )}
                 </div>
 
-                <div
+                {/* <div
                   className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer group"
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
@@ -5255,10 +5254,10 @@ export const UploadAnalyze: React.FC = () => {
                     onChange={handleFileChange}
                     className="hidden"
                   />
-                </div>
+                </div> */}
 
                 {/* Quick Access to Previously Uploaded Files */}
-                <div className="mt-4 flex justify-center">
+                {/* <div className="mt-4 flex justify-center">
                   <button
                     onClick={() => {
                       setSelectImageModal(true);
@@ -5268,9 +5267,9 @@ export const UploadAnalyze: React.FC = () => {
                     className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     <FolderOpen className="w-4 h-4" />
-                    <span>Choose from previously uploaded files</span>
+                    <span> </span>
                   </button>
-                </div>
+                </div> */}
               </div>
 
               {/* Selected Files */}
@@ -6258,9 +6257,9 @@ export const UploadAnalyze: React.FC = () => {
       {/* Assignment Edit Modal */}
       {showAssignmentEditModal && selectedAssignment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header - Fixed */}
+            <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Edit Assignment</h3>
                 <p className="text-sm text-gray-600">
@@ -6275,8 +6274,8 @@ export const UploadAnalyze: React.FC = () => {
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+            {/* Modal Content - Scrollable */}
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -6339,8 +6338,8 @@ export const UploadAnalyze: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+            {/* Modal Footer - Fixed */}
+            <div className="flex items-center justify-between p-6 border-t bg-gray-50 flex-shrink-0">
               <p className="text-sm text-gray-600">
                 Changes will be saved to the assignment and used for future grading
               </p>

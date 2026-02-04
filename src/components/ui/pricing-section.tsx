@@ -1,7 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRightIcon, CheckIcon } from "@radix-ui/react-icons"
 import { cn } from "@/lib/utils"
@@ -32,8 +30,6 @@ interface PricingSectionProps {
 }
 
 function PricingSection({ tiers, className }: PricingSectionProps) {
-  const [isYearly, setIsYearly] = useState(false)
-
   const buttonStyles = {
     default: cn(
       "h-10 bg-white dark:bg-zinc-900",
@@ -70,37 +66,16 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
         className,
       )}
     >
-      <div className="w-full max-w-5xl mx-auto">
-        <div className="flex flex-col items-center gap-4 mb-10">
-          <h2 className="text-2xl font-bold text-black dark:text-white">
-            Simple, transparent pricing
-          </h2>
-          <div className="inline-flex items-center p-1 bg-white dark:bg-zinc-800/50 rounded-full border border-slate-200 dark:border-zinc-700 shadow-sm">
-            {["Per Term", "Per Year"].map((period) => (
-              <button
-                key={period}
-                onClick={() => setIsYearly(period === "Per Year")}
-                className={cn(
-                  "px-6 py-2 text-sm font-bold rounded-full transition-all duration-300",
-                  (period === "Per Year") === isYearly
-                    ? "bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg"
-                    : "text-slate-800 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100",
-                )}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="w-full max-w-6xl mx-auto">
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div className="flex justify-center">
           {tiers.map((tier) => (
             <div
               key={tier.name}
               className={cn(
                 "relative group backdrop-blur-sm",
                 "rounded-2xl transition-all duration-300",
-                "flex flex-col max-h-[600px]",
+                "flex flex-col w-full max-w-2xl",
                 tier.highlight
                   ? "bg-gradient-to-b from-blue-50/90 to-white dark:from-zinc-400/[0.15]"
                   : "bg-white dark:bg-zinc-800/50",
@@ -129,31 +104,44 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                   >
                     {tier.icon}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100">
+                  <h3 className="text-xl font-black text-black dark:text-zinc-100">
                     {tier.name}
                   </h3>
                 </div>
 
                 <div className="mb-5">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-slate-900 dark:text-zinc-100">
-                      {typeof (isYearly ? tier.price.yearly : tier.price.monthly) === 'string'
-                        ? (isYearly ? tier.price.yearly : tier.price.monthly)
-                        : `${isYearly ? tier.price.yearly : tier.price.monthly} RWF`
-                      }
-                    </span>
-                    {typeof (isYearly ? tier.price.yearly : tier.price.monthly) === 'number' && (
-                      <span className="text-sm text-slate-600 dark:text-zinc-400 font-semibold">
-                        /{isYearly ? "year" : "term"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-2 text-sm text-slate-800 dark:text-zinc-300 font-medium">
+                  {(() => {
+                    const currentPrice = tier.price.monthly
+                    const isCustom = typeof currentPrice === "string"
+
+                    return (
+                      <div
+                        className={cn(
+                          "w-full",
+                          isCustom
+                            ? "flex items-center justify-center text-center"
+                            : "flex items-baseline gap-1",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "font-black",
+                            isCustom
+                              ? "text-5xl sm:text-6xl text-black"
+                              : "text-3xl text-black dark:text-zinc-100",
+                          )}
+                        >
+                          {isCustom ? "Custom" : `${currentPrice} RWF`}
+                        </span>
+                      </div>
+                    )
+                  })()}
+                  <p className="mt-3 text-base text-black dark:text-zinc-300 font-semibold" style={{ color: '#000000' }}>
                     {tier.description}
                   </p>
                 </div>
 
-                <div className="space-y-3 overflow-y-auto max-h-60">
+                <div className="space-y-3">
                   {tier.features.map((feature) => (
                     <div key={feature.name} className="flex gap-3">
                       <div
@@ -167,10 +155,10 @@ function PricingSection({ tiers, className }: PricingSectionProps) {
                         <CheckIcon className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-sm font-semibold text-slate-900 dark:text-zinc-100">
+                        <div className="text-base font-bold dark:text-zinc-100" style={{ color: '#000000' }}>
                           {feature.name}
                         </div>
-                        <div className="text-xs text-slate-700 dark:text-zinc-400 font-medium">
+                        <div className="text-sm font-medium dark:text-zinc-400" style={{ color: '#000000' }}>
                           {feature.description}
                         </div>
                       </div>

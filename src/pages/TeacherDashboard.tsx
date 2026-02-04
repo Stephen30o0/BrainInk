@@ -31,6 +31,21 @@ export const TeacherDashboard: React.FC = () => {
     initializeDashboard();
   }, [isAuthenticated, user, navigate]);
 
+  // Listen for tab change events from child components
+  useEffect(() => {
+    const handleTabChange = (event: CustomEvent) => {
+      const newTab = event.detail as TeacherDashboardTab;
+      if (newTab) {
+        setActiveTab(newTab);
+      }
+    };
+
+    window.addEventListener('changeTab', handleTabChange as EventListener);
+    return () => {
+      window.removeEventListener('changeTab', handleTabChange as EventListener);
+    };
+  }, []);
+
   const initializeDashboard = async () => {
     try {
       // Check if user is authenticated
@@ -138,14 +153,14 @@ export const TeacherDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                Teacher Dashboard
+                Dashboard
               </h1>
               <p className="text-sm text-gray-600 mt-1">
                 AI-powered insights for {user?.name || 'Educator'}
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="bg-blue-100 px-3 py-1 rounded-full">
+              {/* <div className="bg-blue-100 px-3 py-1 rounded-full">
                 <span className="text-blue-800 text-sm font-medium">
                   {backendConnected ? 'Backend Connected' : 'K.A.N.A. Active'}
                 </span>
@@ -155,8 +170,8 @@ export const TeacherDashboard: React.FC = () => {
                   <span className="text-green-800 text-sm font-medium">
                     {teacherData.name || 'Teacher'}
                   </span>
-                </div>
-              )}
+                </div> */}
+
               <button
                 onClick={() => navigate('/')}
                 className="text-gray-500 hover:text-gray-700"

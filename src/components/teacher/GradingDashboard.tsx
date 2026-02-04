@@ -239,7 +239,7 @@ export const GradingDashboard: React.FC = () => {
                 <div className="flex items-center justify-center py-12">
                     <div className="text-center">
                         <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-                        <p className="text-gray-600">Loading grading dashboard...</p>
+                        <p className="text-gray-600">Loading grades dashboard...</p>
                     </div>
                 </div>
             </div>
@@ -270,8 +270,8 @@ export const GradingDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900">Grading Dashboard</h2>
-                    <p className="text-gray-600 mt-1">Grade assignments and track student progress</p>
+                    <h2 className="text-3xl font-bold text-gray-900">Grades</h2>
+                    <p className="text-gray-600 mt-1">View graded assignments and track student progress</p>
                 </div>
             </div>
 
@@ -287,11 +287,11 @@ export const GradingDashboard: React.FC = () => {
                         <div className="text-sm text-gray-600">Total Graded</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-purple-600">{analytics.averageClassScore}%</div>
+                        <div className="text-2xl font-bold text-purple-600">{Math.round(analytics.averageClassScore || 0)}%</div>
                         <div className="text-sm text-gray-600">Class Average</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-                        <div className="text-2xl font-bold text-blue-600">{analytics.gradingProgress}%</div>
+                        <div className="text-2xl font-bold text-blue-600">{Math.round(analytics.gradingProgress || 0)}%</div>
                         <div className="text-sm text-gray-600">Progress</div>
                     </div>
                 </div>

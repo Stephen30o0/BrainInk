@@ -23,9 +23,9 @@ export const HelpCenterPage: React.FC = () => {
             <Article title="Getting started (teachers)">
               <p>Create a school account, add your classes, and upload a sample rubric. You can scan handwritten papers or upload PDFs/images for grading.</p>
             </Article>
-            <Article title="Pricing & pilots">
+            {/* <Article title="Pricing & pilots">
               <p>Standard plan is 15,000 RWF per student per trimester. Schools can run a pilot where the school contributes 30% of the fee for selected teachers. Training and onboarding included.</p>
-            </Article>
+            </Article> */}
             <Article title="Privacy & security">
               <p>We minimize what we store and encrypt data in transit and at rest. Admins control access, exports, and integrations. Records can be exported for your SIS.</p>
             </Article>

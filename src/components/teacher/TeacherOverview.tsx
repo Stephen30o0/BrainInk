@@ -12,7 +12,10 @@ import {
   Award,
   Target,
   Activity,
-  BarChart3
+  BarChart3,
+  Upload,
+  FileText,
+  UserPlus
 } from 'lucide-react';
 import { teacherService, KanaRecommendation } from '../../services/teacherService';
 
@@ -453,10 +456,6 @@ export const TeacherOverview: React.FC = () => {
         <div className="max-w-none mx-auto space-y-6 lg:space-y-8 h-full">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Teacher Dashboard</h1>
-              <p className="text-gray-600 text-sm sm:text-base">Overview of your classes and students</p>
-            </div>
             <button
               onClick={loadDashboardData}
               disabled={loading}
@@ -464,6 +463,31 @@ export const TeacherOverview: React.FC = () => {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
+            </button>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'upload' }))}
+              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <Upload className="w-6 h-6" />
+              <span className="text-lg font-semibold">Grade with Kana</span>
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'assignments' }))}
+              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <FileText className="w-6 h-6" />
+              <span className="text-lg font-semibold">Create Assignment</span>
+            </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'students' }))}
+              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <UserPlus className="w-6 h-6" />
+              <span className="text-lg font-semibold">Student Profiles</span>
             </button>
           </div>
 

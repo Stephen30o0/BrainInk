@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { GraduationCapIcon, ShieldCheckIcon, ArrowRightIcon, MailIcon, BuildingIcon, ArrowLeftIcon, BellIcon } from 'lucide-react';
+import { GraduationCapIcon, ShieldCheckIcon, ArrowRightIcon, BuildingIcon, ArrowLeftIcon, BellIcon } from 'lucide-react';
 import { schoolSelectionService, School } from '../services/schoolSelectionService';
 
 const RoleSelection = () => {
-    const [currentStep, setCurrentStep] = useState<'loading' | 'school' | 'role' | 'email'>('loading');
+    const [currentStep, setCurrentStep] = useState<'loading' | 'school' | 'role'>('loading');
     const [availableSchools, setAvailableSchools] = useState<School[]>([]);
     const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
     const [selectedRole, setSelectedRole] = useState<'teacher' | 'principal' | null>(null);
-    const [userEmail, setUserEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
@@ -44,18 +43,11 @@ const RoleSelection = () => {
         setCurrentStep('role');
     };
 
-    const handleRoleSelect = (role: 'teacher' | 'principal') => {
+    const handleRoleSelect = async (role: 'teacher' | 'principal') => {
         setSelectedRole(role);
-        setCurrentStep('email');
-        // Pre-fill email if available from user context
-        if (user?.email) {
-            setUserEmail(user.email);
-        }
-    };
 
-    const handleConfirmSelection = async () => {
-        if (!selectedSchool || !selectedRole || !userEmail) {
-            setError('Please complete all steps: select school, role, and enter your email');
+        if (!selectedSchool) {
+            setError('Please select a school first');
             return;
         }
 
@@ -64,11 +56,12 @@ const RoleSelection = () => {
 
         try {
             let response;
+            const email = user?.email || '';
 
-            if (selectedRole === 'principal') {
-                response = await schoolSelectionService.selectSchoolAsPrincipal(selectedSchool.id, userEmail);
+            if (role === 'principal') {
+                response = await schoolSelectionService.selectSchoolAsPrincipal(selectedSchool.id, email);
             } else {
-                response = await schoolSelectionService.selectSchoolAsTeacher(selectedSchool.id, userEmail);
+                response = await schoolSelectionService.selectSchoolAsTeacher(selectedSchool.id, email);
             }
 
             if (response.success) {
@@ -76,11 +69,11 @@ const RoleSelection = () => {
                 schoolSelectionService.storeSchoolAndRole(
                     response.school_id || selectedSchool.id,
                     response.school_name || selectedSchool.name,
-                    (response.role || selectedRole) as 'principal' | 'teacher'
+                    (response.role || role) as 'principal' | 'teacher'
                 );
 
                 // Navigate to appropriate dashboard
-                if (selectedRole === 'principal') {
+                if (role === 'principal') {
                     navigate('/principal-dashboard');
                 } else {
                     navigate('/teacher-dashboard');
@@ -142,12 +135,10 @@ const RoleSelection = () => {
                     <h1 className="text-4xl font-bold text-gray-900 mb-4">
                         {currentStep === 'school' && 'Select Your School'}
                         {currentStep === 'role' && 'Choose Your Role'}
-                        {currentStep === 'email' && 'Confirm Your Email'}
                     </h1>
                     <p className="text-xl text-gray-600">
                         {currentStep === 'school' && 'Choose the school you work at'}
                         {currentStep === 'role' && `Select your role at ${selectedSchool?.name}`}
-                        {currentStep === 'email' && `Confirm your email for ${selectedRole} at ${selectedSchool?.name}`}
                     </p>
                     {user && (
                         <p className="text-lg text-blue-600 mt-2 font-medium">
@@ -160,17 +151,12 @@ const RoleSelection = () => {
                 <div className="flex justify-center mb-8">
                     <div className="flex items-center space-x-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'school' ? 'bg-blue-600 text-white' :
-                            ['role', 'email'].includes(currentStep) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                            currentStep === 'role' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
                             }`}>1</div>
-                        <div className={`w-8 border-t-2 ${['role', 'email'].includes(currentStep) ? 'border-green-500' : 'border-gray-300'
+                        <div className={`w-8 border-t-2 ${currentStep === 'role' ? 'border-green-500' : 'border-gray-300'
                             }`}></div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'role' ? 'bg-blue-600 text-white' :
-                            currentStep === 'email' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'role' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
                             }`}>2</div>
-                        <div className={`w-8 border-t-2 ${currentStep === 'email' ? 'border-green-500' : 'border-gray-300'
-                            }`}></div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'email' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>3</div>
                     </div>
                 </div>
 
@@ -284,80 +270,13 @@ const RoleSelection = () => {
                     </>
                 )}
 
-                {/* Email Confirmation */}
-                {currentStep === 'email' && (
-                    <>
-                        {/* Back to Role Selection */}
-                        <div className="mb-6">
-                            <button
-                                onClick={() => setCurrentStep('role')}
-                                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors bg-white border border-gray-200 rounded-lg px-4 py-2 shadow-sm hover:shadow-md"
-                            >
-                                <ArrowLeftIcon className="w-4 h-4" />
-                                Back to role selection
-                            </button>
-                        </div>
-
-                        <div className="max-w-md mx-auto mb-8">
-                            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                                <div className="text-center mb-6">
-                                    <div className="w-16 h-16 rounded-lg bg-blue-100 flex items-center justify-center mb-4 mx-auto">
-                                        <MailIcon className="w-8 h-8 text-blue-600" />
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                        Confirm Your Email
-                                    </h3>
-                                    <p className="text-gray-600 text-sm">
-                                        Enter your email address to confirm your selection
-                                    </p>
-                                </div>
-
-                                <input
-                                    type="email"
-                                    value={userEmail}
-                                    onChange={(e) => setUserEmail(e.target.value)}
-                                    placeholder="Enter your email address"
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 mb-4"
-                                />
-
-                                {/* Selection Summary */}
-                                <div className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-100">
-                                    <h4 className="text-gray-900 font-semibold mb-2">Selection Summary:</h4>
-                                    <p className="text-gray-700 text-sm">School: {selectedSchool?.name}</p>
-                                    <p className="text-gray-700 text-sm">Role: {selectedRole}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* Continue/Confirm Button */}
-                {currentStep === 'email' && (
+                {/* Loading indicator when confirming role */}
+                {isLoading && (
                     <div className="flex justify-center">
-                        <button
-                            onClick={handleConfirmSelection}
-                            disabled={!userEmail || isLoading}
-                            className={`
-                                flex items-center gap-3 px-8 py-4 rounded-xl font-semibold text-lg
-                                transition-all duration-300 transform shadow-sm
-                                ${userEmail && !isLoading
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 hover:shadow-lg'
-                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                }
-                            `}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    Confirming selection...
-                                </>
-                            ) : (
-                                <>
-                                    Confirm Selection
-                                    <ArrowRightIcon className="w-5 h-5" />
-                                </>
-                            )}
-                        </button>
+                        <div className="flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Confirming selection...
+                        </div>
                     </div>
                 )}
 

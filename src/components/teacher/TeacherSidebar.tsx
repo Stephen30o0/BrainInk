@@ -6,8 +6,6 @@ import {
   User,
   Brain,
   Settings,
-  BookOpen,
-  BarChart3,
   LogOut,
   UserPlus,
   FileText,
@@ -29,7 +27,6 @@ interface TeacherSidebarProps {
 export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
   activeTab,
   onTabChange,
-  teacher,
   isCollapsed = false,
   onToggleCollapse
 }) => {
@@ -104,8 +101,14 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
 
   return (
     <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0 z-10 transition-all duration-300 overflow-hidden`}>
-      {/* Collapse Toggle Button */}
-      <div className="p-2 border-b border-gray-200 flex justify-end">
+      {/* Header with Logo and Collapse Toggle */}
+      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+        {!isCollapsed && (
+          <div className="flex items-center space-x-2">
+            <User className="w-6 h-6 text-blue-600" />
+            <span className="font-semibold text-gray-900">Teacher</span>
+          </div>
+        )}
         <button
           onClick={onToggleCollapse}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -118,31 +121,6 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
           )}
         </button>
       </div>
-
-      {/* Teacher Profile Section */}
-      {!isCollapsed && (
-        <div className="p-4 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <User className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-gray-900 truncate">{teacher?.name || 'Teacher'}</h3>
-              <p className="text-sm text-gray-500 truncate">{teacher?.subjects?.join(', ') || 'Educator'}</p>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <div className="bg-gray-50 p-2 rounded">
-              <div className="font-medium text-gray-900 text-xs">Class ID</div>
-              <div className="text-gray-600 text-xs">{teacher?.classId || 'N/A'}</div>
-            </div>
-            <div className="bg-blue-50 p-2 rounded">
-              <div className="font-medium text-blue-900 text-xs">K.A.N.A.</div>
-              <div className="text-blue-600 text-xs">Active</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Navigation Menu */}
       <nav className="flex-1 p-3 overflow-y-auto min-h-0">
@@ -173,28 +151,6 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
           })}
         </div>
       </nav>
-
-      {/* Quick Stats */}
-      {!isCollapsed && (
-        <div className="p-4 border-t border-gray-200">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Today's Activity</span>
-              <BarChart3 className="w-4 h-4 text-gray-400" />
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <div className="text-2xl font-bold text-green-600">24</div>
-                <div className="text-gray-600">Notes Analyzed</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-600">8</div>
-                <div className="text-gray-600">AI Insights</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200">

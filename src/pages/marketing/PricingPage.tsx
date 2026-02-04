@@ -2,56 +2,18 @@ import React from 'react';
 import MarketingHeader from '../../components/marketing/MarketingHeader';
 import MarketingFooter from '../../components/marketing/MarketingFooter';
 import { PricingSection } from '@/components/ui/pricing-section';
-import { Sparkles, Building2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const pricingTiers = [
-  {
-    name: "Standard",
-    price: {
-      monthly: 15000,  // per term
-      yearly: 45000,   // per year
-    },
-    description: "Perfect for schools looking to modernize their assessment process",
-    icon: (
-      <div className="relative">
-        <Sparkles className="w-7 h-7 relative z-10" />
-      </div>
-    ),
-    features: [
-      {
-        name: "Instant Grading",
-        description: "AI-powered grading for handwritten and digital assignments",
-        included: true,
-      },
-      {
-        name: "Student Dashboards",
-        description: "Individual progress tracking and personalized feedback",
-        included: true,
-      },
-      {
-        name: "Rubrics & Consistency",
-        description: "Standardized marking criteria across all classes",
-        included: true,
-      },
-      {
-        name: "School Analytics",
-        description: "Real-time insights and performance reports",
-        included: true,
-      },
-      {
-        name: "Email Support",
-        description: "Professional support with 24h response time",
-        included: true,
-      },
-    ],
-  },
+
   {
     name: "Enterprise",
     price: {
-      monthly: "Custom",  // Custom pricing
-      yearly: "Custom",   // Custom pricing
+      monthly: "Custom",
+      yearly: "Custom",
     },
+
     description: "Tailored solutions for large institutions and districts",
     highlight: true,
     badge: "Most Popular",

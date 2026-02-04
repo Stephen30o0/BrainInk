@@ -445,10 +445,10 @@ class GradesAssignmentsService {
                 const grades = await this.getAssignmentGrades(assignment.id);
                 allGrades = allGrades.concat(grades);
 
-                // Calculate pending grades (this is simplified - in reality you'd need student counts)
+                // Get actual student count for the subject
+                const actualStudentCount = await this.getCachedStudentCount(assignment.subject_id);
                 const gradedCount = grades.length;
-                // Assume 30 students per assignment for now (this should come from actual enrollment)
-                pendingGrades += Math.max(0, 30 - gradedCount);
+                pendingGrades += Math.max(0, actualStudentCount - gradedCount);
 
                 // Calculate grade totals
                 grades.forEach(grade => {
@@ -550,10 +550,17 @@ class GradesAssignmentsService {
                 });
             }
 
+            // Calculate actual pending grades
+            let totalExpectedGrades = 0;
+            for (const assignment of assignments) {
+                const studentCount = await this.getCachedStudentCount(assignment.subject_id);
+                totalExpectedGrades += studentCount;
+            }
+
             return {
                 totalAssignments: assignments.length,
                 totalGrades,
-                pendingGrades: Math.max(0, assignments.length * 30 - totalGrades), // Simplified
+                pendingGrades: Math.max(0, totalExpectedGrades - totalGrades),
                 averageScore: totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0
             };
         } catch (error) {
@@ -607,6 +614,49 @@ class GradesAssignmentsService {
     // ============ UTILITY METHODS ============
 
     /**
+     * Get actual student count for a subject from database
+     */
+    public async getStudentCountForSubject(subjectId: number): Promise<number> {
+        try {
+            const response = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}/students`);
+            const students = await response.json();
+            return Array.isArray(students) ? students.length : 0;
+        } catch (error) {
+            console.error('❌ Failed to get student count for subject:', subjectId, error);
+            // Fallback: try to get from subject details
+            try {
+                const subjectResponse = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}`);
+                const subject = await subjectResponse.json();
+                return subject.student_count || 0;
+            } catch {
+                return 0;
+            }
+        }
+    }
+
+    /**
+     * Cache for student counts to avoid repeated API calls
+     */
+    private studentCountCache: Map<number, { count: number; timestamp: number }> = new Map();
+    private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    /**
+     * Get student count with caching
+     */
+    private async getCachedStudentCount(subjectId: number): Promise<number> {
+        const cached = this.studentCountCache.get(subjectId);
+        const now = Date.now();
+
+        if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+            return cached.count;
+        }
+
+        const count = await this.getStudentCountForSubject(subjectId);
+        this.studentCountCache.set(subjectId, { count, timestamp: now });
+        return count;
+    }
+
+    /**
      * Calculate percentage from points earned and max points
      */
     public calculatePercentage(pointsEarned: number, maxPoints: number): number {
@@ -625,8 +675,8 @@ class GradesAssignmentsService {
 
             for (const assignment of assignments) {
                 const grades = await this.getAssignmentGrades(assignment.id);
-                // Assume 30 students per assignment for now (this should come from actual enrollment)
-                const expectedGrades = 30;
+                // Get actual student count for the subject
+                const expectedGrades = await this.getCachedStudentCount(assignment.subject_id);
                 const actualGrades = grades.length;
                 needingGrading += Math.max(0, expectedGrades - actualGrades);
             }
@@ -652,8 +702,8 @@ class GradesAssignmentsService {
             for (const assignment of assignments) {
                 const grades = await this.getAssignmentGrades(assignment.id);
 
-                // Calculate metrics
-                const total_students = 30; // Simplified - should come from actual enrollment
+                // Get actual student count for the subject
+                const total_students = await this.getCachedStudentCount(assignment.subject_id);
                 const graded_count = grades.length;
                 const average_score = grades.length > 0
                     ? grades.reduce((sum, g) => sum + g.points_earned, 0) / grades.length
@@ -700,6 +750,7 @@ class GradesAssignmentsService {
             let totalMaxScore = 0;
             let allGrades: Grade[] = [];
             let assignmentsNeedingGrading = 0;
+            let totalExpectedGrades = 0;
 
             for (const assignment of assignments) {
                 const grades = await this.getAssignmentGrades(assignment.id);
@@ -712,13 +763,14 @@ class GradesAssignmentsService {
                     totalMaxScore += assignment.max_points;
                 });
 
-                // Calculate assignments needing grading
-                const expectedGrades = 30; // Simplified - should come from actual enrollment
+                // Get actual student count and calculate assignments needing grading
+                const expectedGrades = await this.getCachedStudentCount(assignment.subject_id);
                 assignmentsNeedingGrading += Math.max(0, expectedGrades - grades.length);
+                totalExpectedGrades += expectedGrades;
             }
 
             const averageClassScore = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
-            const gradingProgress = assignments.length > 0 ? (totalGrades / (assignments.length * 30)) * 100 : 0;
+            const gradingProgress = totalExpectedGrades > 0 ? (totalGrades / totalExpectedGrades) * 100 : 0;
 
             // Get recent activity (last 5 grades with assignment info)
             const recentActivity = allGrades
