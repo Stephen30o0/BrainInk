@@ -4,8 +4,9 @@ import MarketingFooter from '../../components/marketing/MarketingFooter';
 import DisplayCards from '../../components/ui/display-cards';
 import { GradingProcessPinDemo } from '../../components/ui/grading-process-pin-demo';
 import BrainInkCapabilities from '@/components/ui/brainink-capabilities';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { GraduationCap, Users, Building2, FileCheck2, BarChart3, Upload, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { getDashboardDestination, isLoggedIn } from '../../utils/dashboardRouting';
 
 const GradientOrb: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => (
   <div className={`absolute rounded-full blur-3xl opacity-30 ${className}`} style={style} />
@@ -87,6 +88,7 @@ const StepCard: React.FC<StepProps> = ({ step, title, desc }) => {
 };
 
 export const HomePage: React.FC = () => {
+  const navigate = useNavigate();
   const [mouse, setMouse] = React.useState({ x: 0, y: 0 });
   const heroRef = React.useRef<HTMLElement | null>(null);
   const [progress, setProgress] = React.useState(0);
@@ -99,6 +101,12 @@ export const HomePage: React.FC = () => {
     setMouse({ x: dx, y: dy });
   };
   React.useEffect(() => {
+    // Fast redirect for returning users.
+    if (isLoggedIn()) {
+      navigate(getDashboardDestination(), { replace: true });
+      return;
+    }
+
     const onScroll = () => {
       const el = heroRef.current;
       if (!el) return;
@@ -118,7 +126,7 @@ export const HomePage: React.FC = () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, []);
+  }, [navigate]);
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <MarketingHeader />

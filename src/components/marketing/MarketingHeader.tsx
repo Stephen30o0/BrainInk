@@ -61,6 +61,12 @@ export const MarketingHeader: React.FC = () => {
           </nav>
           <div className="hidden md:flex items-center gap-2 lg:gap-3">
             <Link
+              to="/dashboard"
+              className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:opacity-95"
+            >
+              Dashboard
+            </Link>
+            <Link
               to="/get-started"
               className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:opacity-95"
             >
@@ -84,6 +90,13 @@ export const MarketingHeader: React.FC = () => {
             <Link to="/help" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Help Center</Link>
             <Link to="/onboarding" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Onboarding</Link>
             <Link to="/contact" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Contact Us</Link>
+            <Link
+              to="/dashboard"
+              onClick={() => setOpen(false)}
+              className="mt-1 sm:mt-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-center text-sm sm:text-base text-white bg-gradient-to-r from-blue-600 to-indigo-600"
+            >
+              Dashboard
+            </Link>
             <Link
               to="/get-started"
               onClick={() => setOpen(false)}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PrincipalDashboard } from '../components/principal/PrincipalDashboard';
 import { schoolSelectionService } from '../services/schoolSelectionService';
+import { apiService } from '../services/apiService';
 
 export const PrincipalDashboardPage = () => {
     const navigate = useNavigate();
@@ -76,8 +77,9 @@ export const PrincipalDashboardPage = () => {
                         <button
                             onClick={() => {
                                 console.log('🧹 Logging out and clearing data');
-                                localStorage.clear();
-                                navigate('/school-login');
+                                void apiService.logout().finally(() => {
+                                    navigate('/school-login', { replace: true });
+                                });
                             }}
                             className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors font-pixel"
                         >

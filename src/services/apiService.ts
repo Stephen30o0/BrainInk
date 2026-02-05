@@ -109,7 +109,7 @@ class APIService {
     private loadingPromise: Promise<void> | null = null;
 
     // API Base URLs
-    private readonly MAIN_API = 'https://brainink-backend.onrender.com';
+    private readonly MAIN_API = 'https://brainink-backend.onrender.com/';
     private readonly FRIENDS_API = 'https://brainink-backend-freinds-micro.onrender.com/friends';
     private readonly ACHIEVEMENTS_API = 'https://brainink-backend-achivements-micro.onrender.com';
 
@@ -147,6 +147,77 @@ class APIService {
     } as const;
 
     private constructor() { }
+
+    private isMainApiUrl(url: string): boolean {
+        return typeof url === 'string' && url.startsWith(this.MAIN_API);
+    }
+
+    private async refreshAccessToken(): Promise<string | null> {
+        try {
+            const response = await fetch(`${this.MAIN_API}/refresh`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                // Web refresh token is stored in an HttpOnly cookie
+                credentials: 'include',
+                body: JSON.stringify({ client_type: 'web' })
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            const data = await response.json();
+            if (data?.access_token) {
+                localStorage.setItem('access_token', data.access_token);
+            }
+            if (data?.encrypted_data) {
+                localStorage.setItem('encrypted_user_data', data.encrypted_data);
+            }
+            return data?.access_token || null;
+        } catch (error) {
+            console.error('Token refresh failed:', error);
+            return null;
+        }
+    }
+
+    private clearLocalSession(): void {
+        // Core web auth storage
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('encrypted_user_data');
+
+        // Legacy/mock auth keys still used by some UI code
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
+
+        // School/role selection state
+        localStorage.removeItem('selected_school_id');
+        localStorage.removeItem('selected_school_name');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('school_role_confirmed');
+    }
+
+    public async logout(): Promise<void> {
+        try {
+            // Web refresh token is stored in an HttpOnly cookie; this call revokes it server-side.
+            await fetch(`${this.MAIN_API}logout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ client_type: 'web' })
+            });
+        } catch (error) {
+            // Even if the network call fails, still clear local session to log out in the UI.
+            console.warn('Logout request failed (local session cleared anyway):', error);
+        } finally {
+            this.clearLocalSession();
+        }
+    }
 
     public static getInstance(): APIService {
         if (!APIService.instance) {
@@ -205,31 +276,48 @@ class APIService {
         }
     }
 
-    private async makeRequest(url: string, options: RequestInit = {}): Promise<any> {
+    private async makeRequest(url: string, options: RequestInit = {}, hasRetried = false): Promise<any> {
         const token = this.getValidToken();
         if (!token) throw new Error('No access token available');
 
-        const defaultHeaders = {
+        const defaultHeaders: Record<string, string> = {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
         };
 
-        const response = await fetch(url, {
+        // Only set JSON Content-Type when we actually have a body
+        if (options.body !== undefined) {
+            defaultHeaders['Content-Type'] = 'application/json';
+        }
+
+        const requestInit: RequestInit = {
             ...options,
-            headers: { ...defaultHeaders, ...options.headers }
-        });
+            headers: { ...defaultHeaders, ...options.headers },
+            // Only include credentials for MAIN_API so cross-origin microservices don't break CORS
+            credentials: this.isMainApiUrl(url) ? 'include' : (options.credentials ?? 'omit')
+        };
+
+        const response = await fetch(url, requestInit);
 
         if (!response.ok) {
-            if (response.status === 401) {
+            if (response.status === 401 && !hasRetried) {
+                // Try to refresh access token using HttpOnly refresh cookie
+                const newToken = await this.refreshAccessToken();
+                if (newToken) {
+                    return this.makeRequest(url, options, true);
+                }
+
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('encrypted_user_data');
                 throw new Error('Authentication failed');
             }
             throw new Error(`HTTP ${response.status}: ${await response.text()}`);
         }
+
+        // Some endpoints might return 204 No Content
+        if (response.status === 204) return null;
 
         return response.json();
     }
@@ -262,11 +350,11 @@ class APIService {
             const [friendsResponse, requestsResponse] = await Promise.allSettled([
                 this.makeRequest(`${this.FRIENDS_API}/list/${currentUserId}`),
                 this.makeRequest(`${this.FRIENDS_API}/requests/pending/${currentUserId}`)
-            ]);            let friends: User[] = [];
+            ]); let friends: User[] = [];
             if (friendsResponse.status === 'fulfilled') {
                 const friendsData = friendsResponse.value;
                 console.log('🔍 Raw friends API response:', friendsData);
-                
+
                 if (Array.isArray(friendsData)) {
                     friends = friendsData;
                 } else if (friendsData.friends && Array.isArray(friendsData.friends)) {
@@ -274,7 +362,7 @@ class APIService {
                 } else if (friendsData.data && Array.isArray(friendsData.data)) {
                     friends = friendsData.data;
                 }
-                
+
                 console.log('🔍 Processed friends array:', friends);
                 console.log('🔍 First friend structure:', friends[0]);
                 console.log('🔍 Friend usernames:', friends.map(f => f?.username || 'MISSING'));
@@ -1004,7 +1092,7 @@ class APIService {
 
             return friends;
         } catch (error) {
-            console.error('❌ Error refreshing friends data:', error);            return [];
+            console.error('❌ Error refreshing friends data:', error); return [];
         }
     }
 

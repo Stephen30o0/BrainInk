@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { schoolSelectionService } from '../../services/schoolSelectionService';
 import { principalService } from '../../services/principalService';
+import { apiService } from '../../services/apiService';
 
 // Import actual components
 import { PrincipalSidebar } from './PrincipalSidebar';
@@ -120,9 +121,11 @@ export const PrincipalDashboard: React.FC<PrincipalDashboardProps> = () => {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        // Clear any UI auth state + revoke cookie + clear storage
         logout();
-        navigate('/login');
+        await apiService.logout();
+        navigate('/school-login', { replace: true });
     };
 
     const handleRefreshData = async () => {

@@ -39,6 +39,7 @@ import HelpCenterPage from './pages/marketing/HelpCenterPage';
 import OnboardingPage from './pages/marketing/OnboardingPage';
 import ContactUs from './pages/marketing/ContactUs';
 import GetStarted from './pages/GetStarted';
+import DashboardRedirect from './pages/DashboardRedirect';
 // CustomizeProfilePage will now be primarily rendered via the modal
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
@@ -65,6 +66,7 @@ export function App() {
                   ) : (
                     <Routes>
                       <Route path="/" element={<HomePage />} />
+                      <Route path="/dashboard" element={<DashboardRedirect />} />
                       <Route path="/get-started" element={<GetStarted />} />
                       <Route path="/pricing" element={<PricingPage />} />
                       <Route path="/help" element={<HelpCenterPage />} />

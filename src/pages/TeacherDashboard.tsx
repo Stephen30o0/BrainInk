@@ -15,17 +15,23 @@ import { Reports } from '../components/teacher/Reports';
 import { useAuth } from '../hooks/useAuth';
 import { teacherService } from '../services/teacherService';
 import { schoolSelectionService } from '../services/schoolSelectionService';
+import { apiService } from '../services/apiService';
 
 type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'syllabus' | 'ai-suggestions' | 'reports' | 'manage-class' | 'settings';
 
 export const TeacherDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TeacherDashboardTab>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
-  const [backendConnected, setBackendConnected] = useState(false);
-  const [teacherData, setTeacherData] = useState<any>(null);
+  const [, setBackendConnected] = useState(false);
+  const [, setTeacherData] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+
+  const handleLogout = async () => {
+    await apiService.logout();
+    navigate('/school-login', { replace: true });
+  };
 
   useEffect(() => {
     initializeDashboard();
@@ -144,6 +150,7 @@ export const TeacherDashboard: React.FC = () => {
         teacher={user}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content */}

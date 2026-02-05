@@ -11,8 +11,11 @@ import {
     MessageSquare,
     Home,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    LogOut
 } from 'lucide-react';
+
+import { useNavigate } from 'react-router-dom';
 
 // Import required panel components
 import { ProfilePanel } from '../components/dashboard/panels/ProfilePanel';
@@ -25,6 +28,7 @@ import { NotificationsPanel } from '../components/dashboard/NotificationsPanel';
 // Import services
 import { userRoleService } from '../services/userRoleService';
 import { studentService } from '../services/studentService';
+import { apiService } from '../services/apiService';
 
 // Type definitions for Student Hub sections
 type StudentSection = 'dashboard' | 'profile' | 'battle-arena' | 'study-centre' | 'friends' | 'messages';
@@ -148,6 +152,7 @@ const DashboardContent: React.FC<{
         </div>
     );
 }; export const StudentHub = () => {
+    const navigate = useNavigate();
     const [activeSidePanel, setActiveSidePanel] = useState<StudentSection>('dashboard');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -248,6 +253,11 @@ const DashboardContent: React.FC<{
         setActiveSidePanel(section);
     };
 
+    const handleLogout = async () => {
+        await apiService.logout();
+        navigate('/login', { replace: true });
+    };
+
     const renderMainContent = () => {
         switch (activeSidePanel) {
             case 'profile':
@@ -313,6 +323,13 @@ const DashboardContent: React.FC<{
 
                 {/* Settings */}
                 <div className="p-4 bg-white">
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors mb-2"
+                    >
+                        <LogOut size={20} />
+                        {!isSidebarCollapsed && <span className="font-medium">Logout</span>}
+                    </button>
                     <button
                         onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 transition-colors"

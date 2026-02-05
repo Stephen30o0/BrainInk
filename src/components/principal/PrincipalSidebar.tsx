@@ -23,7 +23,7 @@ interface PrincipalSidebarProps {
     activeTab: string;
     onTabChange: (tab: string) => void;
     schoolData: any;
-    onLogout: () => void;
+    onLogout: () => void | Promise<void>;
     isOpen?: boolean;
     onToggle?: () => void;
 }

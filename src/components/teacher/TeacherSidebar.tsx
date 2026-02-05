@@ -22,13 +22,15 @@ interface TeacherSidebarProps {
   teacher: any;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onLogout?: () => void | Promise<void>;
 }
 
 export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
   activeTab,
   onTabChange,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  onLogout
 }) => {
   const menuItems = [
     {
@@ -155,11 +157,12 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
       {/* Footer */}
       <div className="p-4 border-t border-gray-200">
         <button
-          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-2 px-3'} py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg`}
-          title={isCollapsed ? 'Back to Brain Ink' : undefined}
+          onClick={onLogout}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-2 px-3'} py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg`}
+          title={isCollapsed ? 'Logout' : undefined}
         >
           <LogOut className="w-4 h-4" />
-          {!isCollapsed && <span>Back to Brain Ink</span>}
+          {!isCollapsed && <span>Logout</span>}
         </button>
       </div>
     </div>

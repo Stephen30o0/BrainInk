@@ -84,6 +84,7 @@ export const SignUp = () => {
 
       const response = await fetch(`${getBackendUrl()}${endpoint}`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json"
         },
@@ -233,11 +234,11 @@ export const SignUp = () => {
       const endpoint = isLogin ? '/google-login' : '/google-register';
       const apiResponse = await fetch(`${getBackendUrl()}${endpoint}`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
-        // Remove credentials for regular auth to avoid CORS issues
         body: JSON.stringify({
           token: response.credential
         })

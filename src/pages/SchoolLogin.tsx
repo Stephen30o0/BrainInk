@@ -50,6 +50,7 @@ export const SchoolLogin = () => {
 
                 const apiResponse = await fetch(`https://brainink-backend.onrender.com/google-login`, {
                     method: "POST",
+                    credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
                         "Accept": "application/json"
@@ -108,6 +109,7 @@ export const SchoolLogin = () => {
         try {
             const response = await fetch('https://brainink-backend.onrender.com/login', {
                 method: "POST",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json"
                 },
