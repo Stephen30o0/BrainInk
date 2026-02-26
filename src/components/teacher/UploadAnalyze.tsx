@@ -2437,7 +2437,7 @@ export const UploadAnalyze: React.FC = () => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout for PDFs
 
-          const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+          const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
           const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
             method: 'POST',
             headers: {
@@ -2565,7 +2565,7 @@ export const UploadAnalyze: React.FC = () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-        const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+        const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
         const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
           method: 'POST',
           headers: {
@@ -2937,7 +2937,7 @@ export const UploadAnalyze: React.FC = () => {
 
       console.log('📤 Sending bulk image grading request');
 
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
       const response = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-images`, {
         method: 'POST',
         headers: {
@@ -2996,7 +2996,7 @@ export const UploadAnalyze: React.FC = () => {
 
       console.log('📤 Sending bulk PDF grading request');
 
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
       const response = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-pdfs`, {
         method: 'POST',
         headers: {
@@ -3263,7 +3263,7 @@ export const UploadAnalyze: React.FC = () => {
         reader.readAsDataURL(pdfBlob);
       });
 
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
 
       const requestBody = {
         assignment_title: assignment.title,
@@ -4006,7 +4006,7 @@ export const UploadAnalyze: React.FC = () => {
       setProcessingStep('K.A.N.A. is analyzing and grading...');
       setProcessingProgress(50);
 
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'https://brainink-local.onrender.com';
       const kanaResponse = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-pdfs`, {
         method: 'POST',
         headers: {
