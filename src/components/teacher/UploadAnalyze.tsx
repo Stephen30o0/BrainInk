@@ -2437,7 +2437,7 @@ export const UploadAnalyze: React.FC = () => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout for PDFs
 
-          const BACKEND_BASE_URL = 'https://brainink-local.onrender.com';
+          const BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
           const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
             method: 'POST',
             headers: {
@@ -2565,7 +2565,7 @@ export const UploadAnalyze: React.FC = () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-        const BACKEND_BASE_URL = 'https://brainink-local.onrender.com';
+        const BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
         const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
           method: 'POST',
           headers: {
@@ -2903,36 +2903,161 @@ export const UploadAnalyze: React.FC = () => {
     }
   };
 
-  const callGradeClassApi = async (studentIds: number[]) => {
+  const callKanaDirectGradingApi = async (studentIds: number[]) => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       throw new Error('Authentication required');
     }
 
-    if (!selectedSubject || !selectedAssignment) {
-      throw new Error('Please select both subject and assignment before grading');
+    if (!selectedAssignment) {
+      throw new Error('Please select an assignment before grading');
     }
 
-    const response = await fetch('https://brainink-backend.onrender.com/study-area/academic/grades/grade-class', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        subject_id: parseInt(selectedSubject),
-        assignment_id: parseInt(selectedAssignment),
-        student_ids: studentIds,
-        grade_all_students: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Grade-class failed: ${response.status} - ${errorText}`);
+    const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
+    if (!assignment) {
+      throw new Error('Selected assignment was not found');
     }
 
-    return response.json();
+    const KANA_BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
+    const BRAININK_BACKEND_BASE_URL = 'https://brainink-backend.onrender.com';
+
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result?.split(',')[1];
+          if (!base64) {
+            reject(new Error('Failed to convert PDF to base64'));
+            return;
+          }
+          resolve(base64);
+        };
+        reader.onerror = () => reject(new Error('Failed to read PDF file'));
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const grading_results: any[] = [];
+
+    for (const studentId of studentIds) {
+      const student = filteredStudents.find(s => s.id === studentId) || students.find(s => s.id === studentId);
+      const studentName = student ? `${student.fname} ${student.lname}` : `Student ${studentId}`;
+
+      try {
+        const pdfResponse = await fetch(
+          `${BRAININK_BACKEND_BASE_URL}/study-area/bulk-upload/assignment/${selectedAssignment}/student/${studentId}/pdf`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/pdf'
+            }
+          }
+        );
+
+        if (!pdfResponse.ok) {
+          const errorText = await pdfResponse.text();
+          grading_results.push({
+            student_id: studentId,
+            student_name: studentName,
+            success: false,
+            error: `Failed to fetch student PDF: ${pdfResponse.status} - ${errorText}`
+          });
+          continue;
+        }
+
+        const pdfBlob = await pdfResponse.blob();
+        const pdfBase64 = await blobToBase64(pdfBlob);
+
+        const kanaRequestBody = {
+          pdf_data: pdfBase64,
+          pdf_analysis: true,
+          grading_mode: true,
+          task_type: 'grade_assignment',
+          assignment_title: assignment.title || assignmentTitle || 'Assignment',
+          max_points: assignment.max_points || maxPoints || 100,
+          grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
+          student_context: `Bulk grading assignment for student: ${studentName}`,
+          analysis_type: 'pdf_assignment_grading'
+        };
+
+        const kanaResponse = await fetch(`${KANA_BACKEND_BASE_URL}/kana-direct`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(kanaRequestBody)
+        });
+
+        if (!kanaResponse.ok) {
+          const errorText = await kanaResponse.text();
+          grading_results.push({
+            student_id: studentId,
+            student_name: studentName,
+            success: false,
+            error: `K.A.N.A. grading failed: ${kanaResponse.status} - ${errorText}`
+          });
+          continue;
+        }
+
+        const kanaData = await kanaResponse.json();
+        const rawScore = Number(kanaData.grade ?? kanaData.score ?? 0);
+        const maxScore = assignment.max_points || maxPoints || 100;
+        const computedPercentage = Math.round((rawScore / maxScore) * 100);
+        const percentage = kanaData.percentage || computedPercentage;
+        const letterGrade = kanaData.letter_grade || (
+          percentage >= 90 ? 'A' :
+            percentage >= 80 ? 'B' :
+              percentage >= 70 ? 'C' :
+                percentage >= 60 ? 'D' : 'F'
+        );
+
+        const gradingResult: any = {
+          student_id: studentId,
+          student_name: studentName,
+          success: true,
+          score: rawScore,
+          points_earned: rawScore,
+          max_points: maxScore,
+          percentage,
+          letter_grade: letterGrade,
+          feedback: kanaData.overall_feedback || kanaData.feedback || kanaData.analysis,
+          detailed_feedback: kanaData.detailed_feedback || kanaData.comprehensive_feedback || kanaData.analysis,
+          summary_feedback: kanaData.summary_feedback || kanaData.feedback,
+          strengths: kanaData.strengths || kanaData.student_strengths || [],
+          improvement_areas: kanaData.improvement_areas || kanaData.areas_for_improvement || [],
+          knowledge_gaps: kanaData.knowledge_gaps || [],
+          recommendations: kanaData.recommendations || [],
+          grading_criteria: kanaData.grading_criteria || kanaData.rubric_scores || []
+        };
+
+        if (gradingMode === 'auto') {
+          try {
+            await gradesAssignmentsService.createGrade({
+              assignment_id: assignment.id,
+              student_id: studentId,
+              points_earned: rawScore,
+              feedback: gradingResult.feedback || 'Auto-graded via K.A.N.A.'
+            });
+          } catch (saveError: any) {
+            gradingResult.success = false;
+            gradingResult.error = saveError?.message || 'Failed to save grade to backend';
+          }
+        }
+
+        grading_results.push(gradingResult);
+      } catch (error: any) {
+        grading_results.push({
+          student_id: studentId,
+          student_name: studentName,
+          success: false,
+          error: error?.message || 'Unexpected grading error'
+        });
+      }
+    }
+
+    return { grading_results };
   };
 
   const processBulkImages = async (imageFiles: File[], assignment: any) => {
@@ -2942,8 +3067,8 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing image grading through grade-class for student ${selectedStudentId}`);
-      const result = await callGradeClassApi([selectedStudentId]);
+      console.log(`📤 Routing image grading through K.A.N.A. direct for student ${selectedStudentId}`);
+      const result = await callKanaDirectGradingApi([selectedStudentId]);
       console.log('✅ Bulk image grading completed:', result);
       return result;
 
@@ -2960,8 +3085,8 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing PDF grading through grade-class for student ${selectedStudentId}`);
-      const result = await callGradeClassApi([selectedStudentId]);
+      console.log(`📤 Routing PDF grading through K.A.N.A. direct for student ${selectedStudentId}`);
+      const result = await callKanaDirectGradingApi([selectedStudentId]);
       console.log('✅ Bulk PDF grading completed:', result);
       return result;
 
@@ -3176,7 +3301,7 @@ export const UploadAnalyze: React.FC = () => {
         return;
       }
 
-      const gradeResult = await callGradeClassApi([parseInt(studentId)]);
+      const gradeResult = await callKanaDirectGradingApi([parseInt(studentId)]);
       console.log('✅ Auto-grading completed:', gradeResult);
 
       const gradingResults = gradeResult.grading_results || [];
@@ -3186,7 +3311,7 @@ export const UploadAnalyze: React.FC = () => {
         const student = bulkUploadModal.students?.find(s => s.student_id.toString() === studentId);
         const studentName = student?.student_name || `Student ${studentId}`;
 
-        console.log('✅ Grade successfully saved through grade-class endpoint');
+        console.log('✅ Grade successfully saved through K.A.N.A. direct flow');
 
         setError('');
         setSuccess(`✅ Grade submitted: ${studentName} - ${result.score}/${assignment.max_points} (${result.percentage || Math.round((result.score / assignment.max_points) * 100)}%)`);
@@ -3792,11 +3917,11 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Assignment not found');
       }
 
-      setProcessingStep('Routing grading through backend grade-class...');
+      setProcessingStep('Routing grading through K.A.N.A. direct...');
       setProcessingProgress(45);
 
-      const gradingResults = await callGradeClassApi(selectedStudents);
-      console.log('✅ Grade-class grading completed:', gradingResults);
+      const gradingResults = await callKanaDirectGradingApi(selectedStudents);
+      console.log('✅ K.A.N.A. direct bulk grading completed:', gradingResults);
 
       const mappedResults = gradingResults.grading_results || [];
       const successfulSubmissions = mappedResults.filter((item: any) => item.success !== false);
@@ -3819,7 +3944,7 @@ export const UploadAnalyze: React.FC = () => {
 
       // Create analysis results from grading data
       const analysisResults: AnalysisResult[] = mappedResults.map((result: any) => ({
-        extractedText: 'Bulk grading completed through grade-class.',
+        extractedText: 'Bulk grading completed through K.A.N.A. direct.',
         analysis: result.feedback || result.detailed_feedback || 'Automated grading completed',
         knowledgeGaps: result.knowledge_gaps || [],
         recommendations: result.recommendations || [],
