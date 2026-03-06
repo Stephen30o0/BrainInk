@@ -2437,7 +2437,7 @@ export const UploadAnalyze: React.FC = () => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout for PDFs
 
-          const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+          const BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
           const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
             method: 'POST',
             headers: {
@@ -2565,7 +2565,7 @@ export const UploadAnalyze: React.FC = () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-        const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
+        const BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
         const response = await fetch(`${BACKEND_BASE_URL}/kana-direct`, {
           method: 'POST',
           headers: {
@@ -2903,56 +2903,172 @@ export const UploadAnalyze: React.FC = () => {
     }
   };
 
+  const callKanaDirectGradingApi = async (studentIds: number[]) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    if (!selectedAssignment) {
+      throw new Error('Please select an assignment before grading');
+    }
+
+    const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
+    if (!assignment) {
+      throw new Error('Selected assignment was not found');
+    }
+
+    const KANA_BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
+    const BRAININK_BACKEND_BASE_URL = 'https://brainink-backend.onrender.com';
+
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result?.split(',')[1];
+          if (!base64) {
+            reject(new Error('Failed to convert PDF to base64'));
+            return;
+          }
+          resolve(base64);
+        };
+        reader.onerror = () => reject(new Error('Failed to read PDF file'));
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const grading_results: any[] = [];
+
+    for (const studentId of studentIds) {
+      const student = filteredStudents.find(s => s.id === studentId) || students.find(s => s.id === studentId);
+      const studentName = student ? `${student.fname} ${student.lname}` : `Student ${studentId}`;
+
+      try {
+        const pdfResponse = await fetch(
+          `${BRAININK_BACKEND_BASE_URL}/study-area/bulk-upload/assignment/${selectedAssignment}/student/${studentId}/pdf`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/pdf'
+            }
+          }
+        );
+
+        if (!pdfResponse.ok) {
+          const errorText = await pdfResponse.text();
+          grading_results.push({
+            student_id: studentId,
+            student_name: studentName,
+            success: false,
+            error: `Failed to fetch student PDF: ${pdfResponse.status} - ${errorText}`
+          });
+          continue;
+        }
+
+        const pdfBlob = await pdfResponse.blob();
+        const pdfBase64 = await blobToBase64(pdfBlob);
+
+        const kanaRequestBody = {
+          pdf_data: pdfBase64,
+          pdf_analysis: true,
+          grading_mode: true,
+          task_type: 'grade_assignment',
+          assignment_title: assignment.title || assignmentTitle || 'Assignment',
+          max_points: assignment.max_points || maxPoints || 100,
+          grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
+          student_context: `Bulk grading assignment for student: ${studentName}`,
+          analysis_type: 'pdf_assignment_grading'
+        };
+
+        const kanaResponse = await fetch(`${KANA_BACKEND_BASE_URL}/kana-direct`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(kanaRequestBody)
+        });
+
+        if (!kanaResponse.ok) {
+          const errorText = await kanaResponse.text();
+          grading_results.push({
+            student_id: studentId,
+            student_name: studentName,
+            success: false,
+            error: `K.A.N.A. grading failed: ${kanaResponse.status} - ${errorText}`
+          });
+          continue;
+        }
+
+        const kanaData = await kanaResponse.json();
+        const rawScore = Number(kanaData.grade ?? kanaData.score ?? 0);
+        const maxScore = assignment.max_points || maxPoints || 100;
+        const computedPercentage = Math.round((rawScore / maxScore) * 100);
+        const percentage = kanaData.percentage || computedPercentage;
+        const letterGrade = kanaData.letter_grade || (
+          percentage >= 90 ? 'A' :
+            percentage >= 80 ? 'B' :
+              percentage >= 70 ? 'C' :
+                percentage >= 60 ? 'D' : 'F'
+        );
+
+        const gradingResult: any = {
+          student_id: studentId,
+          student_name: studentName,
+          success: true,
+          score: rawScore,
+          points_earned: rawScore,
+          max_points: maxScore,
+          percentage,
+          letter_grade: letterGrade,
+          feedback: kanaData.overall_feedback || kanaData.feedback || kanaData.analysis,
+          detailed_feedback: kanaData.detailed_feedback || kanaData.comprehensive_feedback || kanaData.analysis,
+          summary_feedback: kanaData.summary_feedback || kanaData.feedback,
+          strengths: kanaData.strengths || kanaData.student_strengths || [],
+          improvement_areas: kanaData.improvement_areas || kanaData.areas_for_improvement || [],
+          knowledge_gaps: kanaData.knowledge_gaps || [],
+          recommendations: kanaData.recommendations || [],
+          grading_criteria: kanaData.grading_criteria || kanaData.rubric_scores || []
+        };
+
+        if (gradingMode === 'auto') {
+          try {
+            await gradesAssignmentsService.createGrade({
+              assignment_id: assignment.id,
+              student_id: studentId,
+              points_earned: rawScore,
+              feedback: gradingResult.feedback || 'Auto-graded via K.A.N.A.'
+            });
+          } catch (saveError: any) {
+            gradingResult.success = false;
+            gradingResult.error = saveError?.message || 'Failed to save grade to backend';
+          }
+        }
+
+        grading_results.push(gradingResult);
+      } catch (error: any) {
+        grading_results.push({
+          student_id: studentId,
+          student_name: studentName,
+          success: false,
+          error: error?.message || 'Unexpected grading error'
+        });
+      }
+    }
+
+    return { grading_results };
+  };
+
   const processBulkImages = async (imageFiles: File[], assignment: any) => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
+      const selectedStudentId = parseInt(selectedStudent);
+      if (!selectedStudentId) {
+        throw new Error('Please select a student before grading');
       }
 
-      // Convert images to base64
-      const imageDataPromises = imageFiles.map(file => {
-        return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]); // Remove data URL prefix
-          };
-          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-          reader.readAsDataURL(file);
-        });
-      });
-
-      const imageDataArray = await Promise.all(imageDataPromises);
-
-      // Prepare request for bulk image grading
-      const requestBody = {
-        image_files: imageDataArray,
-        assignment_title: assignment.title,
-        max_points: assignment.max_points,
-        grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
-        feedback_type: feedbackType,
-        student_names: imageFiles.map((_, index) => `${selectedStudent}_image_${index + 1}`)
-      };
-
-      console.log('📤 Sending bulk image grading request');
-
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
-      const response = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-images`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Bulk image grading failed: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
+      console.log(`📤 Routing image grading through K.A.N.A. direct for student ${selectedStudentId}`);
+      const result = await callKanaDirectGradingApi([selectedStudentId]);
       console.log('✅ Bulk image grading completed:', result);
       return result;
 
@@ -2964,54 +3080,13 @@ export const UploadAnalyze: React.FC = () => {
 
   const processBulkPDFs = async (pdfFiles: File[], assignment: any) => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
+      const selectedStudentId = parseInt(selectedStudent);
+      if (!selectedStudentId) {
+        throw new Error('Please select a student before grading');
       }
 
-      // Convert PDFs to base64
-      const pdfDataPromises = pdfFiles.map(file => {
-        return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]); // Remove data URL prefix
-          };
-          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-          reader.readAsDataURL(file);
-        });
-      });
-
-      const pdfDataArray = await Promise.all(pdfDataPromises);
-
-      // Prepare request for bulk PDF grading
-      const requestBody = {
-        pdf_files: pdfDataArray,
-        assignment_title: assignment.title,
-        max_points: assignment.max_points,
-        grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
-        feedback_type: feedbackType,
-        student_names: pdfFiles.map((_, index) => `${selectedStudent}_pdf_${index + 1}`)
-      };
-
-      console.log('📤 Sending bulk PDF grading request');
-
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
-      const response = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-pdfs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Bulk PDF grading failed: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
+      console.log(`📤 Routing PDF grading through K.A.N.A. direct for student ${selectedStudentId}`);
+      const result = await callKanaDirectGradingApi([selectedStudentId]);
       console.log('✅ Bulk PDF grading completed:', result);
       return result;
 
@@ -3226,118 +3301,37 @@ export const UploadAnalyze: React.FC = () => {
         return;
       }
 
-      // Find the student details from bulk upload modal data
-      const student = bulkUploadModal.students?.find(s => s.student_id.toString() === studentId);
-      if (!student || !student.has_pdf) {
-        console.warn('Student PDF not found for auto-grading');
-        return;
-      }
-
-      // First, fetch the PDF file content
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Get PDF file from backend
-      const pdfResponse = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${selectedAssignment}/student/${studentId}/pdf`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!pdfResponse.ok) {
-        console.warn('Failed to fetch PDF file for grading');
-        return;
-      }
-
-      const pdfBlob = await pdfResponse.blob();
-      const pdfBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data URL prefix to get just the base64 content
-          const base64Content = result.split(',')[1];
-          resolve(base64Content);
-        };
-        reader.readAsDataURL(pdfBlob);
-      });
-
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
-
-      const requestBody = {
-        assignment_title: assignment.title,
-        max_points: assignment.max_points,
-        grading_rubric: assignment.rubric || 'Standard academic grading criteria',
-        student_names: [student.student_name],
-        feedback_type: 'detailed',
-        pdf_files: [pdfBase64] // Send just the base64 string, not an object
-      };
-
-      console.log('📤 Sending bulk grading request:', {
-        ...requestBody,
-        pdf_files: [`[${pdfBase64.length} characters of base64 data]`]
-      });
-
-      const response = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-pdfs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn('Auto-grading failed:', response.status, errorText);
-        return; // Don't throw error, just log warning
-      }
-
-      const gradeResult = await response.json();
+      const gradeResult = await callKanaDirectGradingApi([parseInt(studentId)]);
       console.log('✅ Auto-grading completed:', gradeResult);
 
-      // Update grades in the system if successful
-      if (gradeResult.student_results?.length > 0) {
-        const result = gradeResult.student_results[0];
+      const gradingResults = gradeResult.grading_results || [];
+      const result = gradingResults.find((item: any) => item.student_id === parseInt(studentId)) || gradingResults[0];
 
-        if (result.success && result.score !== undefined) {
-          setSubmittingGrade(true);
-          console.log('📊 Submitting grade to gradebook...');
+      if (result && result.success && result.score !== undefined) {
+        const student = bulkUploadModal.students?.find(s => s.student_id.toString() === studentId);
+        const studentName = student?.student_name || `Student ${studentId}`;
 
-          await gradesAssignmentsService.createGrade({
-            assignment_id: assignment.id,
-            student_id: parseInt(studentId),
-            points_earned: result.score,
-            feedback: result.detailed_feedback || result.summary_feedback || 'Automatically graded using K.A.N.A. AI'
-          });
+        console.log('✅ Grade successfully saved through K.A.N.A. direct flow');
 
-          setSubmittingGrade(false);
+        setError('');
+        setSuccess(`✅ Grade submitted: ${studentName} - ${result.score}/${assignment.max_points} (${result.percentage || Math.round((result.score / assignment.max_points) * 100)}%)`);
 
-          console.log('✅ Grade successfully submitted to gradebook');
+        setTimeout(() => setSuccess(''), 5000);
 
-          // Show success notification to user
-          setError(''); // Clear any existing errors
-          setSuccess(`✅ Grade submitted: ${student.student_name} - ${result.score}/${assignment.max_points} (${result.percentage || Math.round((result.score / assignment.max_points) * 100)}%)`);
-
-          // Auto-clear success message after 5 seconds
-          setTimeout(() => setSuccess(''), 5000);
-
-          // Trigger refresh of grading data
-          window.dispatchEvent(new CustomEvent('studentGradesUpdated', {
-            detail: {
-              studentId: studentId,
-              classroomId: selectedClassroom,
-              subjectId: selectedSubject,
-              assignmentId: selectedAssignment
-            }
-          }));
-
-          // Refresh bulk upload students to show updated status
-          if (selectedAssignment) {
-            await loadBulkUploadStudents(parseInt(selectedAssignment));
+        window.dispatchEvent(new CustomEvent('studentGradesUpdated', {
+          detail: {
+            studentId: studentId,
+            classroomId: selectedClassroom,
+            subjectId: selectedSubject,
+            assignmentId: selectedAssignment
           }
+        }));
+
+        if (selectedAssignment) {
+          await loadBulkUploadStudents(parseInt(selectedAssignment));
         }
+      } else {
+        console.warn('Auto-grading did not return a successful result for this student');
       }
 
     } catch (error) {
@@ -3923,168 +3917,15 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Assignment not found');
       }
 
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      setProcessingStep('Collecting student files...');
-      setProcessingProgress(10);
-
-      // Get PDFs for all selected students
-      const studentPDFs: {
-        student_id: number;
-        student_name: string;
-        pdf_data: string;
-      }[] = [];
-
-      let processedStudents = 0;
-      const totalStudents = selectedStudents.length;
-
-      for (const studentId of selectedStudents) {
-        const student = filteredStudents.find(s => s.id === studentId);
-        if (!student) continue;
-
-        setProcessingStep(`Loading ${student.fname} ${student.lname}'s file...`);
-        console.log(`📄 Processing PDF for ${student.fname} ${student.lname}`);
-
-        // Fetch the PDF file for this student
-        const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${selectedAssignment}/student/${studentId}/pdf`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          console.error(`Failed to fetch PDF for student ${studentId}`);
-          continue;
-        }
-
-        const pdfBlob = await response.blob();
-        const pdfBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]); // Remove data URL prefix
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(pdfBlob);
-        });
-
-        studentPDFs.push({
-          student_id: studentId,
-          student_name: `${student.fname} ${student.lname}`,
-          pdf_data: pdfBase64
-        });
-
-        processedStudents++;
-        const fileLoadProgress = 10 + (processedStudents / totalStudents) * 30; // 10-40%
-        setProcessingProgress(fileLoadProgress);
-      }
-
-      setProcessingStep('Sending to K.A.N.A. for AI grading...');
+      setProcessingStep('Routing grading through K.A.N.A. direct...');
       setProcessingProgress(45);
-      console.log(`🎓 Starting bulk grading for ${studentPDFs.length} PDFs - Assignment: ${assignment.title}`);
 
-      // Send to K.A.N.A. for bulk grading
-      const requestBody = {
-        pdf_files: studentPDFs.map(student => student.pdf_data), // K.A.N.A. expects just the PDF data array
-        student_names: studentPDFs.map(student => student.student_name), // Send student names separately
-        assignment_title: assignment.title,
-        max_points: assignment.max_points,
-        grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
-        feedback_type: feedbackType
-      };
+      const gradingResults = await callKanaDirectGradingApi(selectedStudents);
+      console.log('✅ K.A.N.A. direct bulk grading completed:', gradingResults);
 
-      console.log('📤 Sending bulk grading request:', {
-        pdf_files_count: requestBody.pdf_files.length,
-        student_names: requestBody.student_names,
-        assignment_title: requestBody.assignment_title,
-        max_points: requestBody.max_points
-      });
-
-      setProcessingStep('K.A.N.A. is analyzing and grading...');
-      setProcessingProgress(50);
-
-      const BACKEND_BASE_URL = import.meta.env.VITE_KANA_API_BASE_URL?.replace('/api/kana', '') || 'http://localhost:10000';
-      const kanaResponse = await fetch(`${BACKEND_BASE_URL}/api/kana/bulk-grade-pdfs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      setProcessingStep('K.A.N.A. processing complete...');
-      setProcessingProgress(75);
-
-      if (!kanaResponse.ok) {
-        const errorText = await kanaResponse.text();
-        throw new Error(`K.A.N.A. bulk grading failed: ${kanaResponse.status} - ${errorText}`);
-      }
-
-      const gradingResults = await kanaResponse.json();
-      console.log('✅ K.A.N.A. bulk grading completed:', gradingResults);
-
-      // Map the results back to student IDs since K.A.N.A. returns results by index
-      const mappedResults = (gradingResults.grading_results || gradingResults.student_results || []).map((result: any, index: number) => ({
-        ...result,
-        student_id: studentPDFs[index]?.student_id,
-        student_name: studentPDFs[index]?.student_name || result.student_name
-      }));
-
-      setProcessingStep('Submitting grades to gradebook...');
-      setProcessingProgress(85);
-
-      // Submit grades to backend sequentially to avoid database connection issues
-      const gradeSubmissionResults = [];
-
-      for (let index = 0; index < mappedResults.length; index++) {
-        const result = mappedResults[index];
-        let attempts = 0;
-        const maxAttempts = 3;
-        let success = false;
-
-        while (attempts < maxAttempts && !success) {
-          try {
-            attempts++;
-            setProcessingStep(`Saving grade for ${result.student_name} (${index + 1}/${mappedResults.length}) - Attempt ${attempts}...`);
-            setProcessingProgress(85 + (index / mappedResults.length) * 10); // 85-95%
-
-            await gradesAssignmentsService.createGrade({
-              assignment_id: assignment.id,
-              student_id: result.student_id,
-              points_earned: result.grade || result.score,
-              feedback: result.feedback || result.detailed_feedback
-            });
-
-            gradeSubmissionResults.push({ success: true, student_name: result.student_name });
-            success = true;
-
-          } catch (error) {
-            console.error(`Failed to submit grade for ${result.student_name} (attempt ${attempts}):`, error);
-
-            if (attempts >= maxAttempts) {
-              gradeSubmissionResults.push({
-                success: false,
-                student_name: result.student_name,
-                error: error instanceof Error ? error.message : String(error)
-              });
-            } else {
-              // Wait longer before retry
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // Exponential backoff
-            }
-          }
-        }
-
-        // Add a small delay between submissions to prevent overwhelming the database
-        if (index < mappedResults.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 800)); // 800ms delay
-        }
-      }
-      const successfulSubmissions = gradeSubmissionResults.filter(r => r.success);
-      const failedSubmissions = gradeSubmissionResults.filter(r => !r.success);
+      const mappedResults = gradingResults.grading_results || [];
+      const successfulSubmissions = mappedResults.filter((item: any) => item.success !== false);
+      const failedSubmissions = mappedResults.filter((item: any) => item.success === false);
 
       setProcessingStep('Finalizing results...');
       setProcessingProgress(98);
@@ -4103,7 +3944,7 @@ export const UploadAnalyze: React.FC = () => {
 
       // Create analysis results from grading data
       const analysisResults: AnalysisResult[] = mappedResults.map((result: any) => ({
-        extractedText: 'Bulk grading completed with K.A.N.A.',
+        extractedText: 'Bulk grading completed through K.A.N.A. direct.',
         analysis: result.feedback || result.detailed_feedback || 'Automated grading completed',
         knowledgeGaps: result.knowledge_gaps || [],
         recommendations: result.recommendations || [],
