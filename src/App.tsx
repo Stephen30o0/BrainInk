@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
 import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Old landing sections (no longer used on marketing pages)
@@ -10,7 +10,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // import { PlatformComparisonTable } from './components/PlatformComparisonTable';
 // import { TeamSection } from './components/TeamSection';
 // import { JoinSection } from './components/JoinSection';
-import { LoadingScreen } from './components/LoadingScreen';
 import { AudioProvider } from './components/shared/AudioManager';
 import { SoundProvider } from './components/shared/SoundManager';
 import { SignUp } from './pages/SignUp';
@@ -44,15 +43,6 @@ import DashboardRedirect from './pages/DashboardRedirect';
 // import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
 
 export function App() {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <ProfileCustomizationModalProvider>
       <AuthProvider>
@@ -60,10 +50,7 @@ export function App() {
           <AudioProvider>
             <WalletProvider>
               <Router>
-                <div className="bg-white text-gray-900 min-h-screen w-full overflow-x-hidden font-pixel">
-                  {isLoading ? (
-                    <LoadingScreen />
-                  ) : (
+                <div className="bg-white text-gray-900 min-h-screen w-full overflow-x-hidden" style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -96,7 +83,6 @@ export function App() {
                       {/* Principal Dashboard Route */}
                       <Route path="/principal-dashboard" element={<PrincipalDashboardPage />} />
                     </Routes>
-                  )}
                 </div>
               </Router>
             </WalletProvider>

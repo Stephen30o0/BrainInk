@@ -154,60 +154,46 @@ export const InvitationsPage = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-[#0a0e17] flex items-center justify-center">
+            <div className="min-h-[100dvh] bg-[#FAFAF8] flex items-center justify-center">
                 <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-white text-lg">Loading invitations...</p>
+                    <div className="w-10 h-10 border-2 border-stone-300 border-t-stone-900 rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-stone-600 text-sm">Loading invitations...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#0a0e17] flex flex-col items-center justify-center relative overflow-hidden">
-            {/* Animated background */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/10 to-tertiary/10 animate-gradient"></div>
-                {Array.from({ length: 30 }).map((_, i) => (
-                    <div
-                        key={i}
-                        className="absolute animate-float"
-                        style={{
-                            width: `${Math.random() * 4 + 2}px`,
-                            height: `${Math.random() * 4 + 2}px`,
-                            backgroundColor: `rgba(${Math.random() * 100}, ${Math.random() * 200 + 55}, ${Math.random() * 255}, 0.5)`,
-                            borderRadius: '50%',
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
-                            animationDuration: `${Math.random() * 10 + 5}s`,
-                            animationDelay: `${Math.random() * 5}s`
-                        }}
-                    />
-                ))}
+        <div className="min-h-[100dvh] bg-[#FAFAF8] flex flex-col items-center relative overflow-hidden">
+            {/* Subtle background */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-stone-100/30 rounded-full blur-[100px]" />
             </div>
 
             {/* Content */}
-            <div className="w-full max-w-4xl relative z-10 px-4">
+            <div className="w-full max-w-3xl relative z-10 px-6 pt-20 pb-16">
                 {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-white mb-4">
+                <div className="mb-10">
+                    <span className="inline-block text-xs font-mono uppercase tracking-widest text-stone-400 mb-4">Invitations</span>
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-stone-900 mb-3">
                         School Invitations
                     </h1>
-                    <p className="text-xl text-gray-300">
-                        Accept or decline your school invitations
+                    <p className="text-lg text-stone-500">
+                        Accept or decline your pending invitations.
                     </p>
                     {user && (
-                        <p className="text-lg text-blue-400 mt-2">
-                            Hello, {user.name}!
+                        <p className="text-sm text-blue-600 mt-2 font-medium">
+                            Signed in as {user.name}
                         </p>
                     )}
                 </div>
 
                 {/* Navigation and Refresh */}
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-8">
                     <button
                         onClick={() => navigate('/role-selection')}
-                        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                        className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors text-sm"
                     >
                         <ArrowLeftIcon className="w-4 h-4" />
                         Back to role selection
@@ -216,131 +202,132 @@ export const InvitationsPage = () => {
                     <button
                         onClick={loadAvailableInvitations}
                         disabled={isLoading}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors text-sm disabled:opacity-50"
                     >
-                        <RefreshCwIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        <RefreshCwIcon className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                         Refresh
                     </button>
                 </div>
 
                 {/* Error Message */}
                 {error && (
-                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
-                        <p className="text-red-300 text-center">{error}</p>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                        <p className="text-red-700 text-sm text-center">{error}</p>
                     </div>
                 )}
 
                 {/* Invitations List */}
                 {availableInvitations.length > 0 ? (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="space-y-4 mb-10">
                         {availableInvitations.map((invitation) => (
                             <div
                                 key={invitation.id}
-                                className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700"
+                                className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm hover:shadow-md transition-shadow"
                             >
-                                {/* Role Icon */}
-                                <div className={`w-16 h-16 rounded-lg bg-gradient-to-r ${invitation.invitation_type === 'teacher'
-                                    ? 'from-green-500 to-teal-600'
-                                    : 'from-blue-500 to-purple-600'
-                                    } flex items-center justify-center mb-4 mx-auto`}>
-                                    {invitation.invitation_type === 'teacher' ? (
-                                        <GraduationCapIcon className="w-8 h-8 text-white" />
-                                    ) : (
-                                        <ShieldCheckIcon className="w-8 h-8 text-white" />
-                                    )}
-                                </div>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                                    {/* Left: Icon + Info */}
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                                            invitation.invitation_type === 'teacher'
+                                                ? 'bg-emerald-50 text-emerald-600'
+                                                : 'bg-blue-50 text-blue-600'
+                                        }`}>
+                                            {invitation.invitation_type === 'teacher' ? (
+                                                <GraduationCapIcon className="w-6 h-6" />
+                                            ) : (
+                                                <ShieldCheckIcon className="w-6 h-6" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-stone-900">
+                                                {invitation.school_name}
+                                            </h3>
+                                            <div className="flex items-center gap-3 text-sm">
+                                                <span className={`font-medium ${
+                                                    invitation.invitation_type === 'teacher' ? 'text-emerald-600' : 'text-blue-600'
+                                                }`}>
+                                                    {invitation.invitation_type === 'teacher' ? 'Teacher' : 'Student'}
+                                                </span>
+                                                <span className="text-stone-300">|</span>
+                                                <span className="text-stone-400">
+                                                    {new Date(invitation.invited_date).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                {/* Content */}
-                                <div className="text-center mb-4">
-                                    <h3 className="text-xl font-semibold text-white mb-2">
-                                        {invitation.school_name}
-                                    </h3>
-                                    <p className="text-blue-400 text-sm mb-2">
-                                        {invitation.invitation_type === 'teacher' ? 'Teacher' : 'Student'}
-                                    </p>
-                                    <p className="text-gray-400 text-xs">
-                                        Invited: {new Date(invitation.invited_date).toLocaleDateString()}
-                                    </p>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleAcceptInvitation(invitation)}
-                                        disabled={processingInvitation === invitation.id}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {processingInvitation === invitation.id ? (
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            <CheckIcon className="w-4 h-4" />
-                                        )}
-                                        Accept
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeclineInvitation(invitation)}
-                                        disabled={processingInvitation === invitation.id}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {processingInvitation === invitation.id ? (
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            <XIcon className="w-4 h-4" />
-                                        )}
-                                        Decline
-                                    </button>
+                                    {/* Right: Actions */}
+                                    <div className="flex gap-2 sm:shrink-0">
+                                        <button
+                                            onClick={() => handleAcceptInvitation(invitation)}
+                                            disabled={processingInvitation === invitation.id}
+                                            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 active:scale-[0.98]"
+                                        >
+                                            {processingInvitation === invitation.id ? (
+                                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <CheckIcon className="w-4 h-4" />
+                                            )}
+                                            Accept
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeclineInvitation(invitation)}
+                                            disabled={processingInvitation === invitation.id}
+                                            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 active:scale-[0.98]"
+                                        >
+                                            {processingInvitation === invitation.id ? (
+                                                <div className="w-3.5 h-3.5 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <XIcon className="w-4 h-4" />
+                                            )}
+                                            Decline
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    /* No Invitations */
-                    <div className="text-center py-12">
-                        <div className="w-24 h-24 rounded-full bg-gray-700/50 flex items-center justify-center mx-auto mb-6">
-                            <MailIcon className="w-12 h-12 text-gray-400" />
+                    /* No Invitations - clean empty state */
+                    <div className="text-center py-16">
+                        <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-6">
+                            <MailIcon className="w-8 h-8 text-stone-400" />
                         </div>
-                        <h3 className="text-2xl font-semibold text-white mb-4">No Invitations Found</h3>
-                        <div className="max-w-md mx-auto space-y-3">
-                            <p className="text-gray-400 text-lg">
-                                You don't have any pending school invitations at the moment.
-                            </p>
-                            <p className="text-gray-500 text-sm">
-                                Contact your school administrator if you're expecting an invitation.
-                            </p>
-                            <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg text-left">
-                                <h4 className="text-blue-400 font-semibold mb-2">What to do next:</h4>
-                                <ul className="text-gray-300 text-sm space-y-1">
-                                    <li>• Ask your school principal to send you an invitation</li>
-                                    <li>• Check if you have the correct email address registered</li>
-                                    <li>• Try refreshing this page to check for new invitations</li>
-                                    <li>• Use direct school login if you already have access</li>
-                                </ul>
-                            </div>
+                        <h3 className="text-xl font-semibold text-stone-900 mb-2">No Pending Invitations</h3>
+                        <p className="text-stone-500 mb-8 max-w-sm mx-auto">
+                            You don't have any school invitations right now. Contact your administrator if you're expecting one.
+                        </p>
+                        <div className="bg-stone-50 border border-stone-200 rounded-xl p-5 max-w-md mx-auto text-left">
+                            <h4 className="text-sm font-semibold text-stone-700 mb-3">What to do next</h4>
+                            <ul className="text-sm text-stone-500 space-y-2">
+                                <li className="flex items-start gap-2"><span className="w-1 h-1 rounded-full bg-stone-400 mt-2 shrink-0" />Ask your school principal to send an invitation</li>
+                                <li className="flex items-start gap-2"><span className="w-1 h-1 rounded-full bg-stone-400 mt-2 shrink-0" />Verify your registered email address is correct</li>
+                                <li className="flex items-start gap-2"><span className="w-1 h-1 rounded-full bg-stone-400 mt-2 shrink-0" />Try refreshing this page for new invitations</li>
+                            </ul>
                         </div>
                     </div>
                 )}
 
                 {/* Navigation Options */}
-                <div className="text-center mt-8 space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                        <button
-                            onClick={() => navigate('/school-login')}
-                            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            <ArrowLeftIcon className="w-4 h-4" />
-                            Back to School Login
-                        </button>
-                        <button
-                            onClick={() => navigate('/role-selection')}
-                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                        >
-                            Choose Different Role
-                        </button>
-                    </div>
-                    <p className="text-gray-500 text-sm">
-                        Having trouble? Contact your school administrator for assistance.
-                    </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center pt-8 border-t border-stone-200">
+                    <button
+                        onClick={() => navigate('/school-login')}
+                        className="px-6 py-2.5 bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                    >
+                        <ArrowLeftIcon className="w-4 h-4" />
+                        Back to School Login
+                    </button>
+                    <button
+                        onClick={() => navigate('/role-selection')}
+                        className="px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                        Choose Different Role
+                    </button>
                 </div>
+
+                <p className="text-stone-400 text-xs text-center mt-6">
+                    Having trouble? Contact your school administrator for assistance.
+                </p>
             </div>
         </div>
     );

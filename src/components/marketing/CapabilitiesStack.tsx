@@ -13,11 +13,11 @@ export const CapabilitiesStack: React.FC<{ className?: string }> = ({ className 
         <div className="grid md:grid-cols-2 md:gap-8 xl:gap-12">
           {/* Sticky left intro */}
           <div className="left-0 top-0 md:sticky md:h-svh md:py-12">
-            <h5 className="text-xs uppercase tracking-wide text-slate-600">BrainInk capabilities</h5>
+            <h5 className="text-xs uppercase tracking-wide text-stone-600">BrainInk capabilities</h5>
             <h2 className="mb-6 mt-4 text-4xl font-bold tracking-tight">
               What you can do with <span className="text-blue-500">BrainInk</span>
             </h2>
-            <p className="max-w-prose text-sm text-slate-600 leading-relaxed">
+            <p className="max-w-prose text-sm text-stone-600 leading-relaxed">
               The platform brings speed, consistency, and insight to everyday assessment. Scroll to explore the core capabilities teachers, students, and school leaders rely on daily.
             </p>
           </div>

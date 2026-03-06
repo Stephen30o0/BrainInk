@@ -8,7 +8,7 @@ const NavItem: React.FC<{ to: string; label: string }> = ({ to, label }) => {
   return (
     <Link
       to={to}
-      className={`px-2 lg:px-3 py-1.5 lg:py-2 rounded-md text-xs lg:text-sm font-medium transition-colors ${active ? 'text-blue-700' : 'text-slate-700 hover:text-blue-700'
+      className={`px-2 lg:px-3 py-1.5 lg:py-2 rounded-md text-xs lg:text-sm font-medium transition-colors ${active ? 'text-blue-600' : 'text-stone-700 hover:text-blue-600'
         }`}
     >
       {label}
@@ -29,13 +29,13 @@ export const MarketingHeader: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all ${scrolled ? 'bg-white/80 backdrop-blur border-b border-slate-200' : 'bg-transparent'
+      className={`fixed top-0 inset-x-0 z-50 transition-all ${scrolled ? 'bg-[#FAFAF9]/80 backdrop-blur-lg border-b border-stone-200/60' : 'bg-transparent'
         }`}
     >
       <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-8">
         <div className="flex h-14 sm:h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-1.5 sm:gap-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-1.5 sm:p-2 shadow-glow">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 rounded-lg sm:rounded-xl bg-stone-900 p-1.5 sm:p-2 shadow-lg shadow-stone-900/20">
               <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-brain-icon lucide-brain">
                 <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
                 <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
@@ -48,7 +48,7 @@ export const MarketingHeader: React.FC = () => {
                 <path d="M19.967 17.484A4 4 0 0 1 18 18" />
               </svg>
             </div>
-            <span className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent">
+            <span className="text-lg sm:text-xl font-semibold text-stone-900">
               Brain Ink
             </span>
           </Link>
@@ -62,13 +62,13 @@ export const MarketingHeader: React.FC = () => {
           <div className="hidden md:flex items-center gap-2 lg:gap-3">
             <Link
               to="/dashboard"
-              className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:opacity-95"
+              className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-stone-700 border border-stone-200 hover:border-stone-400 transition-colors"
             >
               Dashboard
             </Link>
             <Link
               to="/get-started"
-              className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:opacity-95"
+              className="px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg text-xs lg:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-600/20 transition-all active:scale-[0.98]"
             >
               Get Started
             </Link>
@@ -76,31 +76,31 @@ export const MarketingHeader: React.FC = () => {
           <button
             aria-label="Toggle navigation"
             onClick={() => setOpen((v) => !v)}
-            className="md:hidden p-2 rounded-lg hover:bg-slate-100 text-slate-700"
+            className="md:hidden p-2 rounded-lg hover:bg-stone-100 text-stone-700"
           >
             {open ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
       {open && (
-        <div className="md:hidden border-t border-slate-200 bg-white/95 backdrop-blur">
+        <div className="md:hidden border-t border-stone-200 bg-white/95 backdrop-blur">
           <div className="mx-auto max-w-7xl px-3 sm:px-4 py-2 sm:py-3 flex flex-col gap-1 sm:gap-2">
-            <Link to="/" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Home</Link>
-            <Link to="/pricing" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Pricing</Link>
-            <Link to="/help" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Help Center</Link>
-            <Link to="/onboarding" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Onboarding</Link>
-            <Link to="/contact" className="py-1.5 sm:py-2 text-sm sm:text-base text-slate-700" onClick={() => setOpen(false)}>Contact Us</Link>
+            <Link to="/" className="py-1.5 sm:py-2 text-sm sm:text-base text-stone-700" onClick={() => setOpen(false)}>Home</Link>
+            <Link to="/pricing" className="py-1.5 sm:py-2 text-sm sm:text-base text-stone-700" onClick={() => setOpen(false)}>Pricing</Link>
+            <Link to="/help" className="py-1.5 sm:py-2 text-sm sm:text-base text-stone-700" onClick={() => setOpen(false)}>Help Center</Link>
+            <Link to="/onboarding" className="py-1.5 sm:py-2 text-sm sm:text-base text-stone-700" onClick={() => setOpen(false)}>Onboarding</Link>
+            <Link to="/contact" className="py-1.5 sm:py-2 text-sm sm:text-base text-stone-700" onClick={() => setOpen(false)}>Contact Us</Link>
             <Link
               to="/dashboard"
               onClick={() => setOpen(false)}
-              className="mt-1 sm:mt-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-center text-sm sm:text-base text-white bg-gradient-to-r from-blue-600 to-indigo-600"
+              className="mt-1 sm:mt-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-center text-sm sm:text-base text-stone-700 border border-stone-200"
             >
               Dashboard
             </Link>
             <Link
               to="/get-started"
               onClick={() => setOpen(false)}
-              className="mt-1 sm:mt-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-center text-sm sm:text-base text-white bg-gradient-to-r from-blue-600 to-indigo-600"
+              className="mt-1 sm:mt-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-center text-sm sm:text-base text-white bg-blue-600"
             >
               Get Started
             </Link>
