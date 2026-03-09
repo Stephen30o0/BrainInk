@@ -374,10 +374,10 @@ export const ZoomParallax: React.FC<ZoomParallaxProps> = ({ children, className 
     <div ref={ref} className={`relative overflow-hidden ${className}`}>
       {imageUrl && (
         <motion.div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none will-change-transform"
           style={{ scale: smoothScale, opacity }}
         >
-          <img src={imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+          <img src={imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </motion.div>
       )}
       <div className="relative z-10">{children}</div>

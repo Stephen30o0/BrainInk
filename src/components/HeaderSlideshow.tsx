@@ -8,12 +8,12 @@ interface HeaderSlideshowProps {
 export const HeaderSlideshow: React.FC<HeaderSlideshowProps> = ({ 
   // Slideshow images from the slideshowimages folder
   images = [
-    '/slideshowimages/young-person-taking-notes-textbook-paper-with-pen-looking-modern-laptop-woman-writing-information-notebook-files-doing-remote-work-adult-working-from-home-business.jpg',
-    '/slideshowimages/woman-teaching-kids-class.jpg',
-    '/slideshowimages/teachernstudent.jpg',
-    '/slideshowimages/students-studying-together-medium-shot.jpg',
-    '/slideshowimages/people-practicing-social-integration-workspace.jpg',
-    '/slideshowimages/group-african-kids-paying-attention-class.jpg'
+    '/slideshowimages/young-person-taking-notes-textbook-paper-with-pen-looking-modern-laptop-woman-writing-information-notebook-files-doing-remote-work-adult-working-from-home-business.webp',
+    '/slideshowimages/woman-teaching-kids-class.webp',
+    '/slideshowimages/teachernstudent.webp',
+    '/slideshowimages/students-studying-together-medium-shot.webp',
+    '/slideshowimages/people-practicing-social-integration-workspace.webp',
+    '/slideshowimages/group-african-kids-paying-attention-class.webp'
   ],
   autoPlayDuration = 5000 
 }) => {
@@ -52,6 +52,7 @@ export const HeaderSlideshow: React.FC<HeaderSlideshowProps> = ({
                 alt={`Slide ${index + 1}`}
                 className="w-full h-full object-cover"
                 loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
               />
               {/* Darker overlay for better text visibility */}
               <div className="absolute inset-0 bg-black/40"></div>

@@ -41,7 +41,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
   return (
     <motion.div
       ref={ref}
-      className={className}
+      className={`${className} will-change-[transform,opacity]`}
       initial={{ opacity: 0, x: d.x * distance, y: d.y * distance }}
       animate={inView ? { opacity: 1, x: 0, y: 0 } : undefined}
       transition={{

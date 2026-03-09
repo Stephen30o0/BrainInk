@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Old landing sections (no longer used on marketing pages)
@@ -12,35 +12,35 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // import { JoinSection } from './components/JoinSection';
 import { AudioProvider } from './components/shared/AudioManager';
 import { SoundProvider } from './components/shared/SoundManager';
-import { SignUp } from './pages/SignUp';
-import { RoleSelection } from './pages/RoleSelection';
-import { SchoolLogin } from './pages/SchoolLogin';
-import { TownSquare } from './pages/TownSquare';
-import { StudentHub } from './pages/StudentHub';
-import { MessagingPage } from './pages/MessagingPage';
 import { WalletProvider } from './components/shared/WalletContext';
-import Achievements from './pages/Achievements';
-import { Notifications } from './pages/Notifications';
-import { Friends } from './pages/Friends';
-import { QuizInterface } from './components/quiz/QuizInterface';
-import { QuizPage } from './pages/QuizPage';
-import EnsureProfileCustomizedLayout from './components/EnsureProfileCustomizedLayout';
-import { TeacherDashboard } from './pages/TeacherDashboard';
-import { TeacherLogin } from './pages/TeacherLogin';
-import { PrincipalLogin } from './pages/PrincipalLogin';
-import { PrincipalDashboardPage } from './pages/PrincipalDashboardPage';
-import { InvitationsPage } from './pages/InvitationsPage';
 import { AuthProvider } from './hooks/useAuth';
-// New marketing pages
+// Eagerly load the homepage (first paint)
 import HomePage from './pages/marketing/HomePage';
-import PricingPage from './pages/marketing/PricingPage';
-import HelpCenterPage from './pages/marketing/HelpCenterPage';
-import OnboardingPage from './pages/marketing/OnboardingPage';
-import ContactUs from './pages/marketing/ContactUs';
-import GetStarted from './pages/GetStarted';
-import DashboardRedirect from './pages/DashboardRedirect';
-// CustomizeProfilePage will now be primarily rendered via the modal
-// import { CustomizeProfilePage } from './pages/CustomizeProfilePage';
+
+// Lazy-load everything else for code-splitting
+const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
+const RoleSelection = lazy(() => import('./pages/RoleSelection').then(m => ({ default: m.RoleSelection })));
+const SchoolLogin = lazy(() => import('./pages/SchoolLogin').then(m => ({ default: m.SchoolLogin })));
+const TownSquare = lazy(() => import('./pages/TownSquare').then(m => ({ default: m.TownSquare })));
+const StudentHub = lazy(() => import('./pages/StudentHub').then(m => ({ default: m.StudentHub })));
+const MessagingPage = lazy(() => import('./pages/MessagingPage').then(m => ({ default: m.MessagingPage })));
+const Achievements = lazy(() => import('./pages/Achievements'));
+const Notifications = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })));
+const Friends = lazy(() => import('./pages/Friends').then(m => ({ default: m.Friends })));
+const QuizInterface = lazy(() => import('./components/quiz/QuizInterface').then(m => ({ default: m.QuizInterface })));
+const QuizPage = lazy(() => import('./pages/QuizPage').then(m => ({ default: m.QuizPage })));
+const EnsureProfileCustomizedLayout = lazy(() => import('./components/EnsureProfileCustomizedLayout'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })));
+const TeacherLogin = lazy(() => import('./pages/TeacherLogin').then(m => ({ default: m.TeacherLogin })));
+const PrincipalLogin = lazy(() => import('./pages/PrincipalLogin').then(m => ({ default: m.PrincipalLogin })));
+const PrincipalDashboardPage = lazy(() => import('./pages/PrincipalDashboardPage').then(m => ({ default: m.PrincipalDashboardPage })));
+const InvitationsPage = lazy(() => import('./pages/InvitationsPage').then(m => ({ default: m.InvitationsPage })));
+const PricingPage = lazy(() => import('./pages/marketing/PricingPage'));
+const HelpCenterPage = lazy(() => import('./pages/marketing/HelpCenterPage'));
+const OnboardingPage = lazy(() => import('./pages/marketing/OnboardingPage'));
+const ContactUs = lazy(() => import('./pages/marketing/ContactUs'));
+const GetStarted = lazy(() => import('./pages/GetStarted'));
+const DashboardRedirect = lazy(() => import('./pages/DashboardRedirect'));
 
 export function App() {
   return (
@@ -51,6 +51,7 @@ export function App() {
             <WalletProvider>
               <Router>
                 <div className="bg-white text-gray-900 min-h-screen w-full overflow-x-hidden" style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif" }}>
+                  <Suspense fallback={<div className="min-h-screen bg-[#FAFAF8]" />}>
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -83,6 +84,7 @@ export function App() {
                       {/* Principal Dashboard Route */}
                       <Route path="/principal-dashboard" element={<PrincipalDashboardPage />} />
                     </Routes>
+                  </Suspense>
                 </div>
               </Router>
             </WalletProvider>

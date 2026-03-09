@@ -66,7 +66,7 @@ export const HelpCenterPage: React.FC = () => {
           {/* Decorative image strip */}
           <div className="relative rounded-2xl overflow-hidden group">
             <div className="aspect-[21/6]">
-              <img src="/images/brainink-help.png" alt="BrainInk Help Center" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" loading="lazy" />
+              <img src="/images/brainink-help.webp" alt="BrainInk Help Center" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#FAFAF8]/40 to-transparent" />
               <div className="absolute bottom-4 left-6 font-mono text-[10px] text-white/70 uppercase tracking-widest">BrainInk Knowledge Base</div>
             </div>

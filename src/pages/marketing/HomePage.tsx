@@ -475,11 +475,12 @@ const ExperienceSection: React.FC = () => {
       {/* ── Background image (cropped to hide watermark) ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <img
-          src="/images/brainink-student.png"
+          src="/images/brainink-student.webp"
           alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-[0.12] scale-[1.08] origin-top-left"
           style={{ filter: 'grayscale(20%) contrast(1.1)' }}
           loading="lazy"
+          decoding="async"
         />
       </div>
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -688,7 +689,7 @@ const FeatureCardsAndDemoSection: React.FC = () => {
         <Swirl speed={0.3} bandCount={4} twist={0.33} scale={1} softness={1} noiseFrequency={0.21} noise={0.07} center={0.12} proportion={0.47} offsetX={-0.58} offsetY={1} colors={['#FEFFF0', '#95CEED', '#68AADC']} colorBack="#00000000" style={{ width: '100%', height: '100%' }} />
       </div>
       {/* Grain texture overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply" style={{ backgroundImage: 'url(/assets/visuals/noise texture.png)', backgroundRepeat: 'repeat', backgroundSize: '200px 200px' }} />
+      <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply" style={{ backgroundImage: 'url(/assets/visuals/noise texture.webp)', backgroundRepeat: 'repeat', backgroundSize: '200px 200px' }} />
       {/* Decorative corner marks */}
       <div className="absolute top-8 left-8 w-12 h-12 border-l-2 border-t-2 border-blue-200/40 pointer-events-none" />
       <div className="absolute top-8 right-8 w-12 h-12 border-r-2 border-t-2 border-blue-200/40 pointer-events-none" />
@@ -742,14 +743,14 @@ const FeatureCardsAndDemoSection: React.FC = () => {
           <ScrollReveal><div className="text-center mb-16"><h2 className="text-3xl font-bold tracking-tight text-slate-900">Built for the entire ecosystem</h2></div></ScrollReveal>
           <StaggerOnScroll className="grid grid-cols-1 md:grid-cols-3 gap-8" stagger={0.2}>
             {([
-              { icon: <GraduationCap className="w-8 h-8 text-white" />, title: 'Students', access: 'ACCESS_LEVEL_1', desc: 'Know exactly where you went wrong, what to review next, and track improvement each term with personalized dashboards.', color: 'bg-blue-500', imgPath: '/images/brainink-student-role.png' },
-              { icon: <Users className="w-8 h-8 text-white" />, title: 'Teachers', access: 'ACCESS_LEVEL_2', desc: 'Save 10+ hours/week with instant grading, clear rubrics, and organized feedback. Focus on teaching, not grading.', color: 'bg-blue-600', imgPath: '/images/brainink-teacher-role.png' },
-              { icon: <Building2 className="w-8 h-8 text-white" />, title: 'School Leaders', access: 'ACCESS_LEVEL_ADMIN', desc: 'Get real-time visibility across classes and subjects to make data-driven decisions for curriculum improvements.', color: 'bg-stone-900', imgPath: '/images/brainink-leader-role.png' },
+              { icon: <GraduationCap className="w-8 h-8 text-white" />, title: 'Students', access: 'ACCESS_LEVEL_1', desc: 'Know exactly where you went wrong, what to review next, and track improvement each term with personalized dashboards.', color: 'bg-blue-500', imgPath: '/images/brainink-student-role.webp' },
+              { icon: <Users className="w-8 h-8 text-white" />, title: 'Teachers', access: 'ACCESS_LEVEL_2', desc: 'Save 10+ hours/week with instant grading, clear rubrics, and organized feedback. Focus on teaching, not grading.', color: 'bg-blue-600', imgPath: '/images/brainink-teacher-role.webp' },
+              { icon: <Building2 className="w-8 h-8 text-white" />, title: 'School Leaders', access: 'ACCESS_LEVEL_ADMIN', desc: 'Get real-time visibility across classes and subjects to make data-driven decisions for curriculum improvements.', color: 'bg-stone-900', imgPath: '/images/brainink-leader-role.webp' },
             ] as const).map(r => (
               <div key={r.title} className="group relative bg-white rounded-2xl shadow-lg border border-stone-200 overflow-hidden hover:-translate-y-1 transition-transform duration-300">
                 {/* Top image strip */}
                 <div className="relative h-36 overflow-hidden">
-                  <img src={r.imgPath} alt={`${r.title} using BrainInk`} className="w-full h-full object-cover scale-[1.08] origin-top-left transition-transform duration-500 group-hover:scale-[1.13]" loading="lazy" />
+                  <img src={r.imgPath} alt={`${r.title} using BrainInk`} className="w-full h-full object-cover scale-[1.08] origin-top-left transition-transform duration-500 group-hover:scale-[1.13]" loading="lazy" decoding="async" />
                   <div className={`absolute inset-0 ${r.color} opacity-40 mix-blend-multiply`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
                 </div>
@@ -1111,7 +1112,7 @@ const TestimonialCard: React.FC<{ id: string; quote: string; name: string; role:
     <div className="font-mono text-xs text-gray-400 mb-6">{id}</div>
     <blockquote className="text-xl font-medium text-gray-900 mb-8 leading-relaxed">&ldquo;{quote}&rdquo;</blockquote>
     <div className="flex items-center gap-4">
-      <img src={imgPath} alt={name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md" loading="lazy" />
+      <img src={imgPath} alt={name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md" loading="lazy" decoding="async" />
       <div><div className="text-sm font-bold text-gray-900">{name}</div><div className="text-xs text-gray-500">{role}</div></div>
     </div>
   </div>
@@ -1151,7 +1152,7 @@ const BottomSection: React.FC = () => {
       <div className="relative z-10 max-w-[1440px] mx-auto px-6 lg:px-12 flex flex-col gap-32 pb-24">
 
         {/* Visual break — wide image strip with zoom parallax */}
-        <ZoomParallax className="rounded-[2rem] min-h-[280px] md:min-h-[340px]" imageUrl="/images/brainink-wide.png">
+        <ZoomParallax className="rounded-[2rem] min-h-[280px] md:min-h-[340px]" imageUrl="/images/brainink-wide.webp">
           <div className="relative rounded-[2rem] overflow-hidden group">
             <div className="aspect-[21/6] md:aspect-[21/5]">
               <div className="absolute inset-0 bg-gradient-to-r from-stone-900/50 via-stone-900/20 to-transparent z-10" />
@@ -1242,9 +1243,9 @@ const BottomSection: React.FC = () => {
             <ScrollReveal delay={0.1}><span className="hidden md:block h-px w-32 bg-gradient-to-r from-stone-200 to-transparent" /></ScrollReveal>
           </div>
           <StaggerOnScroll className="grid grid-cols-1 md:grid-cols-3 gap-8" stagger={0.15} direction="left">
-            <TestimonialCard id="ID: TEACHER_MATH_S2" quote="I graded three classes before lunch. The feedback is clearer than ever." name="Odette Murenzi" role="Math Teacher, S2" imgPath="/images/teacher-odette.png" accent="bg-blue-500" />
-            <TestimonialCard id="ID: HEAD_TEACHER" quote="We finally see progress across departments at a glance." name="Jean-Pierre Habimana" role="Head Teacher" imgPath="/images/headteacher-jp.png" accent="bg-stone-800" />
-            <TestimonialCard id="ID: DIR_STUDIES" quote="Parents now understand strengths and gaps without meetings." name="Grace Uwimana" role="Director of Studies" imgPath="/images/director-grace.png" accent="bg-blue-600" />
+            <TestimonialCard id="ID: TEACHER_MATH_S2" quote="I graded three classes before lunch. The feedback is clearer than ever." name="Odette Murenzi" role="Math Teacher, S2" imgPath="/images/teacher-odette.webp" accent="bg-blue-500" />
+            <TestimonialCard id="ID: HEAD_TEACHER" quote="We finally see progress across departments at a glance." name="Jean-Pierre Habimana" role="Head Teacher" imgPath="/images/headteacher-jp.webp" accent="bg-stone-800" />
+            <TestimonialCard id="ID: DIR_STUDIES" quote="Parents now understand strengths and gaps without meetings." name="Grace Uwimana" role="Director of Studies" imgPath="/images/director-grace.webp" accent="bg-blue-600" />
           </StaggerOnScroll>
         </div>
 
@@ -1296,10 +1297,11 @@ const CTASection: React.FC = () => (
       <div className="relative rounded-[2.5rem] overflow-hidden min-h-[480px] flex items-center">
         {/* Background image */}
         <img
-          src="/images/brainink-cta.png"
+          src="/images/brainink-cta.webp"
           alt=""
           className="absolute inset-0 w-full h-full object-cover scale-[1.08] origin-top-left"
           loading="lazy"
+          decoding="async"
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-700/90 via-blue-600/80 to-blue-500/60" />
