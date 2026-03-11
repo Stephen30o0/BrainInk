@@ -1645,12 +1645,17 @@ class TeacherServiceClass {
 
   // ============ WHATSAPP INTEGRATION ============
 
-  private readonly WHATSAPP_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'https://whatsapp-micro.onrender.com';
+  private readonly WHATSAPP_URL = import.meta.env.VITE_WHATSAPP_API_URL || '';
+
+  private isWhatsAppAvailable(): boolean {
+    return !!this.WHATSAPP_URL;
+  }
 
   /**
    * Generate WhatsApp registration codes for students in a subject
    */
   public async generateWhatsAppCodes(subjectId: number, studentIds: number[]): Promise<any[]> {
+    if (!this.isWhatsAppAvailable()) return [];
     try {
       console.log('📱 Generating WhatsApp codes for subject:', subjectId);
       const token = localStorage.getItem('access_token');
@@ -1676,6 +1681,7 @@ class TeacherServiceClass {
    * Get WhatsApp registration codes for a subject
    */
   public async getWhatsAppCodes(subjectId: number): Promise<any[]> {
+    if (!this.isWhatsAppAvailable()) return [];
     try {
       console.log('📱 Getting WhatsApp codes for subject:', subjectId);
       const token = localStorage.getItem('access_token');
@@ -1699,6 +1705,7 @@ class TeacherServiceClass {
    * Revoke a WhatsApp registration code
    */
   public async revokeWhatsAppCode(codeId: number): Promise<boolean> {
+    if (!this.isWhatsAppAvailable()) return false;
     try {
       console.log('📱 Revoking WhatsApp code:', codeId);
       const token = localStorage.getItem('access_token');
@@ -1722,6 +1729,7 @@ class TeacherServiceClass {
    * Get WhatsApp submissions for an assignment
    */
   public async getWhatsAppSubmissions(assignmentId: number): Promise<any[]> {
+    if (!this.isWhatsAppAvailable()) return [];
     try {
       console.log('📱 Getting WhatsApp submissions for assignment:', assignmentId);
       const token = localStorage.getItem('access_token');
