@@ -108,107 +108,92 @@ const RoleSelection = () => {
 
     if (currentStep === 'loading') {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center bg-white rounded-xl shadow-lg p-8 border border-gray-200">
-                    <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-900 text-lg font-medium">Loading available schools...</p>
+            <div className="min-h-[100dvh] bg-[#FAFAF8] flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-10 h-10 border-2 border-stone-300 border-t-stone-900 rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-stone-600 text-sm">Loading available schools...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden">
-            {/* Subtle background pattern */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-white to-gray-50/50"></div>
-                <div className="absolute inset-0" style={{
-                    backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(59, 130, 246, 0.1) 1px, transparent 0)',
-                    backgroundSize: '20px 20px'
-                }}></div>
+        <div className="min-h-[100dvh] bg-[#FAFAF8] flex flex-col items-center relative overflow-hidden">
+            {/* Subtle background */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-stone-100/30 rounded-full blur-[100px]" />
             </div>
 
             {/* Content */}
-            <div className="w-full max-w-4xl relative z-10 px-4">
+            <div className="w-full max-w-3xl relative z-10 px-6 pt-20 pb-16">
                 {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                <div className="mb-10">
+                    <span className="inline-block text-xs font-mono uppercase tracking-widest text-stone-400 mb-4">Setup</span>
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-stone-900 mb-3">
                         {currentStep === 'school' && 'Select Your School'}
                         {currentStep === 'role' && 'Choose Your Role'}
                     </h1>
-                    <p className="text-xl text-gray-600">
-                        {currentStep === 'school' && 'Choose the school you work at'}
-                        {currentStep === 'role' && `Select your role at ${selectedSchool?.name}`}
+                    <p className="text-lg text-stone-500">
+                        {currentStep === 'school' && 'Choose the school you work at to continue.'}
+                        {currentStep === 'role' && `Select your role at ${selectedSchool?.name}.`}
                     </p>
                     {user && (
-                        <p className="text-lg text-blue-600 mt-2 font-medium">
-                            Hello, {user.name}!
+                        <p className="text-sm text-blue-600 mt-2 font-medium">
+                            Signed in as {user.name}
                         </p>
                     )}
                 </div>
 
                 {/* Progress Indicator */}
-                <div className="flex justify-center mb-8">
-                    <div className="flex items-center space-x-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'school' ? 'bg-blue-600 text-white' :
-                            currentStep === 'role' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>1</div>
-                        <div className={`w-8 border-t-2 ${currentStep === 'role' ? 'border-green-500' : 'border-gray-300'
-                            }`}></div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${currentStep === 'role' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>2</div>
-                    </div>
+                <div className="flex items-center gap-3 mb-8">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+                        currentStep === 'school' ? 'bg-stone-900 text-white' : 'bg-emerald-500 text-white'
+                    }`}>1</div>
+                    <div className={`h-px w-8 ${currentStep === 'role' ? 'bg-emerald-400' : 'bg-stone-200'}`} />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+                        currentStep === 'role' ? 'bg-stone-900 text-white' : 'bg-stone-200 text-stone-500'
+                    }`}>2</div>
                 </div>
 
-                {/* Check Invitations Button */}
-                <div className="flex justify-center mb-6">
-                    <button
-                        onClick={() => navigate('/invitations')}
-                        className="flex items-center gap-2 px-6 py-3 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 shadow-sm"
-                    >
-                        <BellIcon className="w-5 h-5" />
-                        Check School Invitations
-                    </button>
-                </div>
+                {/* Check Invitations */}
+                <button
+                    onClick={() => navigate('/invitations')}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-lg hover:bg-stone-50 transition-colors text-sm font-medium mb-8"
+                >
+                    <BellIcon className="w-4 h-4" />
+                    Check School Invitations
+                </button>
 
                 {/* Error Message */}
                 {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 shadow-sm">
-                        <p className="text-red-700 text-center">{error}</p>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                        <p className="text-red-700 text-sm text-center">{error}</p>
                     </div>
                 )}
 
                 {/* School Selection */}
                 {currentStep === 'school' && (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="space-y-3 mb-8">
                         {availableSchools.map((school) => (
                             <div
                                 key={school.id}
                                 onClick={() => handleSchoolSelect(school)}
-                                className="relative cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg group"
+                                className="group bg-white rounded-2xl p-6 border border-stone-200 cursor-pointer hover:border-stone-400 hover:shadow-md transition-all active:scale-[0.99]"
                             >
-                                <div className="bg-white rounded-xl p-6 border border-gray-200 h-full shadow-sm group-hover:border-blue-300 group-hover:shadow-md">
-                                    {/* School Icon */}
-                                    <div className="w-16 h-16 rounded-lg bg-blue-100 flex items-center justify-center mb-4 mx-auto group-hover:bg-blue-200 transition-colors">
-                                        <BuildingIcon className="w-8 h-8 text-blue-600" />
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 group-hover:bg-blue-100 transition-colors">
+                                        <BuildingIcon className="w-6 h-6" />
                                     </div>
-
-                                    {/* Content */}
-                                    <div className="text-center">
-                                        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-lg font-semibold text-stone-900 truncate">
                                             {school.name}
                                         </h3>
                                         {school.address && (
-                                            <p className="text-gray-600 text-sm">
-                                                {school.address}
-                                            </p>
+                                            <p className="text-sm text-stone-500 truncate">{school.address}</p>
                                         )}
-                                        <div className="mt-4">
-                                            <span className="text-sm font-medium text-blue-600 group-hover:text-blue-700">
-                                                Select School →
-                                            </span>
-                                        </div>
                                     </div>
+                                    <ArrowRightIcon className="w-5 h-5 text-stone-300 group-hover:text-stone-600 transition-colors shrink-0" />
                                 </div>
                             </div>
                         ))}
@@ -218,51 +203,30 @@ const RoleSelection = () => {
                 {/* Role Selection */}
                 {currentStep === 'role' && (
                     <>
-                        {/* Back to School Selection */}
-                        <div className="mb-6">
-                            <button
-                                onClick={() => setCurrentStep('school')}
-                                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors bg-white border border-gray-200 rounded-lg px-4 py-2 shadow-sm hover:shadow-md"
-                            >
-                                <ArrowLeftIcon className="w-4 h-4" />
-                                Back to school selection
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setCurrentStep('school')}
+                            className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors text-sm mb-6"
+                        >
+                            <ArrowLeftIcon className="w-4 h-4" />
+                            Back to school selection
+                        </button>
 
-                        <div className="grid md:grid-cols-2 gap-6 mb-8">
+                        <div className="grid md:grid-cols-2 gap-4 mb-8">
                             {roles.map((role) => {
                                 const Icon = role.icon;
-
                                 return (
                                     <div
                                         key={role.id}
                                         onClick={() => handleRoleSelect(role.id)}
-                                        className="relative cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg group"
+                                        className="group bg-white rounded-2xl p-8 border border-stone-200 cursor-pointer hover:border-stone-400 hover:shadow-md transition-all active:scale-[0.99]"
                                     >
-                                        <div className="bg-white rounded-xl p-6 border border-gray-200 h-full shadow-sm group-hover:border-blue-300 group-hover:shadow-md">
-                                            {/* Icon */}
-                                            <div className={`w-16 h-16 rounded-lg flex items-center justify-center mb-4 mx-auto transition-colors
-                                                ${role.id === 'teacher' ? 'bg-green-100 group-hover:bg-green-200' : 'bg-purple-100 group-hover:bg-purple-200'}`}>
-                                                <Icon className={`w-8 h-8 
-                                                    ${role.id === 'teacher' ? 'text-green-600' : 'text-purple-600'}`} />
-                                            </div>
-
-                                            {/* Content */}
-                                            <div className="text-center">
-                                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                                    {role.title}
-                                                </h3>
-                                                <p className="text-gray-600 text-sm">
-                                                    {role.description}
-                                                </p>
-                                                <div className="mt-4">
-                                                    <span className={`text-sm font-medium transition-colors
-                                                        ${role.id === 'teacher' ? 'text-green-600 group-hover:text-green-700' : 'text-purple-600 group-hover:text-purple-700'}`}>
-                                                        Select Role →
-                                                    </span>
-                                                </div>
-                                            </div>
+                                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-5 transition-colors ${
+                                            role.id === 'teacher' ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'
+                                        }`}>
+                                            <Icon className="w-7 h-7" />
                                         </div>
+                                        <h3 className="text-xl font-semibold text-stone-900 mb-2">{role.title}</h3>
+                                        <p className="text-stone-500 text-sm leading-relaxed">{role.description}</p>
                                     </div>
                                 );
                             })}
@@ -272,21 +236,21 @@ const RoleSelection = () => {
 
                 {/* Loading indicator when confirming role */}
                 {isLoading && (
-                    <div className="flex justify-center">
-                        <div className="flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg">
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex justify-center mb-6">
+                        <div className="flex items-center gap-3 px-6 py-3 bg-stone-900 text-white rounded-xl text-sm font-medium">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Confirming selection...
                         </div>
                     </div>
                 )}
 
                 {/* Back to Login */}
-                <div className="text-center mt-8">
+                <div className="pt-8 border-t border-stone-200 text-center">
                     <button
                         onClick={() => navigate('/school-login')}
-                        className="text-gray-600 hover:text-gray-900 transition-colors bg-white border border-gray-200 rounded-lg px-4 py-2 shadow-sm hover:shadow-md"
+                        className="text-stone-500 hover:text-stone-900 transition-colors text-sm"
                     >
-                        ← Back to Login
+                        Back to Login
                     </button>
                 </div>
             </div>

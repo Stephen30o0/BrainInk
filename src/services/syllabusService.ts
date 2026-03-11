@@ -70,6 +70,86 @@ export interface CreateSyllabusRequest {
     textbook_file?: File;
 }
 
+export interface TeacherSubject {
+    id: number;
+    name: string;
+    code: string;
+    description: string;
+    teacher_name?: string;
+    student_count: number;
+}
+
+export interface TeacherClassroom {
+    id: number;
+    name: string;
+    description?: string;
+    school_id?: number;
+    teacher_id?: number;
+    is_active?: boolean;
+}
+
+export interface LessonReference {
+    title: string;
+    url: string;
+    source_type: string;
+    note?: string;
+}
+
+export interface TeacherLessonPlan {
+    id: number;
+    teacher_id: number;
+    classroom_id: number;
+    subject_id: number;
+    title: string;
+    description: string;
+    duration_minutes: number;
+    learning_objectives: string[];
+    activities: string[];
+    materials_needed: string[];
+    assessment_strategy?: string;
+    homework?: string;
+    references: LessonReference[];
+    classroom_name?: string;
+    subject_name?: string;
+    teacher_name?: string;
+    source_filename?: string;
+    generated_by_ai: boolean;
+    created_date: string;
+    updated_date: string;
+    is_active: boolean;
+}
+
+export interface LessonPlanDashboardResponse {
+    total_lessons: number;
+    ai_generated_lessons: number;
+    active_lessons: number;
+    lessons: TeacherLessonPlan[];
+}
+
+export interface CreateLessonPlanRequest {
+    classroom_id: number;
+    subject_id: number;
+    title: string;
+    description: string;
+    duration_minutes: number;
+    learning_objectives?: string[];
+    activities?: string[];
+    materials_needed?: string[];
+    assessment_strategy?: string;
+    homework?: string;
+    references?: LessonReference[];
+}
+
+export interface GenerateLessonPlanRequest {
+    classroom_id: number;
+    subject_id: number;
+    title: string;
+    description: string;
+    duration_minutes: number;
+    learning_objectives?: string[];
+    source_file?: File;
+}
+
 class SyllabusService {
     private static instance: SyllabusService;
 
@@ -83,6 +163,50 @@ class SyllabusService {
     // Authentication utilities
     private getAuthToken(): string | null {
         return localStorage.getItem('access_token');
+    }
+
+    private extractApiErrorDetail(errorData: unknown): string {
+        if (!errorData || typeof errorData !== 'object') {
+            return 'Unknown error';
+        }
+
+        const detail = (errorData as { detail?: unknown }).detail;
+
+        if (typeof detail === 'string') {
+            return detail;
+        }
+
+        if (Array.isArray(detail)) {
+            const messages = detail
+                .map((item) => {
+                    if (!item || typeof item !== 'object') {
+                        return null;
+                    }
+
+                    const message = (item as { msg?: unknown }).msg;
+                    const location = (item as { loc?: unknown }).loc;
+                    const locText = Array.isArray(location)
+                        ? location.filter((part): part is string | number => typeof part === 'string' || typeof part === 'number').join('.')
+                        : undefined;
+
+                    if (typeof message === 'string' && locText) {
+                        return `${locText}: ${message}`;
+                    }
+
+                    if (typeof message === 'string') {
+                        return message;
+                    }
+
+                    return null;
+                })
+                .filter((value): value is string => Boolean(value));
+
+            if (messages.length > 0) {
+                return messages.join('; ');
+            }
+        }
+
+        return 'Unknown error';
     }
 
     private async makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
@@ -101,13 +225,156 @@ class SyllabusService {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(`API Error: ${response.status} - ${errorData.detail || 'Unknown error'}`);
+            throw new Error(`API Error: ${response.status} - ${this.extractApiErrorDetail(errorData)}`);
         }
 
         return response.json();
     }
 
     // ============ PRINCIPAL & TEACHER ENDPOINTS ============
+
+    /**
+     * Get subjects assigned to the current teacher
+     * Endpoint: GET /study-area/academic/teachers/my-subjects
+     */
+    async getTeacherSubjects(): Promise<TeacherSubject[]> {
+        try {
+            console.log('📚 Fetching teacher subjects from backend...');
+            const data = await this.makeAuthenticatedRequest('/study-area/academic/teachers/my-subjects');
+            console.log('✅ Teacher subjects loaded successfully:', data);
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error('❌ Failed to fetch teacher subjects:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get classrooms assigned to the current teacher
+     * Endpoint: GET /study-area/classrooms/my-assigned
+     */
+    async getTeacherClassrooms(): Promise<TeacherClassroom[]> {
+        try {
+            console.log('🏫 Fetching teacher classrooms...');
+            const data = await this.makeAuthenticatedRequest('/study-area/classrooms/my-assigned');
+            console.log('✅ Teacher classrooms loaded successfully:', data);
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error('❌ Failed to fetch teacher classrooms:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get teacher lesson dashboard feed
+    * Endpoint: GET /study-area/lessons/dashboard
+     */
+    async getLessonDashboard(filters?: {
+        classroomId?: number;
+        subjectId?: number;
+        activeOnly?: boolean;
+        limit?: number;
+    }): Promise<LessonPlanDashboardResponse> {
+        const params = new URLSearchParams();
+        if (filters?.classroomId) params.append('classroom_id', String(filters.classroomId));
+        if (filters?.subjectId) params.append('subject_id', String(filters.subjectId));
+        if (typeof filters?.activeOnly === 'boolean') params.append('active_only', String(filters.activeOnly));
+        if (filters?.limit) params.append('limit', String(filters.limit));
+
+        const endpoint = `/study-area/lessons/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
+        const data = await this.makeAuthenticatedRequest(endpoint);
+        return {
+            total_lessons: Number(data?.total_lessons || 0),
+            ai_generated_lessons: Number(data?.ai_generated_lessons || 0),
+            active_lessons: Number(data?.active_lessons || 0),
+            lessons: Array.isArray(data?.lessons) ? data.lessons : []
+        };
+    }
+
+    /**
+     * Get a single lesson plan
+    * Endpoint: GET /study-area/lessons/{lesson_id}
+     */
+    async getLessonPlan(lessonId: number): Promise<TeacherLessonPlan> {
+        return this.makeAuthenticatedRequest(`/study-area/lessons/${lessonId}`);
+    }
+
+    /**
+     * Create a lesson plan manually
+    * Endpoint: POST /study-area/lessons
+     */
+    async createLessonPlan(payload: CreateLessonPlanRequest): Promise<TeacherLessonPlan> {
+        return this.makeAuthenticatedRequest('/study-area/lessons', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    /**
+     * Create a lesson plan with AI generation
+    * Endpoint: POST /study-area/lessons/generate
+     */
+    async generateLessonPlan(payload: GenerateLessonPlanRequest): Promise<TeacherLessonPlan> {
+        const formData = new FormData();
+        formData.append('classroom_id', String(payload.classroom_id));
+        formData.append('subject_id', String(payload.subject_id));
+        formData.append('title', payload.title);
+        formData.append('description', payload.description);
+        formData.append('duration_minutes', String(payload.duration_minutes));
+        if (payload.learning_objectives?.length) {
+            formData.append('learning_objectives', payload.learning_objectives.join('\n'));
+        }
+        if (payload.source_file) {
+            formData.append('source_file', payload.source_file);
+        }
+
+        const token = this.getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        const response = await fetch(`${BACKEND_URL}/study-area/lessons/generate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
+            throw new Error(`API Error: ${response.status} - ${this.extractApiErrorDetail(errorData)}`);
+        }
+
+        return response.json();
+    }
+
+    /**
+     * Update a lesson plan
+    * Endpoint: PUT /study-area/lessons/{lesson_id}
+     */
+    async updateLessonPlan(lessonId: number, updates: Partial<CreateLessonPlanRequest> & { is_active?: boolean }): Promise<TeacherLessonPlan> {
+        return this.makeAuthenticatedRequest(`/study-area/lessons/${lessonId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updates)
+        });
+    }
+
+    /**
+     * Deactivate lesson plan
+    * Endpoint: DELETE /study-area/lessons/{lesson_id}
+     */
+    async deleteLessonPlan(lessonId: number): Promise<{ message: string; lesson_id: number }> {
+        return this.makeAuthenticatedRequest(`/study-area/lessons/${lessonId}`, {
+            method: 'DELETE'
+        });
+    }
 
     /**
      * Get all syllabuses accessible to the user
@@ -148,6 +415,30 @@ class SyllabusService {
             console.error('❌ Failed to fetch syllabus:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get all syllabuses for a subject with weekly plans hydrated.
+     * This combines list + detail endpoints so UIs can render lesson plan cards immediately.
+     */
+    async getSubjectSyllabusesWithPlans(subjectId: number): Promise<Syllabus[]> {
+        const subjectSyllabuses = await this.getAllSyllabuses(subjectId);
+        if (!subjectSyllabuses.length) {
+            return [];
+        }
+
+        const detailed = await Promise.all(
+            subjectSyllabuses.map(async (syllabus) => {
+                try {
+                    return await this.getSyllabus(syllabus.id);
+                } catch (error) {
+                    console.warn(`⚠️ Could not hydrate weekly plans for syllabus ${syllabus.id}:`, error);
+                    return syllabus;
+                }
+            })
+        );
+
+        return detailed;
     }
 
     /**

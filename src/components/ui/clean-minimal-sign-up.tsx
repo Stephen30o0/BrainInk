@@ -38,8 +38,8 @@ const SignUp2: React.FC<SignUp2Props> = ({
   const isSignUp = mode === 'signup'
 
   const defaultTitle = isSignUp ? "Create your account" : "Sign in to your account"
-  const defaultSubtitle = isSignUp 
-    ? "Join BrainInk to start your learning journey" 
+  const defaultSubtitle = isSignUp
+    ? "Join BrainInk to start your learning journey"
     : "Access your BrainInk account to continue"
   const defaultButtonText = isSignUp ? "Create Account" : "Sign In"
 
@@ -64,9 +64,9 @@ const SignUp2: React.FC<SignUp2Props> = ({
         return
       }
     }
-    
+
     setInternalError("")
-    
+
     if (onSignUp) {
       onSignUp(firstName, lastName, username, email, password)
     } else {
@@ -81,33 +81,37 @@ const SignUp2: React.FC<SignUp2Props> = ({
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-white rounded-xl z-1">
-      <div className="w-full max-w-sm bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl shadow-opacity-10 p-8 flex flex-col items-center border border-blue-100 text-black">
-        <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white mb-6 shadow-lg shadow-opacity-5">
-          <UserPlus className="w-7 h-7 text-black" />
+    <div className="min-h-[100dvh] w-full flex items-center justify-center bg-[#FAFAF8] relative overflow-hidden">
+      {/* Ambient background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-stone-100/30 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.06)] p-8 flex flex-col items-center border border-stone-200/60">
+        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-stone-900 mb-6">
+          <UserPlus className="w-6 h-6 text-white" />
         </div>
-        
+
         {onModeChange && (
           <div className="flex justify-center mb-6 w-full">
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+            <div className="flex rounded-lg overflow-hidden border border-stone-200 bg-stone-50">
               <button
                 type="button"
-                className={`px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                  mode === 'login'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`px-4 py-2 text-sm font-medium transition-all duration-300 ${mode === 'login'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:bg-stone-100'
+                  }`}
                 onClick={() => onModeChange('login')}
               >
                 Login
               </button>
               <button
                 type="button"
-                className={`px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                  mode === 'signup'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`px-4 py-2 text-sm font-medium transition-all duration-300 ${mode === 'signup'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:bg-stone-100'
+                  }`}
                 onClick={() => onModeChange('signup')}
               >
                 Sign Up
@@ -115,27 +119,27 @@ const SignUp2: React.FC<SignUp2Props> = ({
             </div>
           </div>
         )}
-        
-        <h2 className="text-2xl font-semibold mb-2 text-center">
+
+        <h2 className="text-xl font-semibold mb-1 text-center text-stone-900 tracking-tight">
           {title || defaultTitle}
         </h2>
-        <p className="text-gray-500 text-sm mb-6 text-center">
+        <p className="text-stone-500 text-sm mb-6 text-center">
           {subtitle || defaultSubtitle}
         </p>
-        
+
         <div className="w-full flex flex-col gap-3 mb-2">
           {isSignUp && (
             <>
               <div className="grid grid-cols-2 gap-2">
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
                     <User className="w-4 h-4" />
                   </span>
                   <input
                     placeholder="First Name"
                     type="text"
                     value={firstName}
-                    className="w-full pl-10 pr-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-gray-50 text-black text-sm"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:border-stone-400 bg-white text-stone-900 text-sm transition-colors"
                     onChange={(e) => setFirstName(e.target.value)}
                     disabled={isLoading}
                   />
@@ -145,7 +149,7 @@ const SignUp2: React.FC<SignUp2Props> = ({
                     placeholder="Last Name"
                     type="text"
                     value={lastName}
-                    className="w-full pl-3 pr-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-gray-50 text-black text-sm"
+                    className="w-full pl-3 pr-3 py-2.5 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:border-stone-400 bg-white text-stone-900 text-sm transition-colors"
                     onChange={(e) => setLastName(e.target.value)}
                     disabled={isLoading}
                   />
@@ -153,89 +157,87 @@ const SignUp2: React.FC<SignUp2Props> = ({
               </div>
             </>
           )}
-          
+
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
               <User className="w-4 h-4" />
             </span>
             <input
               placeholder="Username"
               type="text"
               value={username}
-              className="w-full pl-10 pr-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-gray-50 text-black text-sm"
+              className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:border-stone-400 bg-white text-stone-900 text-sm transition-colors"
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
             />
           </div>
-          
+
           {isSignUp && (
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
                 <Mail className="w-4 h-4" />
               </span>
               <input
                 placeholder="Email"
                 type="email"
                 value={email}
-                className="w-full pl-10 pr-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-gray-50 text-black text-sm"
+                className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:border-stone-400 bg-white text-stone-900 text-sm transition-colors"
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
               />
             </div>
           )}
-          
+
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
               <Lock className="w-4 h-4" />
             </span>
             <input
               placeholder="Password"
               type="password"
               value={password}
-              className="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-gray-50 text-black text-sm"
+              className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:border-stone-400 bg-white text-stone-900 text-sm transition-colors"
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
               onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
-          
-          <div className="w-full flex justify-between items-center">
-            {error && (
-              <div className="text-sm text-red-500 text-left flex-1">{error}</div>
-            )}
-          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
+          )}
         </div>
-        
+
         <button
           onClick={handleSubmit}
           disabled={isLoading}
-          className="w-full bg-gradient-to-b from-gray-700 to-gray-900 text-white font-medium py-2 rounded-xl shadow hover:brightness-105 cursor-pointer transition mb-4 mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          className="w-full bg-stone-900 hover:bg-stone-800 text-white font-medium py-2.5 rounded-lg transition-colors mb-4 mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center active:scale-[0.98]"
         >
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             buttonText || defaultButtonText
           )}
         </button>
-        
+
         <div className="flex items-center w-full my-2">
-          <div className="flex-grow border-t border-dashed border-gray-200"></div>
-          <span className="mx-2 text-xs text-gray-400">Or continue with</span>
-          <div className="flex-grow border-t border-dashed border-gray-200"></div>
+          <div className="flex-grow border-t border-stone-200" />
+          <span className="mx-3 text-xs text-stone-400">Or continue with</span>
+          <div className="flex-grow border-t border-stone-200" />
         </div>
-        
+
         <div className="flex gap-3 w-full justify-center mt-2">
-          <button 
+          <button
             onClick={handleGoogleAuth}
             disabled={isLoading}
-            className="flex items-center justify-center w-full h-12 rounded-xl border bg-white hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-full h-11 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
             <img
               src="https://www.svgrepo.com/show/475656/google-color.svg"
               alt="Google"
-              className="w-6 h-6"
+              className="w-5 h-5"
             />
-            <span className="ml-2 text-sm font-medium">Continue with Google</span>
+            <span className="ml-2 text-sm font-medium text-stone-700">Continue with Google</span>
           </button>
         </div>
       </div>

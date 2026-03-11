@@ -71,7 +71,7 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
     },
     {
       id: 'syllabus',
-      label: 'Syllabus Management',
+      label: 'Curiculum',
       icon: Map,
       description: 'Manage Curriculum'
     },

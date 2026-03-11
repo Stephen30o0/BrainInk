@@ -1,3 +1,6 @@
+/* ─── Google Fonts ─── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,7 +15,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
   }
-  
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -25,13 +28,18 @@
 }
 
 /* Fix input visibility issues */
-input, select, textarea {
-  color: #1f2937 !important; /* Ensure text is visible */
-  background-color: white !important; /* Ensure background is visible */
+input,
+select,
+textarea {
+  color: #1f2937 !important;
+  /* Ensure text is visible */
+  background-color: white !important;
+  /* Ensure background is visible */
 }
 
 input::placeholder {
-  color: #9ca3af !important; /* Ensure placeholder is visible */
+  color: #9ca3af !important;
+  /* Ensure placeholder is visible */
 }
 
 /* Fix selection highlighting */
@@ -41,7 +49,9 @@ input::placeholder {
 }
 
 /* Ensure focus states are visible */
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: 2px solid #3b82f6 !important;
   outline-offset: 2px !important;
 }
@@ -89,7 +99,7 @@ input:focus, select:focus, textarea:focus {
 
 /* Custom Borders */
 .pixel-border {
-  box-shadow: 
+  box-shadow:
     0 0 0 2px #0a0a1a,
     0 0 0 4px #00a8ff;
 }
@@ -108,14 +118,12 @@ input:focus, select:focus, textarea:focus {
   height: 10px;
   background: linear-gradient(90deg, #00a8ff 0%, #00ffaa 100%);
   box-shadow: 0 0 5px #00a8ff, 0 0 10px #00a8ff;
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 5px) 0, 
-    100% 5px, 
-    100% 100%, 
-    5px 100%, 
-    0 calc(100% - 5px)
-  );
+  clip-path: polygon(0 0,
+      calc(100% - 5px) 0,
+      100% 5px,
+      100% 100%,
+      5px 100%,
+      0 calc(100% - 5px));
 }
 
 /* Custom Scrollbar */
@@ -140,108 +148,135 @@ input:focus, select:focus, textarea:focus {
   font-family: 'PixelFont';
   src: url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 }
+
 @keyframes float {
   0% {
     transform: translateY(0) translateX(0);
   }
+
   50% {
     transform: translateY(-20px) translateX(10px);
   }
+
   100% {
     transform: translateY(0) translateX(0);
   }
 }
+
 @keyframes pulse {
   0% {
     transform: scale(1);
     opacity: 1;
   }
+
   50% {
     transform: scale(1.05);
     opacity: 0.8;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
   }
 }
+
 @keyframes shake {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(0);
   }
+
   25% {
     transform: translateX(-2px);
   }
+
   75% {
     transform: translateX(2px);
   }
 }
+
 @keyframes glitch {
   0% {
     text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em -0.025em 0 rgba(0, 255, 0, 0.75), 0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   14% {
     text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em -0.025em 0 rgba(0, 255, 0, 0.75), 0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   15% {
     text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   49% {
     text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   50% {
     text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   99% {
     text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75);
   }
+
   100% {
     text-shadow: -0.025em 0 0 rgba(255, 0, 0, 0.75), -0.025em -0.025em 0 rgba(0, 255, 0, 0.75), -0.025em -0.05em 0 rgba(0, 0, 255, 0.75);
   }
 }
+
 .animate-shake:hover {
   animation: shake 0.5s ease-in-out;
 }
+
 .animate-glitch {
   animation: glitch 500ms infinite;
 }
+
 .font-pixel {
   font-family: 'Press Start 2P', system-ui, sans-serif;
 }
+
 .pixel-border {
-  box-shadow: 
+  box-shadow:
     0 0 0 2px #0a0a1a,
     0 0 0 4px #00a8ff;
 }
+
 .hover-scale {
   transition: transform 0.2s ease-in-out;
 }
+
 .hover-scale:hover {
   transform: scale(1.05);
 }
+
 .progress-bar {
   height: 10px;
   background: linear-gradient(90deg, #00a8ff 0%, #00ffaa 100%);
   box-shadow: 0 0 5px #00a8ff, 0 0 10px #00a8ff;
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 5px) 0, 
-    100% 5px, 
-    100% 100%, 
-    5px 100%, 
-    0 calc(100% - 5px)
-  );
+  clip-path: polygon(0 0,
+      calc(100% - 5px) 0,
+      100% 5px,
+      100% 100%,
+      5px 100%,
+      0 calc(100% - 5px));
 }
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: #0a0a1a;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #00a8ff;
   border-radius: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #00ffaa;
 }
@@ -249,8 +284,10 @@ input:focus, select:focus, textarea:focus {
 /* Define theme color RGB values if not already defined elsewhere */
 /* These are placeholders; adjust to your actual theme colors */
 :root {
-  --primary-rgb: 0, 168, 255; /* Example: corresponds to #00a8ff */
-  --tertiary-rgb: 0, 255, 170; /* Example: corresponds to #00ffaa */
+  --primary-rgb: 0, 168, 255;
+  /* Example: corresponds to #00a8ff */
+  --tertiary-rgb: 0, 255, 170;
+  /* Example: corresponds to #00ffaa */
 }
 
 /* Shimmer effect for loading states */
@@ -258,6 +295,7 @@ input:focus, select:focus, textarea:focus {
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
@@ -267,19 +305,23 @@ input:focus, select:focus, textarea:focus {
   animation: shimmer 2s infinite linear;
   background: linear-gradient(to right, transparent 0%, rgba(var(--primary-rgb), 0.1) 50%, transparent 100%);
   background-size: 2000px 100%;
-  border-radius: 0.25rem; /* Adjust as needed */
+  border-radius: 0.25rem;
+  /* Adjust as needed */
 }
 
 /* Magic Patterns for backgrounds */
 .magic-pattern {
-  opacity: 0.05; /* Soften the effect */
+  opacity: 0.05;
+  /* Soften the effect */
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* Ensure it doesn't interfere with interactions */
-  z-index: -1; /* Place it behind content */
+  pointer-events: none;
+  /* Ensure it doesn't interfere with interactions */
+  z-index: -1;
+  /* Place it behind content */
 }
 
 .magic-pattern.pattern-1 {
@@ -289,9 +331,9 @@ input:focus, select:focus, textarea:focus {
 
 .magic-pattern.pattern-2 {
   background-image: linear-gradient(45deg, rgba(var(--primary-rgb), 0.1) 25%, transparent 25%),
-                    linear-gradient(-45deg, rgba(var(--primary-rgb), 0.1) 25%, transparent 25%),
-                    linear-gradient(45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%),
-                    linear-gradient(-45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%);
+    linear-gradient(-45deg, rgba(var(--primary-rgb), 0.1) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(var(--primary-rgb), 0.1) 75%);
   background-size: 32px 32px;
   background-position: 0 0, 0 16px, 16px -16px, -16px 0px;
 }
@@ -303,4 +345,330 @@ input:focus, select:focus, textarea:focus {
 /* Shadow Glow Effect */
 .shadow-glow {
   box-shadow: 0 0 15px 5px rgba(var(--primary-rgb), 0.2), 0 0 5px 1px rgba(var(--tertiary-rgb), 0.1);
+}
+
+/* ══════════ BrainInk Redesign Additions ══════════ */
+
+/* Font utilities */
+.font-display {
+  font-family: 'DM Serif Display', serif;
+}
+
+.font-grotesk {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.font-space-mono {
+  font-family: 'Space Mono', monospace;
+}
+
+/* Shimmer overlay for buttons / cards */
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Reveal / fade-in on scroll */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-reveal {
+  animation: reveal 0.6s ease-out forwards;
+}
+
+/* Scan line (used in tech UI sections) */
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Grow bar */
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Pulse ring (status indicators) */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Subtle background blob drift */
+@keyframes blob-drift {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(60px, -40px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-30px, 40px) scale(0.95);
+  }
+}
+
+.animate-blob-drift {
+  animation: blob-drift 18s ease-in-out infinite;
+}
+
+/* Card hover lift */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.12);
+}
+
+/* card-hover (border glow + lift) */
+.card-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px -8px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+/* Modern scrollbar for marketing pages */
+.modern-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+/* Remove forced input styling on marketing pages so floating-label inputs work */
+.marketing-form input,
+.marketing-form textarea {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
+.marketing-form input:focus,
+.marketing-form textarea:focus {
+  outline: none !important;
+}
+
+/* ─── Subtle noise / grain texture overlay ─── */
+.noise-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.035;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Warm section glow — a radial wash to add depth */
+.warm-glow {
+  position: relative;
+}
+.warm-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(37, 99, 235, 0.04) 0%, transparent 70%),
+              radial-gradient(ellipse 60% 50% at 80% 100%, rgba(29, 78, 216, 0.03) 0%, transparent 60%);
+}
+
+/* Cool section glow */
+.cool-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 70% 50% at 20% 30%, rgba(37, 99, 235, 0.04) 0%, transparent 70%),
+              radial-gradient(ellipse 50% 40% at 90% 80%, rgba(120, 113, 108, 0.03) 0%, transparent 60%);
+}
+
+/* Section divider — subtle top border accent */
+.section-accent-top {
+  position: relative;
+}
+.section-accent-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(200px, 30%);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.35), transparent);
+  border-radius: 1px;
+}
+
+/* Consistent section tag style */
+.section-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: rgba(37, 99, 235, 0.06);
+  color: #1D4ED8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+}
+.section-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563EB;
+  flex-shrink: 0;
+}
+
+/* Dot-grid background utility */
+.dot-grid-bg {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Crosshatch subtle bg */
+.crosshatch-bg {
+  background-image: 
+    linear-gradient(45deg, rgba(0,0,0,0.02) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(0,0,0,0.02) 25%, transparent 25%);
+  background-size: 20px 20px;
+}
+
+/* Animated gradient border for featured cards */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-border {
+  background: linear-gradient(135deg, #2563EB, #93C5FD, #2563EB);
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+/* Fade-in for section elements */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Fixed global grain overlay (taste skill: texture) ─── */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ─── Staggered fade-in animation (CSS cascade) ─── */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger-in > * {
+  opacity: 0;
+  animation: stagger-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 400ms; }
+
+/* ─── Smooth scroll handled by Lenis ─── */
+/* html { scroll-behavior: smooth; } — disabled; Lenis manages smooth scrolling */
+
+/* ─── Kinetic marquee band ─── */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 30s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* ─── Spotlight border effect (card hover) ─── */
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+}
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(37,99,235,0.06), transparent 40%);
+  pointer-events: none;
+}
+.spotlight-card:hover::before {
+  opacity: 1;
 }
