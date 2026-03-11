@@ -625,6 +625,11 @@ export const AssignmentManager: React.FC = () => {
                                                     style={{ width: `${completionRate}%` }}
                                                 />
                                             </div>
+                                            {(assignment as any).whatsapp_submission_count > 0 && (
+                                                <div className="mt-1 text-xs text-green-700 flex items-center gap-1">
+                                                    📱 {(assignment as any).whatsapp_submission_count} via WhatsApp
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

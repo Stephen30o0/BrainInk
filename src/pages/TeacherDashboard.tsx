@@ -12,12 +12,13 @@ import { AssignmentManager } from '../components/teacher/AssignmentManager';
 import { GradingDashboard } from '../components/teacher/GradingDashboard';
 import { TeacherSyllabus } from '../components/teacher/TeacherSyllabus';
 import { Reports } from '../components/teacher/Reports';
+import { WhatsAppPanel } from '../components/teacher/WhatsAppPanel';
 import { useAuth } from '../hooks/useAuth';
 import { teacherService } from '../services/teacherService';
 import { schoolSelectionService } from '../services/schoolSelectionService';
 import { apiService } from '../services/apiService';
 
-type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'syllabus' | 'ai-suggestions' | 'reports' | 'manage-class' | 'settings';
+type TeacherDashboardTab = 'dashboard' | 'upload' | 'class' | 'students' | 'assignments' | 'grading' | 'syllabus' | 'ai-suggestions' | 'reports' | 'manage-class' | 'settings' | 'whatsapp';
 
 export const TeacherDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TeacherDashboardTab>('dashboard');
@@ -134,6 +135,8 @@ export const TeacherDashboard: React.FC = () => {
         return <Reports />;
       case 'manage-class':
         return <ClassManagement />;
+      case 'whatsapp':
+        return <WhatsAppPanel />;
       case 'settings':
         return <TeacherSettings />;
       default:

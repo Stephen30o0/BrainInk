@@ -474,6 +474,11 @@ export const GradingDashboard: React.FC = () => {
                                         </p>
                                         <p className="text-sm text-gray-600">
                                             {new Date(grade.graded_date).toLocaleDateString()}
+                                            {(grade as any).source === 'whatsapp' && (
+                                                <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                                                    📱 via WhatsApp
+                                                </span>
+                                            )}
                                         </p>
                                     </div>
                                 </div>
@@ -569,6 +574,11 @@ const StudentGradingRow: React.FC<StudentGradingRowProps> = ({
                         <>
                             {getGradeDisplay()}
                             <span className="text-sm text-green-600">✓ Graded</span>
+                            {(student.current_grade as any)?.source === 'whatsapp' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                                    📱 via WhatsApp
+                                </span>
+                            )}
                         </>
                     ) : (
                         <>

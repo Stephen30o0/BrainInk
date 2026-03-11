@@ -13,7 +13,8 @@ import {
   Map,
   ChevronLeft,
   ChevronRight,
-  PieChart
+  PieChart,
+  MessageSquare
 } from 'lucide-react';
 
 interface TeacherSidebarProps {
@@ -92,6 +93,12 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
       label: 'Manage Class',
       icon: UserPlus,
       description: 'Add/Remove Students'
+    },
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp',
+      icon: MessageSquare,
+      description: 'WhatsApp Submissions'
     },
     {
       id: 'settings',

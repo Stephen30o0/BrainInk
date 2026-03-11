@@ -44,6 +44,7 @@ export interface Grade {
     student_name?: string;
     teacher_name?: string;
     percentage?: number;
+    source?: string; // 'manual' | 'whatsapp' | 'ai'
 }
 
 export interface StudentGradeReport {
@@ -618,19 +619,12 @@ class GradesAssignmentsService {
      */
     public async getStudentCountForSubject(subjectId: number): Promise<number> {
         try {
-            const response = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}/students`);
-            const students = await response.json();
-            return Array.isArray(students) ? students.length : 0;
+            const subjectResponse = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}`);
+            const subject = await subjectResponse.json();
+            return subject.student_count || 0;
         } catch (error) {
             console.error('❌ Failed to get student count for subject:', subjectId, error);
-            // Fallback: try to get from subject details
-            try {
-                const subjectResponse = await this.makeAuthenticatedRequest(`/study-area/academic/subjects/${subjectId}`);
-                const subject = await subjectResponse.json();
-                return subject.student_count || 0;
-            } catch {
-                return 0;
-            }
+            return 0;
         }
     }
 

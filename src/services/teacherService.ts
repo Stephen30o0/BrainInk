@@ -1643,6 +1643,104 @@ class TeacherServiceClass {
     };
   }
 
+  // ============ WHATSAPP INTEGRATION ============
+
+  private readonly WHATSAPP_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'https://whatsapp-micro.onrender.com';
+
+  /**
+   * Generate WhatsApp registration codes for students in a subject
+   */
+  public async generateWhatsAppCodes(subjectId: number, studentIds: number[]): Promise<any[]> {
+    try {
+      console.log('📱 Generating WhatsApp codes for subject:', subjectId);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${this.WHATSAPP_URL}/whatsapp/codes/generate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ subject_id: subjectId, student_ids: studentIds })
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      console.log('✅ Generated WhatsApp codes:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to generate WhatsApp codes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get WhatsApp registration codes for a subject
+   */
+  public async getWhatsAppCodes(subjectId: number): Promise<any[]> {
+    try {
+      console.log('📱 Getting WhatsApp codes for subject:', subjectId);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${this.WHATSAPP_URL}/whatsapp/codes/${subjectId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      console.log('✅ Retrieved WhatsApp codes:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get WhatsApp codes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Revoke a WhatsApp registration code
+   */
+  public async revokeWhatsAppCode(codeId: number): Promise<boolean> {
+    try {
+      console.log('📱 Revoking WhatsApp code:', codeId);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${this.WHATSAPP_URL}/whatsapp/codes/${codeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      console.log('✅ WhatsApp code revoked');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to revoke WhatsApp code:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get WhatsApp submissions for an assignment
+   */
+  public async getWhatsAppSubmissions(assignmentId: number): Promise<any[]> {
+    try {
+      console.log('📱 Getting WhatsApp submissions for assignment:', assignmentId);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${this.WHATSAPP_URL}/whatsapp/submissions/${assignmentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      console.log('✅ Retrieved WhatsApp submissions:', data.length);
+      return data;
+    } catch (error) {
+      console.error('❌ Failed to get WhatsApp submissions:', error);
+      return [];
+    }
+  }
+
 }
 
 export const teacherService = TeacherServiceClass.getInstance();
