@@ -1309,3 +1309,6 @@ const InfoRow: React.FC<{ label: string; value: string; pillClass?: string }> = 
         {pillClass ? <span className={`px-2 py-1 rounded-full text-xs ${pillClass}`}>{value}</span> : <span className="text-slate-900 text-right">{value}</span>}
     </div>
 );
+
+
+
