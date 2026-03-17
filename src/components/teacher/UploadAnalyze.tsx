@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Upload, FileText, User, Send, Brain, CheckCircle, AlertCircle, Loader2, Users, Eye, X, Image, FolderUp, FolderOpen } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, FileText, User, Send, Brain, CheckCircle, AlertCircle, Loader2, Eye, X, Image, FolderUp, FolderOpen } from 'lucide-react';
 import { teacherService, Student } from '../../services/teacherService';
 import { gradesAssignmentsService } from '../../services/gradesAssignmentsService';
 
@@ -95,6 +95,8 @@ interface ExistingGradeModal {
   isOpen: boolean;
   gradeDetails?: any;
 }
+
+type UploadStepId = 'classroom' | 'subject' | 'assignment' | 'settings' | 'students';
 
 export const UploadAnalyze: React.FC = () => {
   // Original state
@@ -207,6 +209,23 @@ export const UploadAnalyze: React.FC = () => {
     previews: [],
     isOpen: false
   });
+
+  const [activeUploadStep, setActiveUploadStep] = useState<UploadStepId>('classroom');
+  const [hasOpenedGradingSettings, setHasOpenedGradingSettings] = useState(false);
+  const uploadStepRefs = useRef<Record<UploadStepId, HTMLDivElement | null>>({
+    classroom: null,
+    subject: null,
+    assignment: null,
+    settings: null,
+    students: null
+  });
+  const uploadSteps: { id: UploadStepId; label: string }[] = [
+    { id: 'classroom', label: 'Choose a Classroom' },
+    { id: 'subject', label: 'Pick a Subject' },
+    { id: 'assignment', label: 'Select Assignment' },
+    { id: 'settings', label: 'Grading Settings' },
+    { id: 'students', label: 'Select Students' }
+  ];
 
   // Simple feedback formatter for clean display
   const formatSimpleFeedback = (feedback: string): JSX.Element => {
@@ -1720,6 +1739,63 @@ export const UploadAnalyze: React.FC = () => {
       });
     };
   }, []);
+
+  useEffect(() => {
+    const updateActiveStep = () => {
+      const offset = window.scrollY + 220;
+      let currentStep: UploadStepId = 'classroom';
+
+      uploadSteps.forEach((step) => {
+        const section = uploadStepRefs.current[step.id];
+        if (section && offset >= section.offsetTop) {
+          currentStep = step.id;
+        }
+      });
+
+      setActiveUploadStep(prev => (prev === currentStep ? prev : currentStep));
+    };
+
+    window.addEventListener('scroll', updateActiveStep, { passive: true });
+    window.addEventListener('resize', updateActiveStep);
+    setTimeout(updateActiveStep, 0);
+
+    return () => {
+      window.removeEventListener('scroll', updateActiveStep);
+      window.removeEventListener('resize', updateActiveStep);
+    };
+  }, [selectedSubject, selectedAssignment, assignmentType, selectedStudents.length]);
+
+  useEffect(() => {
+    if (activeUploadStep === 'settings' && selectedAssignment) {
+      setHasOpenedGradingSettings(true);
+    }
+  }, [activeUploadStep, selectedAssignment]);
+
+  useEffect(() => {
+    setHasOpenedGradingSettings(false);
+  }, [selectedAssignment]);
+
+  const scrollToUploadStep = (step: UploadStepId) => {
+    const target = uploadStepRefs.current[step];
+    if (!target) {
+      return;
+    }
+
+    if (step === 'settings' && selectedAssignment) {
+      setHasOpenedGradingSettings(true);
+    }
+
+    const top = target.getBoundingClientRect().top + window.scrollY - 130;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  const completedSteps: Record<UploadStepId, boolean> = {
+    classroom: !!selectedClassroom,
+    subject: !!selectedSubject,
+    assignment: assignmentType === 'analysis' ? true : !!selectedAssignment,
+    settings: assignmentType === 'analysis' ? true : hasOpenedGradingSettings,
+    students: selectedStudents.length > 0
+  };
 
   const loadInitialData = async () => {
     await loadStudents();
@@ -4463,1741 +4539,1929 @@ export const UploadAnalyze: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Upload & Analyze</h2>
-          <p className="text-gray-600 mt-1">AI-powered analysis and grading of student work with K.A.N.A.</p>
-        </div>
-        {/* <div className="flex items-center space-x-4">
-          <button
-            onClick={() => window.location.hash = '#image-gallery'}
-            className="flex items-center px-3 py-2 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg transition-colors text-sm"
-          >
-            <Image className="w-4 h-4 mr-2" />
-            Manage Images
-          </button>
-          <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
-            <Brain className="w-5 h-5 text-blue-600" />
-            <span className="text-blue-800 font-medium">K.A.N.A. {assignmentType === 'grading' ? 'Grading' : 'Analysis'}</span>
+    <div className="min-h-screen bg-[#f4f5f7]">
+      {/* Fixed Right Progress Tracker */}
+      <div className="fixed right-2 sm:right-3 lg:right-4 top-1/2 z-50 -translate-y-1/2">
+        <div className="w-14 sm:w-56 rounded-2xl border border-gray-200 bg-white/95 p-2 sm:p-3 shadow-[0_12px_34px_rgba(0,0,0,0.14)] backdrop-blur-xl">
+          <p className="mb-2 hidden px-1 text-[11px] font-bold uppercase tracking-[0.16em] text-gray-400 sm:block">Progress</p>
+          <div className="space-y-1.5">
+            {uploadSteps.map((step, index) => {
+              const isActive = activeUploadStep === step.id;
+              const isComplete = completedSteps[step.id];
+
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => scrollToUploadStep(step.id)}
+                  className={`flex w-full items-center justify-center sm:justify-start gap-2.5 rounded-xl px-1.5 sm:px-2.5 py-2 text-left transition-all duration-200 ${isActive
+                    ? 'bg-indigo-50 ring-1 ring-indigo-200'
+                    : isComplete
+                      ? 'bg-emerald-50'
+                      : 'hover:bg-gray-50'
+                    }`}
+                >
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${isComplete ? 'bg-emerald-500 text-white' : isActive ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    {isComplete ? <CheckCircle className="h-3.5 w-3.5" /> : index + 1}
+                  </span>
+                  <span className={`hidden truncate text-xs font-semibold sm:block ${isActive ? 'text-indigo-700' : isComplete ? 'text-emerald-700' : 'text-gray-600'}`}>
+                    {step.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div> */}
+        </div>
       </div>
 
-      {/* Classroom and Subject Selection */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-        <div className="flex items-center mb-4">
-          <Users className="w-6 h-6 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-blue-900">Select Classroom & Subject</h3>
+      <div className="mx-auto max-w-3xl px-4 md:px-6 pb-12">
+        {/* Header */}
+        <div className="pt-4">
+          <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-[0_2px_20px_rgba(0,0,0,0.08)]">
+            <h2 className="text-xl font-bold tracking-tight text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>Upload & Grade</h2>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Classroom Selection */}
-          <div>
-            <label htmlFor="classroom-select" className="block text-sm font-medium text-gray-700 mb-2">
-              Classroom
-            </label>
-            {loadingClassrooms ? (
-              <div className="flex items-center justify-center py-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600 mr-2" />
-                <span className="text-gray-600">Loading classrooms...</span>
+        {/* Error Display */}
+        {error && (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 text-red-600" />
+                <span className="text-sm font-medium text-red-800">{error}</span>
               </div>
-            ) : (
-              <select
-                id="classroom-select"
-                value={selectedClassroom}
-                onChange={(e) => setSelectedClassroom(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="">Select a classroom...</option>
-                {classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id.toString()}>
-                    {classroom.name}
-                  </option>
-                ))}
-              </select>
-            )}
+              <button onClick={() => setError('')} className="text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+        )}
+
+        {/* Success Display */}
+        {success && (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                <span className="text-sm font-medium text-emerald-800">{success}</span>
+              </div>
+              <button onClick={() => setSuccess('')} className="text-emerald-400 hover:text-emerald-600"><X className="h-4 w-4" /></button>
+            </div>
+          </div>
+        )}
+
+        {/* CARD 1 — Classroom */}
+        <div
+          ref={(el) => { uploadStepRefs.current.classroom = el; }}
+          className={`mt-3 rounded-2xl p-8 shadow-sm transition-all duration-300 ${completedSteps.classroom
+            ? 'border border-emerald-200 bg-emerald-50/60'
+            : activeUploadStep === 'classroom'
+              ? 'bg-white ring-2 ring-indigo-200 shadow-md'
+              : 'border border-gray-100 bg-white'
+            }`}
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center ${completedSteps.classroom ? 'bg-emerald-500' : 'bg-indigo-600'}`}>
+              {completedSteps.classroom ? <CheckCircle className="h-4 w-4 text-white" /> : <span className="text-white text-sm font-bold">1</span>}
+            </div>
+            <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>Choose a Classroom</h3>
           </div>
 
-          {/* Subject Selection */}
-          <div>
-            <label htmlFor="subject-select" className="block text-sm font-medium text-gray-700 mb-2">
-              Subject
-            </label>
+          {loadingClassrooms ? (
+            <div className="flex items-center gap-2 text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Loading classrooms...</span>
+            </div>
+          ) : (
+            <select
+              id="classroom-select"
+              value={selectedClassroom}
+              onChange={(e) => setSelectedClassroom(e.target.value)}
+              className={`w-full rounded-2xl border px-4 py-3.5 text-[15px] font-medium text-gray-900 transition focus:outline-none focus:ring-2 ${selectedClassroom
+                ? 'border-emerald-200 bg-emerald-50/80 focus:border-emerald-300 focus:ring-emerald-100'
+                : 'border-gray-200 bg-gray-50 focus:border-indigo-400 focus:bg-white focus:ring-indigo-100'
+                }`}
+            >
+              <option value="">Select a classroom...</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id.toString()}>{classroom.name}</option>
+              ))}
+            </select>
+          )}
+          {classrooms.length === 0 && !loadingClassrooms && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              No classrooms found. You need to be assigned to a classroom.
+            </div>
+          )}
+        </div>
+
+        {/* CARD 2 — Subject */}
+        {selectedClassroom && (
+          <div
+            ref={(el) => { uploadStepRefs.current.subject = el; }}
+            className={`mt-3 rounded-2xl p-8 shadow-sm transition-all duration-300 ${completedSteps.subject
+              ? 'border border-emerald-200 bg-emerald-50/60'
+              : activeUploadStep === 'subject'
+                ? 'bg-white ring-2 ring-indigo-200 shadow-md'
+                : 'border border-gray-100 bg-white'
+              }`}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className={`h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center ${completedSteps.subject ? 'bg-emerald-500' : 'bg-indigo-600'}`}>
+                {completedSteps.subject ? <CheckCircle className="h-4 w-4 text-white" /> : <span className="text-white text-sm font-bold">2</span>}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>Pick a Subject</h3>
+            </div>
             {loadingSubjects ? (
-              <div className="flex items-center justify-center py-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600 mr-2" />
-                <span className="text-gray-600">Loading subjects...</span>
+              <div className="flex items-center gap-2 text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Loading subjects...</span>
               </div>
             ) : (
               <select
                 id="subject-select"
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                disabled={!selectedClassroom && classrooms.length > 0}
+                className={`w-full rounded-2xl border px-4 py-3.5 text-[15px] font-medium text-gray-900 transition focus:outline-none focus:ring-2 ${selectedSubject
+                  ? 'border-emerald-200 bg-emerald-50/80 focus:border-emerald-300 focus:ring-emerald-100'
+                  : 'border-gray-200 bg-gray-50 focus:border-indigo-400 focus:bg-white focus:ring-indigo-100'
+                  }`}
               >
                 <option value="">Select a subject...</option>
                 {subjects.map((subject) => (
-                  <option key={subject.id} value={subject.id.toString()}>
-                    {subject.name}
+                  <option key={subject.id} value={subject.id.toString()}>{subject.name}</option>
+                ))}
+              </select>
+            )}
+            {subjects.length === 0 && !loadingSubjects && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                No subjects found for this classroom.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CARD 3 — Assignment */}
+        {selectedSubject && (
+          <div
+            ref={(el) => { uploadStepRefs.current.assignment = el; }}
+            className={`mt-3 rounded-2xl p-8 shadow-sm transition-all duration-300 ${completedSteps.assignment
+              ? 'border border-emerald-200 bg-emerald-50/60'
+              : activeUploadStep === 'assignment'
+                ? 'bg-white ring-2 ring-indigo-200 shadow-md'
+                : 'border border-gray-100 bg-white'
+              }`}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className={`h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center ${completedSteps.assignment ? 'bg-emerald-500' : 'bg-indigo-600'}`}>
+                {completedSteps.assignment ? <CheckCircle className="h-4 w-4 text-white" /> : <span className="text-white text-sm font-bold">3</span>}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>Select Assignment</h3>
+            </div>
+
+            {loadingAssignments ? (
+              <div className="flex items-center gap-2 text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Loading assignments...</span>
+              </div>
+            ) : (
+              <select
+                id="assignment-select"
+                value={selectedAssignment}
+                onChange={(e) => setSelectedAssignment(e.target.value)}
+                className={`w-full rounded-2xl border px-4 py-3.5 text-[15px] font-medium text-gray-900 transition focus:outline-none focus:ring-2 ${selectedAssignment
+                  ? 'border-emerald-200 bg-emerald-50/80 focus:border-emerald-300 focus:ring-emerald-100'
+                  : 'border-gray-200 bg-gray-50 focus:border-indigo-400 focus:bg-white focus:ring-indigo-100'
+                  }`}
+              >
+                <option value="">Select an assignment...</option>
+                {assignments.map((assignment) => (
+                  <option key={assignment.id} value={assignment.id.toString()}>
+                    {assignment.title} (Max: {assignment.max_points} pts)
                   </option>
                 ))}
               </select>
             )}
+            {assignments.length === 0 && !loadingAssignments && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                No assignments found for this subject.
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Selection Status */}
-        {selectedClassroom && selectedSubject && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center">
-              <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-              <span className="text-green-800">
-                {filteredStudents.length} students available for analysis in this classroom and subject
-              </span>
+        {/* Grade Submission Status */}
+        {submittingGrade && (
+          <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Submitting grade to gradebook...</span>
             </div>
           </div>
         )}
 
-        {/* No Classrooms/Subjects Warning */}
-        {classrooms.length === 0 && !loadingClassrooms && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
-              <span className="text-yellow-800">
-                No classrooms found. You need to be assigned to a classroom or have subjects with students.
-              </span>
-            </div>
-          </div>
-        )}
-
-        {subjects.length === 0 && !loadingSubjects && selectedClassroom && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
-              <span className="text-yellow-800">
-                No subjects found. You need to be assigned to subjects that have students.
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Assignment Selection and Grading Mode - Show when subject is selected */}
-      {selectedSubject && (
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
-          <div className="flex items-center mb-4">
-            <FileText className="w-6 h-6 text-green-600 mr-2" />
-            <h3 className="text-lg font-semibold text-green-900">Assignments</h3>
-          </div>
-
-          {/* Show info if not in grading mode */}
-          {assignmentType !== 'grading' && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center">
-                <AlertCircle className="w-5 h-5 text-blue-600 mr-2" />
-                <span className="text-blue-800">
-                  Select "Grade Assignment" in the Task Type below to enable assignment selection and grading features.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {assignmentType === 'grading' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Assignment Selection */}
-              <div>
-                <label htmlFor="assignment-select" className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Assignment
-                </label>
-                {loadingAssignments ? (
-                  <div className="flex items-center justify-center py-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-green-600 mr-2" />
-                    <span className="text-gray-600">Loading assignments...</span>
-                  </div>
-                ) : (
-                  <select
-                    id="assignment-select"
-                    value={selectedAssignment}
-                    onChange={(e) => setSelectedAssignment(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                  >
-                    <option value="">Select an assignment...</option>
-                    {assignments.map((assignment) => (
-                      <option key={assignment.id} value={assignment.id.toString()}>
-                        {assignment.title} (Max: {assignment.max_points} pts)
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {assignments.length === 0 && !loadingAssignments && (
-                  <p className="text-sm text-gray-500 mt-2">
-                    No assignments found for this subject.
-                  </p>
-                )}
-              </div>
-
-              {/* Grading Mode Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Grading Mode
-                </label>
-                <div className="space-y-3">
-                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      value="auto"
-                      checked={gradingMode === 'auto'}
-                      onChange={(e) => setGradingMode(e.target.value as 'auto' | 'manual')}
-                      className="mt-1 mr-3"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Auto Grade</div>
-                      <div className="text-sm text-gray-600">
-                        AI grades are automatically submitted to the assignment
-                      </div>
-                    </div>
-                  </label>
-                  {/* <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      value="manual"
-                      checked={gradingMode === 'manual'}
-                      onChange={(e) => setGradingMode(e.target.value as 'auto' | 'manual')}
-                      className="mt-1 mr-3"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Manual Review</div>
-                      <div className="text-sm text-gray-600">
-                        Review and manually submit grades after AI analysis
-                      </div>
-                    </div>
-                  </label> */}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Selected Assignment Info */}
-          {assignmentType === 'grading' && selectedAssignment && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center">
-                <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                <span className="text-green-800">
-                  Ready to grade: {assignments.find(a => a.id.toString() === selectedAssignment)?.title}
-                  ({gradingMode === 'auto' ? 'Auto-submit grades' : 'Manual review mode'})
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Grade Submission Status */}
-      {submittingGrade && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-            <span className="text-blue-800 font-medium">Submitting grade to gradebook...</span>
-          </div>
-        </div>
-      )}
-
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-              <span className="text-red-800">{error}</span>
-            </div>
-            <button
-              onClick={() => setError('')}
-              className="text-red-600 hover:text-red-800"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Success Display */}
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-              <span className="text-green-800">{success}</span>
-            </div>
-            <button
-              onClick={() => setSuccess('')}
-              className="text-green-600 hover:text-green-800"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* No Students Warning */}
-      {!selectedClassroom && !selectedSubject && students.length === 0 && !loadingStudents && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <User className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-yellow-800 mb-2">No Students in Class</h3>
-          <p className="text-yellow-700 mb-4">
-            You need to add students to your class before you can analyze their work.
-          </p>
-          <button
-            onClick={() => window.location.hash = '#manage-class'}
-            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-4 py-2 rounded-lg font-medium"
+        {/* CARD 4 — Grading Settings */}
+        {selectedAssignment && (
+          <div
+            ref={(el) => { uploadStepRefs.current.settings = el; }}
+            className={`mt-3 rounded-2xl p-8 shadow-sm transition-all duration-300 ${completedSteps.settings
+              ? 'border border-emerald-200 bg-emerald-50/60'
+              : activeUploadStep === 'settings'
+                ? 'bg-white ring-2 ring-indigo-200 shadow-md'
+                : 'border border-gray-100 bg-white'
+              }`}
           >
-            Add Students to Class
-          </button>
-        </div>
-      )}
-
-      {/* Main Content - Show when we have classrooms/subjects or legacy students */}
-      {(classrooms.length > 0 || students.length > 0) && (
-        <div className="space-y-6">
-          {/* Upload Section - Full Width */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Upload Student Work</h3>
-                  <p className="text-sm text-gray-600 mt-1">Upload and analyze student assignments with K.A.N.A. AI</p>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center ${completedSteps.settings ? 'bg-emerald-500' : 'bg-indigo-600'}`}>
+                  {completedSteps.settings ? <CheckCircle className="h-4 w-4 text-white" /> : <span className="text-white text-sm font-bold">4</span>}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                    K.A.N.A. Ready
-                  </div>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>Grading Settings</h3>
               </div>
-            </div>
-            <div className="p-6 space-y-4">
-              {/* Assignment Type Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Type
-                </label>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      value="analysis"
-                      checked={assignmentType === 'analysis'}
-                      onChange={(e) => setAssignmentType(e.target.value as 'analysis' | 'grading')}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">Analysis Only</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      value="grading"
-                      checked={assignmentType === 'grading'}
-                      onChange={(e) => setAssignmentType(e.target.value as 'analysis' | 'grading')}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">Grade Assignment</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Grading Options (shown when grading is selected) */}
-              {assignmentType === 'grading' && (
-                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-blue-900">
-                      {selectedAssignment ? 'Assignment Details (Auto-populated)' : 'Grading Settings'}
-                    </h4>
-                    {selectedAssignment && (
-                      <button
-                        onClick={() => setShowAssignmentEditModal(true)}
-                        className="flex items-center px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Edit Assignment
-                      </button>
-                    )}
-                  </div>
-
-                  {selectedAssignment && (
-                    <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                      <span className="font-medium">✅ Assignment selected:</span> Details are automatically loaded from the selected assignment.
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Assignment Title
-                      </label>
-                      <input
-                        type="text"
-                        value={assignmentTitle}
-                        onChange={(e) => setAssignmentTitle(e.target.value)}
-                        placeholder="e.g., Math Quiz #3, Essay Assignment"
-                        disabled={!!selectedAssignment}
-                        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedAssignment ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
-                          }`}
-                      />
-                      {selectedAssignment && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Auto-populated from selected assignment
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Max Points
-                      </label>
-                      <input
-                        type="number"
-                        value={maxPoints}
-                        onChange={(e) => setMaxPoints(Number(e.target.value))}
-                        min="1"
-                        max="1000"
-                        disabled={!!selectedAssignment}
-                        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedAssignment ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
-                          }`}
-                      />
-                      {selectedAssignment && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Auto-populated from selected assignment
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Grading Rubric {selectedAssignment ? '(From Assignment)' : '(Optional)'}
-                    </label>
-                    <textarea
-                      value={gradingRubric}
-                      onChange={(e) => setGradingRubric(e.target.value)}
-                      placeholder={selectedAssignment ?
-                        "Rubric loaded from assignment..." :
-                        "Describe grading criteria, what to look for, point distribution, etc."
-                      }
-                      rows={3}
-                      disabled={!!selectedAssignment}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${selectedAssignment ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
-                        }`}
-                    />
-                    {selectedAssignment && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Auto-populated from selected assignment
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Feedback Type
-                    </label>
-                    <select
-                      value={feedbackType}
-                      onChange={(e) => setFeedbackType(e.target.value as 'detailed' | 'summary' | 'both')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="both">Both Detailed & Summary</option>
-                      <option value="detailed">Detailed Feedback Only</option>
-                      <option value="summary">Summary Feedback Only</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {feedbackType === 'both' && 'Provides comprehensive detailed analysis plus concise summary'}
-                      {feedbackType === 'detailed' && 'In-depth step-by-step grading analysis'}
-                      {feedbackType === 'summary' && 'Quick concise grading summary'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Student Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Choose Student(s)
-                  </label>
-                  {filteredStudents.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} available
-                    </span>
-                  )}
-                </div>
-
-                {/* Choose All Button */}
-                {filteredStudents.length > 0 && (
-                  <div className="mb-3">
-                    <button
-                      onClick={handleChooseAll}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${selectedStudents.length === filteredStudents.length
-                        ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
-                        : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                        }`}
-                    >
-                      {selectedStudents.length === filteredStudents.length ? 'Deselect All' : 'Choose All Students'}
-                    </button>
-                  </div>
-                )}
-
-                {selectedClassroom && selectedSubject ? (
-                  <div className="space-y-2">
-                    {filteredStudents.length === 0 ? (
-                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-center">
-                        No students found in both the selected classroom and subject
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                        {filteredStudents.map((student) => {
-                          const uploadStatus = studentUploadStatus[student.id];
-                          const isSelected = selectedStudents.includes(student.id);
-
-                          return (
-                            <div
-                              key={student.id}
-                              className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isSelected
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                            >
-                              <div className="flex items-center space-x-3">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedStudents(prev => [...prev, student.id]);
-                                    } else {
-                                      setSelectedStudents(prev => prev.filter(id => id !== student.id));
-                                    }
-                                  }}
-                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                />
-                                <div>
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {student.fname} {student.lname}
-                                  </span>
-                                  <p className="text-xs text-gray-500">@{student.username}</p>
-                                </div>
-                              </div>
-
-                              {/* Upload Status Buttons - Show for all students */}
-                              <div className="flex items-center space-x-2">
-                                {uploadStatus?.hasUpload ? (
-                                  <button
-                                    onClick={() => showStudentUploads(student.id, `${student.fname} ${student.lname}`)}
-                                    className="px-3 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
-                                  >
-                                    Check Upload
-                                  </button>
-                                ) : (
-                                  <div className="relative group">
-                                    <input
-                                      type="file"
-                                      id={`file-upload-${student.id}`}
-                                      multiple
-                                      accept="image/*"
-                                      onChange={(e) => {
-                                        if (e.target.files && e.target.files.length > 0) {
-                                          handleStudentFileSelection(e.target.files, student.id, `${student.fname} ${student.lname}`);
-                                        }
-                                      }}
-                                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    />
-                                    <button
-                                      className="px-3 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors flex items-center space-x-1"
-                                    >
-                                      <Upload className="w-3 h-3" />
-                                      <span>Upload</span>
-                                    </button>
-                                    {/* Tooltip for multiple file selection */}
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                                      Click to upload multiple images
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Grading Status Button - Show only if student is graded */}
-                                {studentGradingStatus[student.id] && (
-                                  <button
-                                    onClick={() => viewStudentGradeDetails(student.id)}
-                                    disabled={loadingGradingStatus}
-                                    className="px-3 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 hover:bg-purple-200 transition-colors disabled:opacity-50"
-                                  >
-                                    {loadingGradingStatus ? 'Checking...' : 'Graded'}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                    Please select both classroom and subject first
-                  </div>
-                )}
-              </div>
-
-              {/* File Upload Area */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <label className="block text-lg font-semibold text-gray-800">
-                  </label>
-                  {files && files.length > 0 && (
-                    <span className="text-sm text-gray-600">
-                      {files.length} file{files.length > 1 ? 's' : ''} selected
-                    </span>
-                  )}
-                </div>
-
-                {/* <div
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer group"
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onClick={() => document.getElementById('file-upload')?.click()}
-                >
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="p-3 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
-                      <Upload className="w-8 h-8 text-blue-600" />
-                    </div>
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 mx-auto"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          document.getElementById('file-upload')?.click();
-                        }}
-                      >
-                        <Upload className="w-5 h-5" />
-                        <span>Upload</span>
-                      </button>
-                      <p className="text-gray-600">or drag and drop files here</p>
-                      <p className="text-sm text-gray-500">Supports PNG, JPG, JPEG images and PDF documents</p>
-                    </div>
-                  </div>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    multiple
-                    accept="image/*,application/pdf,.pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </div> */}
-
-                {/* Quick Access to Previously Uploaded Files */}
-                {/* <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={() => {
-                      setSelectImageModal(true);
-                      setUploadModalTab('single');
-                      loadSavedImages();
-                    }}
-                    className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    <span> </span>
-                  </button>
-                </div> */}
-              </div>
-
-              {/* Selected Files */}
-              {files && files.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-gray-700">Selected Files:</h4>
-                  {Array.from(files).map((file, index) => (
-                    <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded">
-                      <FileText className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-700">{file.name}</span>
-                      <span className="text-xs text-gray-500">
-                        ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Process Button */}
               <button
-                onClick={assignmentType === 'grading' ? handleBulkGrading : processFiles}
-                disabled={
-                  isProcessing ||
-                  selectedStudents.length === 0 ||
-                  (classrooms.length > 0 && (!selectedClassroom || !selectedSubject)) ||
-                  filteredStudents.length === 0 ||
-                  (assignmentType === 'grading' && (!selectedAssignment || !allSelectedStudentsHaveUploads()))
-                }
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-lg font-medium flex flex-col items-center justify-center space-y-2"
+                onClick={() => setShowAssignmentEditModal(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
               >
-                {isProcessing ? (
-                  <div className="flex flex-col items-center space-y-4 w-full py-2">
-                    <span className="font-semibold text-lg">{assignmentType === 'grading' ? 'Grading with K.A.N.A...' : 'Analyzing with K.A.N.A...'}</span>
-
-                    {/* Progress Bar - Made Bigger */}
-                    <div className="w-full max-w-lg">
-                      <div className="flex justify-between text-base text-white/95 mb-3">
-                        <span className="font-medium">
-                          {processingStep || (assignmentType === 'grading' ? 'Processing students...' : 'Processing files...')}
-                        </span>
-                        <span className="font-bold text-lg">{Math.round(processingProgress)}%</span>
-                      </div>
-                      <div className="w-full bg-white/30 rounded-full h-4 shadow-inner border border-white/20">
-                        <div
-                          className="bg-gradient-to-r from-blue-400 to-blue-200 h-4 rounded-full transition-all duration-700 ease-out shadow-sm"
-                          style={{ width: `${Math.max(3, processingProgress)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <Send className="w-5 h-5" />
-                    <span>
-                      {assignmentType === 'grading' ? 'Grade with K.A.N.A.' : 'Analyze with K.A.N.A.'}
-                      {selectedStudents.length > 1 && ` (${selectedStudents.length} students)`}
-                    </span>
-                  </div>
-                )}
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
               </button>
-
-              {/* Help text for grading requirements */}
-              {assignmentType === 'grading' && selectedStudents.length > 0 && !allSelectedStudentsHaveUploads() && (
-                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-start space-x-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-amber-800">
-                      <p className="font-medium mb-1">Some students are missing uploads</p>
-                      <p>All selected students must have uploaded their work before grading can begin. Use the "Upload" button next to each student's name to add their files.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Success text when all selected students have uploads */}
-              {assignmentType === 'grading' && selectedStudents.length > 0 && allSelectedStudentsHaveUploads() && (
-                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm text-green-800 font-medium">
-                      All selected students have uploads - ready to grade!
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Process Button Help Text */}
-              {classrooms.length > 0 && (!selectedClassroom || !selectedSubject) && (
-                <p className="text-sm text-gray-600 text-center">
-                  Please select both classroom and subject to proceed
-                </p>
-              )}
-
-              {selectedClassroom && selectedSubject && filteredStudents.length === 0 && (
-                <p className="text-sm text-red-600 text-center">
-                  No students available in the selected classroom and subject
-                </p>
-              )}
-
-              {selectedClassroom && selectedSubject && filteredStudents.length > 0 && selectedStudents.length === 0 && (
-                <p className="text-sm text-gray-600 text-center">
-                  Please select at least one student to proceed
-                </p>
-              )}
+            </div>
+            <div className="space-y-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-gray-400">Assignment Title</label>
+                <input
+                  type="text"
+                  value={assignmentTitle}
+                  onChange={(e) => setAssignmentTitle(e.target.value)}
+                  placeholder="e.g., Math Quiz #3"
+                  disabled={!!selectedAssignment}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-[15px] font-medium text-gray-900 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-gray-400">Max Points</label>
+                <input
+                  type="number"
+                  value={maxPoints}
+                  onChange={(e) => setMaxPoints(Number(e.target.value))}
+                  min="1"
+                  max="1000"
+                  disabled={!!selectedAssignment}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-[15px] font-medium text-gray-900 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-gray-400">Grading Rubric</label>
+                <textarea
+                  value={gradingRubric}
+                  onChange={(e) => setGradingRubric(e.target.value)}
+                  placeholder="Rubric loaded from assignment..."
+                  rows={3}
+                  disabled={!!selectedAssignment}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-[15px] font-medium text-gray-900 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-gray-400">Feedback Type</label>
+                <select
+                  value={feedbackType}
+                  onChange={(e) => setFeedbackType(e.target.value as 'detailed' | 'summary' | 'both')}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-[15px] font-medium text-gray-900 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="both">Both Detailed & Summary</option>
+                  <option value="detailed">Detailed Only</option>
+                  <option value="summary">Summary Only</option>
+                </select>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Student Analysis Results Section */}
-          {analysisResults.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Student Analysis Results</h3>
-                  <p className="text-sm text-gray-600 mt-1">Click on a student to view their detailed analysis</p>
+        {/* CARD 5 — Select Students */}
+        {selectedAssignment && (
+          <div
+            ref={(el) => { uploadStepRefs.current.students = el; }}
+            className={`mt-3 rounded-2xl p-8 shadow-sm transition-all duration-300 ${completedSteps.students
+              ? 'border border-emerald-200 bg-emerald-50/60'
+              : activeUploadStep === 'students'
+                ? 'bg-white ring-2 ring-indigo-200 shadow-md'
+                : 'border border-gray-100 bg-white'
+              }`}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`h-9 w-9 flex-shrink-0 rounded-full flex items-center justify-center ${completedSteps.students ? 'bg-emerald-500' : 'bg-indigo-600'}`}>
+                  {completedSteps.students ? <CheckCircle className="h-4 w-4 text-white" /> : <span className="text-white text-sm font-bold">5</span>}
                 </div>
-                <div className="flex items-center space-x-3">
-                  {/* Global Raw Feedback Toggle */}
-                  <button
-                    onClick={() => setShowRawFeedback(!showRawFeedback)}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${showRawFeedback
-                      ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                  >
-                    {showRawFeedback ? '🔍 RAW MODE' : '📝 FORMAT MODE'}
-                  </button>
-                  <button
-                    onClick={clearResults}
-                    className="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                    <span>Clear All</span>
-                  </button>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>Select Students</h3>
               </div>
-              <div className="p-4 md:p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {analysisResults.map((result, index) => {
-                    const student = (filteredStudents.length > 0 ? filteredStudents : students).find(
-                      s => s.username === result.targetStudent || s.id.toString() === result.targetStudent
-                    );
+              {filteredStudents.length > 0 && (
+                <button
+                  onClick={handleChooseAll}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${selectedStudents.length === filteredStudents.length ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                >
+                  {selectedStudents.length === filteredStudents.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
 
-                    return (
-                      <div
-                        key={index}
-                        onClick={() => {
-                          console.log('🔍 Opening modal with result:', {
-                            detailedFeedback: result.detailedFeedback?.length || 0,
-                            overallFeedback: result.overallFeedback?.length || 0,
-                            analysis: result.analysis?.length || 0,
-                            detailedPreview: result.detailedFeedback?.substring(0, 100) + '...' || 'None',
-                            overallPreview: result.overallFeedback?.substring(0, 100) + '...' || 'None'
-                          });
-                          setFullAnalysisModal({ isOpen: true, analysis: result });
-                        }}
-                        className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] hover:border-blue-300"
-                      >
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
-                            {student ? `${student.fname[0]}${student.lname[0]}` : result.targetStudent?.[0] || 'S'}
-                          </div>
-                          <div>
-                            <h4 className="font-semibold text-gray-900 text-sm">
-                              {student ? `${student.fname} ${student.lname}` : result.targetStudent}
-                            </h4>
-                            <p className="text-xs text-gray-600">
-                              {student?.username || 'Student'}
-                            </p>
-                          </div>
+            {filteredStudents.length === 0 ? (
+              <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                No students found in both the selected classroom and subject.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {filteredStudents.map((student) => {
+                  const uploadStatus = studentUploadStatus[student.id];
+                  const isSelected = selectedStudents.includes(student.id);
+                  return (
+                    <div
+                      key={student.id}
+                      className={`flex items-center justify-between rounded-xl border p-4 transition-all ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedStudents(prev => [...prev, student.id]);
+                            } else {
+                              setSelectedStudents(prev => prev.filter(id => id !== student.id));
+                            }
+                          }}
+                          className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{student.fname} {student.lname}</p>
+                          <p className="text-xs text-gray-400">@{student.username}</p>
                         </div>
-
-                        {/* Grade Display or Retry Notice */}
-                        {result.needs_retry ? (
-                          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <AlertCircle className="w-4 h-4 text-amber-500" />
-                              <span className="text-sm font-medium text-amber-800">Needs Manual Retry</span>
-                            </div>
-                            <p className="text-xs text-amber-700 mb-2">{result.error}</p>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent modal opening
-                                // TODO: Add retry logic here
-                                console.log('Retry grading for student:', result.targetStudent);
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {uploadStatus?.hasUpload ? (
+                          <button
+                            onClick={() => showStudentUploads(student.id, `${student.fname} ${student.lname}`)}
+                            className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-200 transition-colors"
+                          >
+                            View Upload
+                          </button>
+                        ) : (
+                          <div className="relative group">
+                            <input
+                              type="file"
+                              id={`file-upload-${student.id}`}
+                              multiple
+                              accept="image/*"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                  handleStudentFileSelection(e.target.files, student.id, `${student.fname} ${student.lname}`);
+                                }
                               }}
-                              className="px-3 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition-colors"
-                            >
-                              Retry Grading
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <button className="flex items-center gap-1 rounded-lg bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-200 transition-colors">
+                              <Upload className="h-3 w-3" />
+                              Upload
                             </button>
                           </div>
-                        ) : result.grade !== undefined ? (
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-gray-700">Grade</span>
-                              <span className="text-sm font-bold text-gray-900">
-                                {result.grade}/{result.maxPoints || maxPoints}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full transition-all duration-300 ${(result.grade / (result.maxPoints || maxPoints)) >= 0.9 ? 'bg-green-500' :
-                                  (result.grade / (result.maxPoints || maxPoints)) >= 0.8 ? 'bg-blue-500' :
-                                    (result.grade / (result.maxPoints || maxPoints)) >= 0.7 ? 'bg-yellow-500' :
-                                      'bg-red-500'
-                                  }`}
-                                style={{
-                                  width: `${Math.max(5, (result.grade / (result.maxPoints || maxPoints)) * 100)}%`
-                                }}
-                              ></div>
-                            </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {Math.round((result.grade / (result.maxPoints || maxPoints)) * 100)}%
-                              {result.letterGrade && ` (${result.letterGrade})`}
-                            </div>
-                          </div>
-                        ) : null}
+                        )}
+                        {studentGradingStatus[student.id] && (
+                          <button
+                            onClick={() => viewStudentGradeDetails(student.id)}
+                            disabled={loadingGradingStatus}
+                            className="rounded-lg bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800 hover:bg-purple-200 transition-colors disabled:opacity-50"
+                          >
+                            Graded
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-                        {/* Quick Insights */}
-                        <div className="space-y-2">
-                          {result.strengths && result.strengths.length > 0 && (
-                            <div className="flex items-center space-x-2">
-                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                              <span className="text-xs text-green-700 truncate">
-                                {result.strengths.length} strength{result.strengths.length !== 1 ? 's' : ''} identified
-                              </span>
-                            </div>
-                          )}
+            {/* Status messages */}
+            {selectedStudents.length > 0 && !allSelectedStudentsHaveUploads() && (
+              <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Missing uploads</p>
+                  <p>All selected students must have uploaded their work before grading.</p>
+                </div>
+              </div>
+            )}
+            {selectedStudents.length > 0 && allSelectedStudentsHaveUploads() && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                All selected students have uploads — ready to grade!
+              </div>
+            )}
 
-                          {result.improvementAreas && result.improvementAreas.length > 0 && (
-                            <div className="flex items-center space-x-2">
-                              <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                              <span className="text-xs text-amber-700 truncate">
-                                {result.improvementAreas.length} area{result.improvementAreas.length !== 1 ? 's' : ''} to improve
-                              </span>
-                            </div>
-                          )}
+            {/* Grade Button */}
+            <button
+              onClick={assignmentType === 'grading' ? handleBulkGrading : processFiles}
+              disabled={
+                isProcessing ||
+                selectedStudents.length === 0 ||
+                filteredStudents.length === 0 ||
+                (assignmentType === 'grading' && (!selectedAssignment || !allSelectedStudentsHaveUploads()))
+              }
+              className="mt-6 w-full rounded-2xl bg-indigo-600 px-6 py-4 text-base font-bold text-white shadow-sm transition-all hover:bg-indigo-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+            >
+              {isProcessing ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>{assignmentType === 'grading' ? 'Grading with K.A.N.A.' : 'Analyzing with K.A.N.A.'}</span>
+                  </div>
+                  <div className="w-full">
+                    <div className="mb-1 flex justify-between text-xs text-white/80">
+                      <span>{processingStep || 'Processing...'}</span>
+                      <span>{Math.round(processingProgress)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-white/20">
+                      <div
+                        className="h-1.5 rounded-full bg-white transition-all duration-700"
+                        style={{ width: `${Math.max(3, processingProgress)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Send className="h-4 w-4" />
+                  {assignmentType === 'grading' ? 'Grade with K.A.N.A.' : 'Analyze with K.A.N.A.'}
+                  {selectedStudents.length > 1 && ` (${selectedStudents.length} students)`}
+                </div>
+              )}
+            </button>
+          </div>
+        )}
 
-                          {result.confidence && (
-                            <div className="flex items-center space-x-2">
-                              <Brain className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                              <span className="text-xs text-blue-700">
-                                {result.confidence}% AI confidence
-                              </span>
-                            </div>
-                          )}
+        {/* No Classrooms Warning */}
+        {classrooms.length === 0 && !loadingClassrooms && students.length === 0 && !loadingStudents && (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
+            <User className="mx-auto mb-3 h-10 w-10 text-amber-400" />
+            <h3 className="text-lg font-bold text-amber-800 mb-1">No Students Found</h3>
+            <p className="text-sm text-amber-700 mb-4">Add students to your class to get started.</p>
+            <button
+              onClick={() => window.location.hash = '#manage-class'}
+              className="rounded-xl bg-amber-100 px-5 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
+            >
+              Add Students
+            </button>
+          </div>
+        )}
+
+        {/* Student Analysis Results Section */}
+        {analysisResults.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Student Analysis Results</h3>
+                <p className="text-sm text-gray-600 mt-1">Click on a student to view their detailed analysis</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                {/* Global Raw Feedback Toggle */}
+                <button
+                  onClick={() => setShowRawFeedback(!showRawFeedback)}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${showRawFeedback
+                    ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                >
+                  {showRawFeedback ? '🔍 RAW MODE' : '📝 FORMAT MODE'}
+                </button>
+                <button
+                  onClick={clearResults}
+                  className="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Clear All</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 md:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {analysisResults.map((result, index) => {
+                  const student = (filteredStudents.length > 0 ? filteredStudents : students).find(
+                    s => s.username === result.targetStudent || s.id.toString() === result.targetStudent
+                  );
+
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => {
+                        console.log('🔍 Opening modal with result:', {
+                          detailedFeedback: result.detailedFeedback?.length || 0,
+                          overallFeedback: result.overallFeedback?.length || 0,
+                          analysis: result.analysis?.length || 0,
+                          detailedPreview: result.detailedFeedback?.substring(0, 100) + '...' || 'None',
+                          overallPreview: result.overallFeedback?.substring(0, 100) + '...' || 'None'
+                        });
+                        setFullAnalysisModal({ isOpen: true, analysis: result });
+                      }}
+                      className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] hover:border-blue-300"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {student ? `${student.fname[0]}${student.lname[0]}` : result.targetStudent?.[0] || 'S'}
                         </div>
-
-                        <div className="mt-3 pt-3 border-t border-blue-200">
-                          <div className="flex items-center justify-center text-xs text-blue-600 font-medium">
-                            <Eye className="w-3 h-3 mr-1" />
-                            Click to view full analysis
-                          </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 text-sm">
+                            {student ? `${student.fname} ${student.lname}` : result.targetStudent}
+                          </h4>
+                          <p className="text-xs text-gray-600">
+                            {student?.username || 'Student'}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
 
-                {/* Manual Grading Section */}
-                {assignmentType === 'grading' && gradingMode === 'manual' && Object.keys(manualGrades).length > 0 && (
-                  <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold text-yellow-900">Manual Grade Review</h4>
-                      <button
-                        onClick={submitManualGrades}
-                        disabled={isProcessing}
-                        className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium flex flex-col items-center justify-center space-y-2"
-                      >
-                        {isProcessing ? (
-                          <div className="flex flex-col items-center space-y-2 w-full">
-                            <div className="flex items-center space-x-3">
-                              <div className="relative">
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                              </div>
-                              <span className="font-medium">Submitting Grades...</span>
-                            </div>
-                            {processingStep && (
-                              <div className="w-full max-w-xs">
-                                <div className="flex justify-between text-xs text-white/80 mb-1">
-                                  <span>{processingStep}</span>
-                                  <span>{Math.round(processingProgress)}%</span>
-                                </div>
-                                <div className="w-full bg-white/20 rounded-full h-1.5">
-                                  <div
-                                    className="bg-white h-1.5 rounded-full transition-all duration-300 ease-out"
-                                    style={{ width: `${processingProgress}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            )}
+                      {/* Grade Display or Retry Notice */}
+                      {result.needs_retry ? (
+                        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
+                            <span className="text-sm font-medium text-amber-800">Needs Manual Retry</span>
                           </div>
-                        ) : (
+                          <p className="text-xs text-amber-700 mb-2">{result.error}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent modal opening
+                              // TODO: Add retry logic here
+                              console.log('Retry grading for student:', result.targetStudent);
+                            }}
+                            className="px-3 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition-colors"
+                          >
+                            Retry Grading
+                          </button>
+                        </div>
+                      ) : result.grade !== undefined ? (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-700">Grade</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {result.grade}/{result.maxPoints || maxPoints}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${(result.grade / (result.maxPoints || maxPoints)) >= 0.9 ? 'bg-green-500' :
+                                (result.grade / (result.maxPoints || maxPoints)) >= 0.8 ? 'bg-blue-500' :
+                                  (result.grade / (result.maxPoints || maxPoints)) >= 0.7 ? 'bg-yellow-500' :
+                                    'bg-red-500'
+                                }`}
+                              style={{
+                                width: `${Math.max(5, (result.grade / (result.maxPoints || maxPoints)) * 100)}%`
+                              }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {Math.round((result.grade / (result.maxPoints || maxPoints)) * 100)}%
+                            {result.letterGrade && ` (${result.letterGrade})`}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Quick Insights */}
+                      <div className="space-y-2">
+                        {result.strengths && result.strengths.length > 0 && (
                           <div className="flex items-center space-x-2">
-                            <Send className="w-4 h-4" />
-                            <span>Submit Grades</span>
+                            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                            <span className="text-xs text-green-700 truncate">
+                              {result.strengths.length} strength{result.strengths.length !== 1 ? 's' : ''} identified
+                            </span>
                           </div>
                         )}
-                      </button>
+
+                        {result.improvementAreas && result.improvementAreas.length > 0 && (
+                          <div className="flex items-center space-x-2">
+                            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                            <span className="text-xs text-amber-700 truncate">
+                              {result.improvementAreas.length} area{result.improvementAreas.length !== 1 ? 's' : ''} to improve
+                            </span>
+                          </div>
+                        )}
+
+                        {result.confidence && (
+                          <div className="flex items-center space-x-2">
+                            <Brain className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <span className="text-xs text-blue-700">
+                              {result.confidence}% AI confidence
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-blue-200">
+                        <div className="flex items-center justify-center text-xs text-blue-600 font-medium">
+                          <Eye className="w-3 h-3 mr-1" />
+                          Click to view full analysis
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Object.entries(manualGrades).map(([studentId, gradeData]) => {
-                        const student = (filteredStudents.length > 0 ? filteredStudents : students).find(
-                          s => s.id.toString() === studentId
-                        );
-                        const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
-
-                        return (
-                          <div key={studentId} className="bg-white p-4 rounded-lg border border-yellow-300">
-                            <div className="flex items-center justify-between mb-3">
-                              <h5 className="font-medium text-gray-900">
-                                {student ? `${student.fname} ${student.lname}` : `Student ${studentId}`}
-                              </h5>
-                              <div className="text-lg font-bold text-yellow-800">
-                                {gradeData.grade}/{assignment?.max_points || maxPoints}
-                                <span className="text-sm font-normal ml-1">
-                                  ({Math.round((gradeData.grade / (assignment?.max_points || maxPoints)) * 100)}%)
-                                </span>
+              {/* Manual Grading Section */}
+              {assignmentType === 'grading' && gradingMode === 'manual' && Object.keys(manualGrades).length > 0 && (
+                <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-yellow-900">Manual Grade Review</h4>
+                    <button
+                      onClick={submitManualGrades}
+                      disabled={isProcessing}
+                      className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium flex flex-col items-center justify-center space-y-2"
+                    >
+                      {isProcessing ? (
+                        <div className="flex flex-col items-center space-y-2 w-full">
+                          <div className="flex items-center space-x-3">
+                            <div className="relative">
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            </div>
+                            <span className="font-medium">Submitting Grades...</span>
+                          </div>
+                          {processingStep && (
+                            <div className="w-full max-w-xs">
+                              <div className="flex justify-between text-xs text-white/80 mb-1">
+                                <span>{processingStep}</span>
+                                <span>{Math.round(processingProgress)}%</span>
+                              </div>
+                              <div className="w-full bg-white/20 rounded-full h-1.5">
+                                <div
+                                  className="bg-white h-1.5 rounded-full transition-all duration-300 ease-out"
+                                  style={{ width: `${processingProgress}%` }}
+                                ></div>
                               </div>
                             </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <Send className="w-4 h-4" />
+                          <span>Submit Grades</span>
+                        </div>
+                      )}
+                    </button>
+                  </div>
 
-                            {gradeData.feedback && (
-                              <div className="bg-gray-50 p-3 rounded border mb-3">
-                                <h6 className="font-medium text-gray-700 mb-1">Feedback:</h6>
-                                <p className="text-sm text-gray-600">{gradeData.feedback}</p>
-                              </div>
-                            )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(manualGrades).map(([studentId, gradeData]) => {
+                      const student = (filteredStudents.length > 0 ? filteredStudents : students).find(
+                        s => s.id.toString() === studentId
+                      );
+                      const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
 
-                            {/* Allow manual editing of grade */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Grade (out of {assignment?.max_points || maxPoints})
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={assignment?.max_points || maxPoints}
-                                  value={gradeData.grade}
-                                  onChange={(e) => {
-                                    const newGrade = parseInt(e.target.value);
-                                    if (!isNaN(newGrade)) {
-                                      setManualGrades(prev => ({
-                                        ...prev,
-                                        [studentId]: {
-                                          ...prev[studentId],
-                                          grade: newGrade
-                                        }
-                                      }));
-                                    }
-                                  }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Feedback
-                                </label>
-                                <textarea
-                                  value={gradeData.feedback}
-                                  onChange={(e) => {
+                      return (
+                        <div key={studentId} className="bg-white p-4 rounded-lg border border-yellow-300">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-gray-900">
+                              {student ? `${student.fname} ${student.lname}` : `Student ${studentId}`}
+                            </h5>
+                            <div className="text-lg font-bold text-yellow-800">
+                              {gradeData.grade}/{assignment?.max_points || maxPoints}
+                              <span className="text-sm font-normal ml-1">
+                                ({Math.round((gradeData.grade / (assignment?.max_points || maxPoints)) * 100)}%)
+                              </span>
+                            </div>
+                          </div>
+
+                          {gradeData.feedback && (
+                            <div className="bg-gray-50 p-3 rounded border mb-3">
+                              <h6 className="font-medium text-gray-700 mb-1">Feedback:</h6>
+                              <p className="text-sm text-gray-600">{gradeData.feedback}</p>
+                            </div>
+                          )}
+
+                          {/* Allow manual editing of grade */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Grade (out of {assignment?.max_points || maxPoints})
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={assignment?.max_points || maxPoints}
+                                value={gradeData.grade}
+                                onChange={(e) => {
+                                  const newGrade = parseInt(e.target.value);
+                                  if (!isNaN(newGrade)) {
                                     setManualGrades(prev => ({
                                       ...prev,
                                       [studentId]: {
                                         ...prev[studentId],
-                                        feedback: e.target.value
+                                        grade: newGrade
                                       }
                                     }));
-                                  }}
-                                  rows={2}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                                  placeholder="Additional feedback..."
-                                />
-                              </div>
+                                  }
+                                }}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Feedback
+                              </label>
+                              <textarea
+                                value={gradeData.feedback}
+                                onChange={(e) => {
+                                  setManualGrades(prev => ({
+                                    ...prev,
+                                    [studentId]: {
+                                      ...prev[studentId],
+                                      feedback: e.target.value
+                                    }
+                                  }));
+                                }}
+                                rows={2}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                placeholder="Additional feedback..."
+                              />
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Full Analysis Modal */}
-      {fullAnalysisModal.isOpen && fullAnalysisModal.analysis && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold">Complete Assignment Feedback</h3>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    // Force regeneration of complete feedback
-                    console.log("Regenerating complete feedback...");
-                    // TODO: Add regeneration logic here
-                  }}
-                  className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Regenerate Full Feedback
-                </button>
-                <button
-                  onClick={() => setFullAnalysisModal({ isOpen: false, analysis: null })}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
-              <div className="space-y-6">
-                {/* Grade Header Card */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">
-                        {fullAnalysisModal.analysis.targetStudent}
-                      </h2>
-                      <p className="text-gray-600">Assignment Feedback</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-blue-600">
-                        {fullAnalysisModal.analysis.grade}/{fullAnalysisModal.analysis.maxPoints}
-                      </div>
-                      <div className="text-lg text-gray-600">
-                        {fullAnalysisModal.analysis.percentage}% - {fullAnalysisModal.analysis.letterGrade}
-                      </div>
-                      <div className="text-sm text-green-600 font-medium">
-                        Confidence: {fullAnalysisModal.analysis.confidence}%
-                      </div>
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        )}
 
-                {/* Extracted Text */}
-                {fullAnalysisModal.analysis.extractedText && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Extracted Text</h3>
-                    <p className="text-gray-700">{fullAnalysisModal.analysis.extractedText}</p>
-                  </div>
-                )}
-
-                {/* Complete Feedback Display - Shows ALL Available Content */}
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                    Complete Feedback (All Available Data)
-                  </h3>
-
-                  {/* Show ALL feedback content - combine all fields to ensure nothing is missed */}
-                  <div className="prose prose-sm max-w-none text-gray-700 space-y-6">
-
-                    {/* Overall Feedback */}
-                    {fullAnalysisModal.analysis.overallFeedback && (
+        {/* Full Analysis Modal */}
+        {fullAnalysisModal.isOpen && fullAnalysisModal.analysis && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-lg font-semibold">Complete Assignment Feedback</h3>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => {
+                      // Force regeneration of complete feedback
+                      console.log("Regenerating complete feedback...");
+                      // TODO: Add regeneration logic here
+                    }}
+                    className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    Regenerate Full Feedback
+                  </button>
+                  <button
+                    onClick={() => setFullAnalysisModal({ isOpen: false, analysis: null })}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+                <div className="space-y-6">
+                  {/* Grade Header Card */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Overall Feedback:</h4>
-                        <div className="whitespace-pre-line bg-gray-50 p-4 rounded border-l-4 border-blue-500">
-                          {fullAnalysisModal.analysis.overallFeedback}
+                        <h2 className="text-2xl font-bold text-gray-900">
+                          {fullAnalysisModal.analysis.targetStudent}
+                        </h2>
+                        <p className="text-gray-600">Assignment Feedback</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold text-blue-600">
+                          {fullAnalysisModal.analysis.grade}/{fullAnalysisModal.analysis.maxPoints}
+                        </div>
+                        <div className="text-lg text-gray-600">
+                          {fullAnalysisModal.analysis.percentage}% - {fullAnalysisModal.analysis.letterGrade}
+                        </div>
+                        <div className="text-sm text-green-600 font-medium">
+                          Confidence: {fullAnalysisModal.analysis.confidence}%
                         </div>
                       </div>
-                    )}
-
-                    {/* Detailed Feedback */}
-                    {fullAnalysisModal.analysis.detailedFeedback && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Detailed Feedback:</h4>
-                        <div className="whitespace-pre-line bg-purple-50 p-4 rounded border-l-4 border-purple-500">
-                          {fullAnalysisModal.analysis.detailedFeedback}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Analysis Field */}
-                    {fullAnalysisModal.analysis.analysis && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Analysis:</h4>
-                        <div className="whitespace-pre-line bg-green-50 p-4 rounded border-l-4 border-green-500">
-                          {fullAnalysisModal.analysis.analysis}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Summary Feedback */}
-                    {fullAnalysisModal.analysis.summaryFeedback && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Summary Feedback:</h4>
-                        <div className="whitespace-pre-line bg-yellow-50 p-4 rounded border-l-4 border-yellow-500">
-                          {fullAnalysisModal.analysis.summaryFeedback}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Raw JSON Backup - Shows absolutely everything */}
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-2">Complete Raw Data (Backup View):</h4>
-                      <details className="bg-black text-green-400 p-4 rounded font-mono text-xs">
-                        <summary className="cursor-pointer text-white hover:text-green-300 mb-2">
-                          Click to expand complete JSON data
-                        </summary>
-                        <pre className="overflow-auto max-h-96 whitespace-pre-wrap">
-                          {JSON.stringify(fullAnalysisModal.analysis, null, 2)}
-                        </pre>
-                      </details>
                     </div>
                   </div>
-                </div>
 
-                {/* Knowledge Gaps */}
-                {fullAnalysisModal.analysis.knowledgeGaps && fullAnalysisModal.analysis.knowledgeGaps.length > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-                      Knowledge Gaps Identified
-                    </h3>
-                    <ul className="space-y-2">
-                      {fullAnalysisModal.analysis.knowledgeGaps.map((gap, index) => (
-                        <li key={index} className="text-gray-700 flex items-start">
-                          <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                          {gap}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  {/* Extracted Text */}
+                  {fullAnalysisModal.analysis.extractedText && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Extracted Text</h3>
+                      <p className="text-gray-700">{fullAnalysisModal.analysis.extractedText}</p>
+                    </div>
+                  )}
 
-                {/* Recommendations */}
-                {fullAnalysisModal.analysis.recommendations && fullAnalysisModal.analysis.recommendations.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  {/* Complete Feedback Display - Shows ALL Available Content */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                      Recommendations
+                      Complete Feedback (All Available Data)
                     </h3>
-                    <ul className="space-y-2">
-                      {fullAnalysisModal.analysis.recommendations.map((rec, index) => (
-                        <li key={index} className="text-gray-700 flex items-start">
-                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                          {rec}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
 
-                {/* Strengths */}
-                {fullAnalysisModal.analysis.strengths && fullAnalysisModal.analysis.strengths.length > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                      Strengths
-                    </h3>
-                    <ul className="space-y-2">
-                      {fullAnalysisModal.analysis.strengths.map((strength, index) => (
-                        <li key={index} className="text-gray-700 flex items-start">
-                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                          {strength}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                    {/* Show ALL feedback content - combine all fields to ensure nothing is missed */}
+                    <div className="prose prose-sm max-w-none text-gray-700 space-y-6">
 
-                {/* Improvement Areas */}
-                {fullAnalysisModal.analysis.improvementAreas && fullAnalysisModal.analysis.improvementAreas.length > 0 && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-                      Areas for Improvement
-                    </h3>
-                    <ul className="space-y-2">
-                      {fullAnalysisModal.analysis.improvementAreas.map((area, index) => (
-                        <li key={index} className="text-gray-700 flex items-start">
-                          <span className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                          {area}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                      {/* Overall Feedback */}
+                      {fullAnalysisModal.analysis.overallFeedback && (
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">Overall Feedback:</h4>
+                          <div className="whitespace-pre-line bg-gray-50 p-4 rounded border-l-4 border-blue-500">
+                            {fullAnalysisModal.analysis.overallFeedback}
+                          </div>
+                        </div>
+                      )}
 
-                {/* Grading Criteria */}
-                {fullAnalysisModal.analysis.gradingCriteria && fullAnalysisModal.analysis.gradingCriteria.length > 0 && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                      Grading Criteria
-                    </h3>
-                    <ul className="space-y-2">
-                      {fullAnalysisModal.analysis.gradingCriteria.map((criteria, index) => (
-                        <li key={index} className="text-gray-700 flex items-start">
-                          <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                          {typeof criteria === 'string' ? criteria : JSON.stringify(criteria)}
-                        </li>
-                      ))}
-                    </ul>
+                      {/* Detailed Feedback */}
+                      {fullAnalysisModal.analysis.detailedFeedback && (
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">Detailed Feedback:</h4>
+                          <div className="whitespace-pre-line bg-purple-50 p-4 rounded border-l-4 border-purple-500">
+                            {fullAnalysisModal.analysis.detailedFeedback}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Analysis Field */}
+                      {fullAnalysisModal.analysis.analysis && (
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">Analysis:</h4>
+                          <div className="whitespace-pre-line bg-green-50 p-4 rounded border-l-4 border-green-500">
+                            {fullAnalysisModal.analysis.analysis}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Summary Feedback */}
+                      {fullAnalysisModal.analysis.summaryFeedback && (
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">Summary Feedback:</h4>
+                          <div className="whitespace-pre-line bg-yellow-50 p-4 rounded border-l-4 border-yellow-500">
+                            {fullAnalysisModal.analysis.summaryFeedback}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Raw JSON Backup - Shows absolutely everything */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Complete Raw Data (Backup View):</h4>
+                        <details className="bg-black text-green-400 p-4 rounded font-mono text-xs">
+                          <summary className="cursor-pointer text-white hover:text-green-300 mb-2">
+                            Click to expand complete JSON data
+                          </summary>
+                          <pre className="overflow-auto max-h-96 whitespace-pre-wrap">
+                            {JSON.stringify(fullAnalysisModal.analysis, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* Knowledge Gaps */}
+                  {fullAnalysisModal.analysis.knowledgeGaps && fullAnalysisModal.analysis.knowledgeGaps.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                        Knowledge Gaps Identified
+                      </h3>
+                      <ul className="space-y-2">
+                        {fullAnalysisModal.analysis.knowledgeGaps.map((gap, index) => (
+                          <li key={index} className="text-gray-700 flex items-start">
+                            <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            {gap}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {fullAnalysisModal.analysis.recommendations && fullAnalysisModal.analysis.recommendations.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        Recommendations
+                      </h3>
+                      <ul className="space-y-2">
+                        {fullAnalysisModal.analysis.recommendations.map((rec, index) => (
+                          <li key={index} className="text-gray-700 flex items-start">
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Strengths */}
+                  {fullAnalysisModal.analysis.strengths && fullAnalysisModal.analysis.strengths.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        Strengths
+                      </h3>
+                      <ul className="space-y-2">
+                        {fullAnalysisModal.analysis.strengths.map((strength, index) => (
+                          <li key={index} className="text-gray-700 flex items-start">
+                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            {strength}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Improvement Areas */}
+                  {fullAnalysisModal.analysis.improvementAreas && fullAnalysisModal.analysis.improvementAreas.length > 0 && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                        Areas for Improvement
+                      </h3>
+                      <ul className="space-y-2">
+                        {fullAnalysisModal.analysis.improvementAreas.map((area, index) => (
+                          <li key={index} className="text-gray-700 flex items-start">
+                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            {area}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Grading Criteria */}
+                  {fullAnalysisModal.analysis.gradingCriteria && fullAnalysisModal.analysis.gradingCriteria.length > 0 && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                        Grading Criteria
+                      </h3>
+                      <ul className="space-y-2">
+                        {fullAnalysisModal.analysis.gradingCriteria.map((criteria, index) => (
+                          <li key={index} className="text-gray-700 flex items-start">
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                            {typeof criteria === 'string' ? criteria : JSON.stringify(criteria)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Select Uploaded Files Modal */}
-      {selectImageModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Select Uploaded Files</h3>
-                <p className="text-sm text-gray-600">Choose from previously uploaded images or PDFs</p>
-              </div>
-              <button
-                onClick={() => setSelectImageModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Upload Options Tabs */}
-            <div className="border-b border-gray-200">
-              <div className="flex space-x-1 p-1 bg-gray-50">
+        {/* Select Uploaded Files Modal */}
+        {selectImageModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Select Uploaded Files</h3>
+                  <p className="text-sm text-gray-600">Choose from previously uploaded images or PDFs</p>
+                </div>
                 <button
-                  onClick={() => setUploadModalTab('single')}
-                  className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${uploadModalTab === 'single'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                  onClick={() => setSelectImageModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <div className="flex items-center justify-center space-x-2">
-                    <Image className="w-4 h-4" />
-                    <span>Select Single File</span>
-                  </div>
+                  <X className="w-5 h-5 text-gray-500" />
                 </button>
-                {assignmentType === 'grading' && selectedAssignment && (
+              </div>
+
+              {/* Upload Options Tabs */}
+              <div className="border-b border-gray-200">
+                <div className="flex space-x-1 p-1 bg-gray-50">
                   <button
-                    onClick={() => setUploadModalTab('bulk')}
-                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${uploadModalTab === 'bulk'
-                      ? 'bg-white text-purple-600 shadow-sm'
+                    onClick={() => setUploadModalTab('single')}
+                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${uploadModalTab === 'single'
+                      ? 'bg-white text-blue-600 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                       }`}
                   >
                     <div className="flex items-center justify-center space-x-2">
-                      <FolderUp className="w-4 h-4" />
-                      <span>Bulk Upload Options</span>
+                      <Image className="w-4 h-4" />
+                      <span>Select Single File</span>
                     </div>
                   </button>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-12rem)]">
-              {uploadModalTab === 'single' ? (
-                // Single File Selection Tab
-                <div>
-                  {loadingSavedImages ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="flex items-center space-x-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                        <span className="text-gray-600">Loading saved files...</span>
+                  {assignmentType === 'grading' && selectedAssignment && (
+                    <button
+                      onClick={() => setUploadModalTab('bulk')}
+                      className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${uploadModalTab === 'bulk'
+                        ? 'bg-white text-purple-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <FolderUp className="w-4 h-4" />
+                        <span>Bulk Upload Options</span>
                       </div>
-                    </div>
-                  ) : savedImages.length === 0 ? (
-                    <div className="text-center py-12">
-                      <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Saved Files</h3>
-                      <p className="text-gray-600 mb-4">
-                        You haven't uploaded any files yet. Upload your first file to get started.
-                      </p>
-                      <button
-                        onClick={() => setSelectImageModal(false)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-                      >
-                        Close and Upload
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {savedImages.map((image) => (
-                        <div key={image.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                          {/* Image Preview */}
-                          <div className="aspect-square bg-gray-100 relative group">
-                            <img
-                              src={image.dataUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RDlERCIvPgo8L3N2Zz4K'}
-                              alt={image.description || 'Saved image'}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                console.log('Image failed to load for ID:', image.id);
-                                target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RD lERCIvPgo8L3N2Zz4K';
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-12rem)]">
+                {uploadModalTab === 'single' ? (
+                  // Single File Selection Tab
+                  <div>
+                    {loadingSavedImages ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="flex items-center space-x-3">
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                          <span className="text-gray-600">Loading saved files...</span>
+                        </div>
+                      </div>
+                    ) : savedImages.length === 0 ? (
+                      <div className="text-center py-12">
+                        <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Saved Files</h3>
+                        <p className="text-gray-600 mb-4">
+                          You haven't uploaded any files yet. Upload your first file to get started.
+                        </p>
+                        <button
+                          onClick={() => setSelectImageModal(false)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                        >
+                          Close and Upload
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {savedImages.map((image) => (
+                          <div key={image.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                            {/* Image Preview */}
+                            <div className="aspect-square bg-gray-100 relative group">
+                              <img
+                                src={image.dataUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RDlERCIvPgo8L3N2Zz4K'}
+                                alt={image.description || 'Saved image'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  console.log('Image failed to load for ID:', image.id);
+                                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA3NUgxMjVWMTI1SDc1Vjc1WiIgZmlsbD0iI0Q1RD lERCIvPgo8L3N2Zz4K';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
+                                <button
+                                  onClick={() => handleSelectSavedImage(image)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                                >
+                                  Select This Image
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Image Info */}
+                            <div className="p-4">
+                              <h4 className="font-medium text-gray-900 truncate mb-1">
+                                {image.description || 'Untitled Image'}
+                              </h4>
+
+                              {image.tags && (
+                                <div className="mb-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {image.tags.split(',').slice(0, 3).map((tag: string, index: number) => (
+                                      <span
+                                        key={index}
+                                        className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                                      >
+                                        {tag.trim()}
+                                      </span>
+                                    ))}
+                                    {image.tags.split(',').length > 3 && (
+                                      <span className="text-xs text-gray-500">
+                                        +{image.tags.split(',').length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {image.subject_name && (
+                                <div className="mb-2">
+                                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                    {image.subject_name}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="text-xs text-gray-500 mb-3">
+                                {new Date(image.upload_date).toLocaleDateString()}
+                              </div>
+
                               <button
                                 onClick={() => handleSelectSavedImage(image)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
                               >
-                                Select This Image
+                                Select for Analysis
                               </button>
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Bulk Upload Options Tab
+                  <div className="space-y-6">
+                    {/* Instructions */}
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h3 className="font-medium text-purple-900 mb-2">Bulk Upload Options:</h3>
+                      <p className="text-sm text-purple-800">Choose how you want to handle bulk uploads for your assignment.</p>
+                    </div>
 
-                          {/* Image Info */}
-                          <div className="p-4">
-                            <h4 className="font-medium text-gray-900 truncate mb-1">
-                              {image.description || 'Untitled Image'}
-                            </h4>
+                    {/* Bulk Upload Buttons */}
+                    <div className="grid grid-cols-1 gap-4">
+                      <button
+                        onClick={() => {
+                          setSelectImageModal(false);
+                          handleBulkUploadExisting();
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                        disabled={!selectedAssignment || assignmentType !== 'grading'}
+                      >
+                        <FolderUp className="w-6 h-6" />
+                        <div className="text-left">
+                          <div className="font-medium">Select Student Files</div>
+                          <div className="text-sm text-purple-200">Choose from already uploaded student files to grade</div>
+                        </div>
+                      </button>
 
-                            {image.tags && (
-                              <div className="mb-2">
-                                <div className="flex flex-wrap gap-1">
-                                  {image.tags.split(',').slice(0, 3).map((tag: string, index: number) => (
-                                    <span
-                                      key={index}
-                                      className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                                    >
-                                      {tag.trim()}
-                                    </span>
-                                  ))}
-                                  {image.tags.split(',').length > 3 && (
-                                    <span className="text-xs text-gray-500">
-                                      +{image.tags.split(',').length - 3} more
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                      <button
+                        onClick={() => {
+                          setSelectImageModal(false);
+                          handleBulkUploadNew();
+                        }}
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-4 rounded-lg flex items-center justify-center space-x-3 transition-colors"
+                        disabled={!selectedAssignment || assignmentType !== 'grading'}
+                      >
+                        <Upload className="w-6 h-6" />
+                        <div className="text-left">
+                          <div className="font-medium">Upload New Files</div>
+                          <div className="text-sm text-orange-200">Upload new files for bulk processing</div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {(!selectedAssignment || assignmentType !== 'grading') && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
+                          <span className="text-yellow-800 text-sm">
+                            Please select an assignment and set task type to "Grade Assignment" to enable bulk upload options.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Upload Existing Files Modal */}
+        {bulkUploadExistingModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Select Student Files</h3>
+                  <button
+                    onClick={() => setBulkUploadExistingModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-gray-600">
+                    Assignment: <strong>{assignments.find(a => a.id.toString() === selectedAssignment)?.title}</strong>
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Select student files to grade with K.A.N.A. The selected files will appear in the main upload area.
+                  </p>
+                </div>
+
+                {loadingBulkStudents ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
+                    <span className="text-gray-600">Loading student uploads...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {bulkUploadModal.students && bulkUploadModal.students.length > 0 ? (
+                      bulkUploadModal.students.map((student) => (
+                        <div key={student.student_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{student.student_name}</p>
+                            <p className="text-sm text-gray-600">Student ID: {student.student_id}</p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {student.has_pdf ? (
+                              <>
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                <span className="text-green-600 text-sm">PDF Available</span>
+                                <button
+                                  onClick={() => handleSelectBulkFile(student)}
+                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                                >
+                                  Select
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                                <span className="text-yellow-600 text-sm">No upload</span>
+                              </>
                             )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">No student data available</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                            {image.subject_name && (
-                              <div className="mb-2">
-                                <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                                  {image.subject_name}
-                                </span>
-                              </div>
-                            )}
+        {/* Bulk Upload New Files Modal */}
+        {bulkUploadNewModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Bulk Upload New Files</h3>
+                  <button
+                    onClick={() => setBulkUploadNewModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
 
-                            <div className="text-xs text-gray-500 mb-3">
-                              {new Date(image.upload_date).toLocaleDateString()}
+                <div className="mb-4">
+                  <p className="text-gray-600">
+                    Assignment: <strong>{assignments.find(a => a.id.toString() === selectedAssignment)?.title}</strong>
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Upload multiple files for a specific student. Files will be combined into a PDF.
+                  </p>
+                </div>
+
+                {/* Student Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Student
+                  </label>
+                  <select
+                    value={selectedStudent}
+                    onChange={(e) => setSelectedStudent(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">Choose a student...</option>
+                    {filteredStudents.map((student) => (
+                      <option key={student.id} value={student.id.toString()}>
+                        {student.fname} {student.lname}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-4">
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = e.dataTransfer.files;
+                      if (files && files.length > 0 && selectedStudent) {
+                        handleNewBulkUpload(files);
+                      } else if (!selectedStudent) {
+                        setError('Please select a student first');
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={() => {
+                      if (!selectedStudent) {
+                        setError('Please select a student first');
+                        return;
+                      }
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.accept = 'image/*,application/pdf,.pdf';
+                      input.onchange = (e) => {
+                        const files = (e.target as HTMLInputElement).files;
+                        if (files && files.length > 0) {
+                          handleNewBulkUpload(files);
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600 mb-2">
+                      {selectedStudent ? 'Drag and drop files here, or click to select' : 'Please select a student first'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {selectedStudent ? 'Supports PNG, JPG, JPEG images and PDF documents' : 'Choose a student from the dropdown above'}
+                    </p>
+                  </div>
+
+                  {processingBulkUpload && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
+                      <span className="text-gray-600">Processing bulk upload...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Assignment Edit Modal */}
+        {showAssignmentEditModal && selectedAssignment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+              {/* Modal Header - Fixed */}
+              <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Edit Assignment</h3>
+                  <p className="text-sm text-gray-600">
+                    Update assignment details and grading criteria
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAssignmentEditModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="p-6 overflow-y-auto flex-1 min-h-0">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assignment Title
+                    </label>
+                    <input
+                      type="text"
+                      value={assignmentTitle}
+                      onChange={(e) => setAssignmentTitle(e.target.value)}
+                      placeholder="Assignment title"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assignment Description
+                    </label>
+                    <textarea
+                      value={assignmentDescription}
+                      onChange={(e) => setAssignmentDescription(e.target.value)}
+                      placeholder="Assignment description (minimum 10 characters)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      {assignmentDescription.length}/1000 characters (minimum 10 required)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Maximum Points
+                    </label>
+                    <input
+                      type="number"
+                      value={maxPoints}
+                      onChange={(e) => setMaxPoints(Number(e.target.value))}
+                      min="1"
+                      max="1000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Grading Rubric
+                    </label>
+                    <textarea
+                      value={gradingRubric}
+                      onChange={(e) => setGradingRubric(e.target.value)}
+                      placeholder="Describe grading criteria, what to look for, point distribution, etc."
+                      rows={5}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This rubric will be used by K.A.N.A. AI for automated grading
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer - Fixed */}
+              <div className="flex items-center justify-between p-6 border-t bg-gray-50 flex-shrink-0">
+                <p className="text-sm text-gray-600">
+                  Changes will be saved to the assignment and used for future grading
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowAssignmentEditModal(false)}
+                    disabled={editingAssignment}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateAssignment}
+                    disabled={editingAssignment || !assignmentTitle.trim() || !assignmentDescription.trim() || assignmentDescription.trim().length < 10 || maxPoints <= 0}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  >
+                    {editingAssignment ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Updating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Update Assignment</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student Uploads Modal */}
+        {studentUploadsModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Uploads for {studentUploadsModal.studentName}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Assignment: {assignments.find(a => a.id.toString() === selectedAssignment)?.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setStudentUploadsModal({ isOpen: false })}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+                {studentUploadsModal.uploads && studentUploadsModal.uploads.length > 0 ? (
+                  <div className="space-y-4">
+                    {studentUploadsModal.uploads.map((upload, index) => (
+                      <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <FileText className="w-5 h-5 text-blue-600" />
                             </div>
-
+                            <div>
+                              <h4 className="font-medium text-gray-900">Student Submission</h4>
+                              <p className="text-sm text-gray-600">
+                                {upload.has_pdf ? 'PDF Generated' : `${upload.image_count} Images`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {upload.has_pdf && (
+                              <button
+                                onClick={() => downloadStudentPDF(parseInt(selectedAssignment!), upload.student_id, upload.student_name)}
+                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                              >
+                                Download PDF
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleSelectSavedImage(image)}
-                              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors"
+                              onClick={() => deleteStudentPDF(parseInt(selectedAssignment!), upload.student_id)}
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
                             >
-                              Select for Analysis
+                              Delete
                             </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Bulk Upload Options Tab
-                <div className="space-y-6">
-                  {/* Instructions */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                    <h3 className="font-medium text-purple-900 mb-2">Bulk Upload Options:</h3>
-                    <p className="text-sm text-purple-800">Choose how you want to handle bulk uploads for your assignment.</p>
-                  </div>
 
-                  {/* Bulk Upload Buttons */}
-                  <div className="grid grid-cols-1 gap-4">
-                    <button
-                      onClick={() => {
-                        setSelectImageModal(false);
-                        handleBulkUploadExisting();
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg flex items-center justify-center space-x-3 transition-colors"
-                      disabled={!selectedAssignment || assignmentType !== 'grading'}
-                    >
-                      <FolderUp className="w-6 h-6" />
-                      <div className="text-left">
-                        <div className="font-medium">Select Student Files</div>
-                        <div className="text-sm text-purple-200">Choose from already uploaded student files to grade</div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelectImageModal(false);
-                        handleBulkUploadNew();
-                      }}
-                      className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-4 rounded-lg flex items-center justify-center space-x-3 transition-colors"
-                      disabled={!selectedAssignment || assignmentType !== 'grading'}
-                    >
-                      <Upload className="w-6 h-6" />
-                      <div className="text-left">
-                        <div className="font-medium">Upload New Files</div>
-                        <div className="text-sm text-orange-200">Upload new files for bulk processing</div>
-                      </div>
-                    </button>
-                  </div>
-
-                  {(!selectedAssignment || assignmentType !== 'grading') && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-center">
-                        <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
-                        <span className="text-yellow-800 text-sm">
-                          Please select an assignment and set task type to "Grade Assignment" to enable bulk upload options.
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Upload Existing Files Modal */}
-      {bulkUploadExistingModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Select Student Files</h3>
-                <button
-                  onClick={() => setBulkUploadExistingModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-gray-600">
-                  Assignment: <strong>{assignments.find(a => a.id.toString() === selectedAssignment)?.title}</strong>
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Select student files to grade with K.A.N.A. The selected files will appear in the main upload area.
-                </p>
-              </div>
-
-              {loadingBulkStudents ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
-                  <span className="text-gray-600">Loading student uploads...</span>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {bulkUploadModal.students && bulkUploadModal.students.length > 0 ? (
-                    bulkUploadModal.students.map((student) => (
-                      <div key={student.student_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">{student.student_name}</p>
-                          <p className="text-sm text-gray-600">Student ID: {student.student_id}</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {student.has_pdf ? (
-                            <>
-                              <CheckCircle className="w-5 h-5 text-green-600" />
-                              <span className="text-green-600 text-sm">PDF Available</span>
-                              <button
-                                onClick={() => handleSelectBulkFile(student)}
-                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
-                              >
-                                Select
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="w-5 h-5 text-yellow-600" />
-                              <span className="text-yellow-600 text-sm">No upload</span>
-                            </>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Status:</span>
+                            <p className="font-medium">
+                              {upload.is_graded ? (
+                                <span className="text-green-600">Graded</span>
+                              ) : (
+                                <span className="text-yellow-600">Not Graded</span>
+                              )}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Images:</span>
+                            <p className="font-medium">{upload.image_count}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">PDF:</span>
+                            <p className="font-medium">
+                              {upload.has_pdf ? (
+                                <span className="text-green-600">✓ Generated</span>
+                              ) : (
+                                <span className="text-gray-400">Not generated</span>
+                              )}
+                            </p>
+                          </div>
+                          {upload.generated_date && (
+                            <div>
+                              <span className="text-gray-600">Generated:</span>
+                              <p className="font-medium">
+                                {new Date(upload.generated_date).toLocaleDateString()}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">No student data available</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Upload New Files Modal */}
-      {bulkUploadNewModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Bulk Upload New Files</h3>
-                <button
-                  onClick={() => setBulkUploadNewModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-gray-600">
-                  Assignment: <strong>{assignments.find(a => a.id.toString() === selectedAssignment)?.title}</strong>
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Upload multiple files for a specific student. Files will be combined into a PDF.
-                </p>
-              </div>
-
-              {/* Student Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Student
-                </label>
-                <select
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                >
-                  <option value="">Choose a student...</option>
-                  {filteredStudents.map((student) => (
-                    <option key={student.id} value={student.id.toString()}>
-                      {student.fname} {student.lname}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-4">
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const files = e.dataTransfer.files;
-                    if (files && files.length > 0 && selectedStudent) {
-                      handleNewBulkUpload(files);
-                    } else if (!selectedStudent) {
-                      setError('Please select a student first');
-                    }
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onClick={() => {
-                    if (!selectedStudent) {
-                      setError('Please select a student first');
-                      return;
-                    }
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.accept = 'image/*,application/pdf,.pdf';
-                    input.onchange = (e) => {
-                      const files = (e.target as HTMLInputElement).files;
-                      if (files && files.length > 0) {
-                        handleNewBulkUpload(files);
-                      }
-                    };
-                    input.click();
-                  }}
-                >
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-600 mb-2">
-                    {selectedStudent ? 'Drag and drop files here, or click to select' : 'Please select a student first'}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {selectedStudent ? 'Supports PNG, JPG, JPEG images and PDF documents' : 'Choose a student from the dropdown above'}
-                  </p>
-                </div>
-
-                {processingBulkUpload && (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
-                    <span className="text-gray-600">Processing bulk upload...</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Upload className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No uploads found</h3>
+                    <p className="text-gray-600 mb-4">
+                      This student hasn't uploaded any work for this assignment yet.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setStudentUploadsModal({ isOpen: false });
+                        if (studentUploadsModal.studentId && studentUploadsModal.studentName) {
+                          handleUploadForStudent(studentUploadsModal.studentId, studentUploadsModal.studentName);
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                    >
+                      Upload Files for This Student
+                    </button>
                   </div>
                 )}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Assignment Edit Modal */}
-      {showAssignmentEditModal && selectedAssignment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-            {/* Modal Header - Fixed */}
-            <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Edit Assignment</h3>
-                <p className="text-sm text-gray-600">
-                  Update assignment details and grading criteria
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAssignmentEditModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Modal Content - Scrollable */}
-            <div className="p-6 overflow-y-auto flex-1 min-h-0">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assignment Title
-                  </label>
-                  <input
-                    type="text"
-                    value={assignmentTitle}
-                    onChange={(e) => setAssignmentTitle(e.target.value)}
-                    placeholder="Assignment title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+        {/* Existing Grade Details Modal - Shows full feedback when viewing existing grade */}
+        {existingGradeModal.isOpen && existingGradeModal.gradeDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-xl">
+                    <Eye className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Grade Details</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium">{existingGradeModal.gradeDetails.student_name}</span>
+                      <span className="mx-2">•</span>
+                      <span>{existingGradeModal.gradeDetails.assignment_title}</span>
+                    </p>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assignment Description
-                  </label>
-                  <textarea
-                    value={assignmentDescription}
-                    onChange={(e) => setAssignmentDescription(e.target.value)}
-                    placeholder="Assignment description (minimum 10 characters)"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    {assignmentDescription.length}/1000 characters (minimum 10 required)
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Maximum Points
-                  </label>
-                  <input
-                    type="number"
-                    value={maxPoints}
-                    onChange={(e) => setMaxPoints(Number(e.target.value))}
-                    min="1"
-                    max="1000"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Grading Rubric
-                  </label>
-                  <textarea
-                    value={gradingRubric}
-                    onChange={(e) => setGradingRubric(e.target.value)}
-                    placeholder="Describe grading criteria, what to look for, point distribution, etc."
-                    rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This rubric will be used by K.A.N.A. AI for automated grading
-                  </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600"
+                    title="Print Grade Report"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setExistingGradeModal({ isOpen: false })}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
                 </div>
               </div>
-            </div>
 
-            {/* Modal Footer - Fixed */}
-            <div className="flex items-center justify-between p-6 border-t bg-gray-50 flex-shrink-0">
-              <p className="text-sm text-gray-600">
-                Changes will be saved to the assignment and used for future grading
-              </p>
-              <div className="flex space-x-3">
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+                <div className="space-y-6">
+                  {/* Grade Summary */}
+                  <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+                    <div className="text-center mb-4">
+                      <h4 className="text-xl font-bold text-blue-900 mb-2">Grade Summary</h4>
+                      <div className="w-16 h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mx-auto"></div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="text-center">
+                        <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
+                          <div className="text-blue-600 text-sm font-medium mb-2">Points Earned</div>
+                          <div className="text-blue-900 text-3xl font-bold mb-1">
+                            {existingGradeModal.gradeDetails.points_earned}
+                          </div>
+                          <div className="text-blue-700 text-xs">
+                            out of {existingGradeModal.gradeDetails.max_points}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        <div className="bg-white rounded-xl p-4 shadow-sm border border-indigo-100">
+                          <div className="text-indigo-600 text-sm font-medium mb-2">Percentage</div>
+                          <div className="text-indigo-900 text-3xl font-bold mb-1">
+                            {existingGradeModal.gradeDetails.percentage}%
+                          </div>
+                          <div className="text-indigo-700 text-xs">
+                            {existingGradeModal.gradeDetails.percentage >= 90 ? 'Excellent' :
+                              existingGradeModal.gradeDetails.percentage >= 80 ? 'Good' :
+                                existingGradeModal.gradeDetails.percentage >= 70 ? 'Fair' :
+                                  existingGradeModal.gradeDetails.percentage >= 60 ? 'Needs Improvement' : 'Poor'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-100">
+                          <div className="text-purple-600 text-sm font-medium mb-2">Letter Grade</div>
+                          <div className="text-purple-900 text-3xl font-bold mb-1">
+                            {existingGradeModal.gradeDetails.percentage >= 90 ? 'A' :
+                              existingGradeModal.gradeDetails.percentage >= 80 ? 'B' :
+                                existingGradeModal.gradeDetails.percentage >= 70 ? 'C' :
+                                  existingGradeModal.gradeDetails.percentage >= 60 ? 'D' : 'F'}
+                          </div>
+                          <div className="text-purple-700 text-xs">
+                            Grade Level
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {existingGradeModal.gradeDetails.graded_date && (
+                      <div className="text-center mt-6 pt-4 border-t border-blue-200">
+                        <div className="flex items-center justify-center gap-2 text-blue-700 text-sm">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>
+                            Graded on {new Date(existingGradeModal.gradeDetails.graded_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {existingGradeModal.gradeDetails.ai_generated && (
+                            <span className="ml-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-medium">
+                              AI Generated
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Generation Info */}
+                  {existingGradeModal.gradeDetails.ai_generated && (
+                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                          <Brain className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-purple-900">AI-Generated Grade</h5>
+                          <p className="text-purple-700 text-sm">
+                            This grade was automatically generated by our AI grading system
+                            {existingGradeModal.gradeDetails.ai_confidence && (
+                              <span className="ml-2">
+                                (Confidence: {existingGradeModal.gradeDetails.ai_confidence}%)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full Feedback */}
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      Complete Feedback
+                    </h4>
+                    {existingGradeModal.gradeDetails.feedback ? (
+                      formatDetailedFeedback(existingGradeModal.gradeDetails.feedback)
+                    ) : (
+                      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden p-6 text-center">
+                        <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-500 text-lg font-medium">No detailed feedback available</p>
+                        <p className="text-gray-400 text-sm mt-1">This grade was submitted without detailed feedback.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Assignment Details */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <h5 className="font-semibold text-blue-900">Assignment Description</h5>
+                      </div>
+                      <div className="text-blue-800 text-sm leading-relaxed max-h-32 overflow-y-auto">
+                        {existingGradeModal.gradeDetails.assignment_description || (
+                          <span className="text-blue-600 italic">No description provided.</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-green-100 p-2 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
+                        <h5 className="font-semibold text-green-900">Grading Rubric</h5>
+                      </div>
+                      <div className="text-green-800 text-sm leading-relaxed max-h-32 overflow-y-auto">
+                        {existingGradeModal.gradeDetails.assignment_rubric || (
+                          <span className="text-green-600 italic">No rubric provided.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Grade ID: {existingGradeModal.gradeDetails.id}</span>
+                  </div>
+                  {existingGradeModal.gradeDetails.ai_generated && (
+                    <div className="flex items-center gap-1 text-purple-600">
+                      <Brain className="w-4 h-4" />
+                      <span>AI Graded</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      // Copy grade details to clipboard
+                      const gradeText = `Grade: ${existingGradeModal.gradeDetails.points_earned}/${existingGradeModal.gradeDetails.max_points} (${existingGradeModal.gradeDetails.percentage}%)\nStudent: ${existingGradeModal.gradeDetails.student_name}\nAssignment: ${existingGradeModal.gradeDetails.assignment_title}`;
+                      navigator.clipboard.writeText(gradeText);
+                    }}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors text-sm font-medium"
+                  >
+                    Copy Summary
+                  </button>
+                  <button
+                    onClick={() => setExistingGradeModal({ isOpen: false })}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Grading Details Modal - Shows grades and allows updates */}
+        {gradingDetailsModal.isOpen && gradingDetailsModal.gradeDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+                <div className="flex items-center gap-4">
+                  <div className="bg-purple-100 p-3 rounded-xl">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Grade Details</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium">{gradingDetailsModal.gradeDetails.student_name || 'Student'}</span>
+                      <span className="mx-2">•</span>
+                      <span>Assignment Grade</span>
+                    </p>
+                  </div>
+                </div>
                 <button
-                  onClick={() => setShowAssignmentEditModal(false)}
-                  disabled={editingAssignment}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                  onClick={() => setGradingDetailsModal({
+                    isOpen: false,
+                    studentId: null,
+                    studentName: '',
+                    gradeDetails: null
+                  })}
+                  className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
                 >
-                  Cancel
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-10rem)]">
+                <div className="space-y-6">
+                  {/* Grade Summary */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-purple-900">Grade Summary</h4>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {gradingDetailsModal.gradeDetails.points_earned || 'N/A'} / {gradingDetailsModal.gradeDetails.max_points || 'N/A'}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-purple-700 font-medium">Percentage:</span>
+                        <span className="ml-2 text-purple-900">{gradingDetailsModal.gradeDetails.percentage ? `${gradingDetailsModal.gradeDetails.percentage}%` : 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-purple-700 font-medium">Assignment:</span>
+                        <span className="ml-2 text-purple-900">{gradingDetailsModal.gradeDetails.assignment_title || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feedback Details */}
+                  {gradingDetailsModal.gradeDetails.feedback && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-3">Feedback</h4>
+                      <div className="prose prose-sm max-w-none">
+                        <pre className="whitespace-pre-wrap font-sans text-gray-700">
+                          {gradingDetailsModal.gradeDetails.feedback}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grading Date */}
+                  {gradingDetailsModal.gradeDetails.graded_date && (
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Graded on:</span> {new Date(gradingDetailsModal.gradeDetails.graded_date).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+                <button
+                  onClick={() => setGradingDetailsModal({
+                    isOpen: false,
+                    studentId: null,
+                    studentName: '',
+                    gradeDetails: null
+                  })}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors font-medium"
+                >
+                  Close
                 </button>
                 <button
-                  onClick={handleUpdateAssignment}
-                  disabled={editingAssignment || !assignmentTitle.trim() || !assignmentDescription.trim() || assignmentDescription.trim().length < 10 || maxPoints <= 0}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  onClick={() => {
+                    if (gradingDetailsModal.studentId) {
+                      handleGradeUpdate(gradingDetailsModal.studentId);
+                    }
+                  }}
+                  disabled={updatingGrade}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium flex items-center space-x-2"
                 >
-                  {editingAssignment ? (
+                  {updatingGrade ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Updating...</span>
@@ -6205,618 +6469,150 @@ export const UploadAnalyze: React.FC = () => {
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      <span>Update Assignment</span>
+                      <span>Update Grade</span>
                     </>
                   )}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Student Uploads Modal */}
-      {studentUploadsModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Uploads for {studentUploadsModal.studentName}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Assignment: {assignments.find(a => a.id.toString() === selectedAssignment)?.title}
-                </p>
-              </div>
-              <button
-                onClick={() => setStudentUploadsModal({ isOpen: false })}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
-              {studentUploadsModal.uploads && studentUploadsModal.uploads.length > 0 ? (
-                <div className="space-y-4">
-                  {studentUploadsModal.uploads.map((upload, index) => (
-                    <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-blue-100 rounded-lg">
-                            <FileText className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">Student Submission</h4>
-                            <p className="text-sm text-gray-600">
-                              {upload.has_pdf ? 'PDF Generated' : `${upload.image_count} Images`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {upload.has_pdf && (
-                            <button
-                              onClick={() => downloadStudentPDF(parseInt(selectedAssignment!), upload.student_id, upload.student_name)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
-                            >
-                              Download PDF
-                            </button>
-                          )}
-                          <button
-                            onClick={() => deleteStudentPDF(parseInt(selectedAssignment!), upload.student_id)}
-                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Status:</span>
-                          <p className="font-medium">
-                            {upload.is_graded ? (
-                              <span className="text-green-600">Graded</span>
-                            ) : (
-                              <span className="text-yellow-600">Not Graded</span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Images:</span>
-                          <p className="font-medium">{upload.image_count}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">PDF:</span>
-                          <p className="font-medium">
-                            {upload.has_pdf ? (
-                              <span className="text-green-600">✓ Generated</span>
-                            ) : (
-                              <span className="text-gray-400">Not generated</span>
-                            )}
-                          </p>
-                        </div>
-                        {upload.generated_date && (
-                          <div>
-                            <span className="text-gray-600">Generated:</span>
-                            <p className="font-medium">
-                              {new Date(upload.generated_date).toLocaleDateString()}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Upload className="w-8 h-8 text-gray-400" />
+        {/* File Preview Modal */}
+        {filePreview.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-xl">
+                    <Image className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No uploads found</h3>
-                  <p className="text-gray-600 mb-4">
-                    This student hasn't uploaded any work for this assignment yet.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setStudentUploadsModal({ isOpen: false });
-                      if (studentUploadsModal.studentId && studentUploadsModal.studentName) {
-                        handleUploadForStudent(studentUploadsModal.studentId, studentUploadsModal.studentName);
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                  >
-                    Upload Files for This Student
-                  </button>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Preview Files</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {filePreview.files.length} file{filePreview.files.length !== 1 ? 's' : ''} selected for {filePreview.studentName}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Existing Grade Details Modal - Shows full feedback when viewing existing grade */}
-      {existingGradeModal.isOpen && existingGradeModal.gradeDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center gap-4">
-                <div className="bg-blue-100 p-3 rounded-xl">
-                  <Eye className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Grade Details</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">{existingGradeModal.gradeDetails.student_name}</span>
-                    <span className="mx-2">•</span>
-                    <span>{existingGradeModal.gradeDetails.assignment_title}</span>
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
-                  className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600"
-                  title="Print Grade Report"
+                  onClick={cancelUploadPreview}
+                  className="text-gray-400 hover:text-gray-600 p-2"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setExistingGradeModal({ isOpen: false })}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-            </div>
 
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
-              <div className="space-y-6">
-                {/* Grade Summary */}
-                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl p-6 shadow-sm">
-                  <div className="text-center mb-4">
-                    <h4 className="text-xl font-bold text-blue-900 mb-2">Grade Summary</h4>
-                    <div className="w-16 h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mx-auto"></div>
-                  </div>
+              {/* Preview Content */}
+              <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+                {filePreview.files.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {filePreview.files.map((file, index) => (
+                      <div key={index} className="bg-gray-50 rounded-lg p-3 border relative">
+                        {/* Remove button for individual files */}
+                        <button
+                          onClick={() => removeFileFromPreview(index)}
+                          className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 transition-colors"
+                          title="Remove this file"
+                        >
+                          ×
+                        </button>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="text-center">
-                      <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
-                        <div className="text-blue-600 text-sm font-medium mb-2">Points Earned</div>
-                        <div className="text-blue-900 text-3xl font-bold mb-1">
-                          {existingGradeModal.gradeDetails.points_earned}
+                        {/* Image Preview */}
+                        <div className="aspect-square bg-white rounded-lg mb-2 overflow-hidden">
+                          <img
+                            src={filePreview.previews[index]}
+                            alt={file.name}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <div className="text-blue-700 text-xs">
-                          out of {existingGradeModal.gradeDetails.max_points}
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="text-center">
-                      <div className="bg-white rounded-xl p-4 shadow-sm border border-indigo-100">
-                        <div className="text-indigo-600 text-sm font-medium mb-2">Percentage</div>
-                        <div className="text-indigo-900 text-3xl font-bold mb-1">
-                          {existingGradeModal.gradeDetails.percentage}%
-                        </div>
-                        <div className="text-indigo-700 text-xs">
-                          {existingGradeModal.gradeDetails.percentage >= 90 ? 'Excellent' :
-                            existingGradeModal.gradeDetails.percentage >= 80 ? 'Good' :
-                              existingGradeModal.gradeDetails.percentage >= 70 ? 'Fair' :
-                                existingGradeModal.gradeDetails.percentage >= 60 ? 'Needs Improvement' : 'Poor'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-100">
-                        <div className="text-purple-600 text-sm font-medium mb-2">Letter Grade</div>
-                        <div className="text-purple-900 text-3xl font-bold mb-1">
-                          {existingGradeModal.gradeDetails.percentage >= 90 ? 'A' :
-                            existingGradeModal.gradeDetails.percentage >= 80 ? 'B' :
-                              existingGradeModal.gradeDetails.percentage >= 70 ? 'C' :
-                                existingGradeModal.gradeDetails.percentage >= 60 ? 'D' : 'F'}
-                        </div>
-                        <div className="text-purple-700 text-xs">
-                          Grade Level
+                        {/* File Info */}
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-900 truncate" title={file.name}>
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {file.type.split('/')[1].toUpperCase()}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {existingGradeModal.gradeDetails.graded_date && (
-                    <div className="text-center mt-6 pt-4 border-t border-blue-200">
-                      <div className="flex items-center justify-center gap-2 text-blue-700 text-sm">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span>
-                          Graded on {new Date(existingGradeModal.gradeDetails.graded_date).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                        {existingGradeModal.gradeDetails.ai_generated && (
-                          <span className="ml-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-medium">
-                            AI Generated
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* AI Generation Info */}
-                {existingGradeModal.gradeDetails.ai_generated && (
-                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-purple-100 p-2 rounded-lg">
-                        <Brain className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <h5 className="font-semibold text-purple-900">AI-Generated Grade</h5>
-                        <p className="text-purple-700 text-sm">
-                          This grade was automatically generated by our AI grading system
-                          {existingGradeModal.gradeDetails.ai_confidence && (
-                            <span className="ml-2">
-                              (Confidence: {existingGradeModal.gradeDetails.ai_confidence}%)
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Full Feedback */}
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                    Complete Feedback
-                  </h4>
-                  {existingGradeModal.gradeDetails.feedback ? (
-                    formatDetailedFeedback(existingGradeModal.gradeDetails.feedback)
-                  ) : (
-                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden p-6 text-center">
-                      <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500 text-lg font-medium">No detailed feedback available</p>
-                      <p className="text-gray-400 text-sm mt-1">This grade was submitted without detailed feedback.</p>
-                    </div>
-                  )}
+                {/* Add More Files Button */}
+                <div className="mt-6 flex justify-center">
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id={`add-more-files-${filePreview.studentId}`}
+                      multiple
+                      accept="image/*"
+                      onChange={handleAddMoreFiles}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center space-x-2 transition-colors">
+                      <Upload className="w-4 h-4" />
+                      <span>Add More Files</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Assignment Details */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <h5 className="font-semibold text-blue-900">Assignment Description</h5>
-                    </div>
-                    <div className="text-blue-800 text-sm leading-relaxed max-h-32 overflow-y-auto">
-                      {existingGradeModal.gradeDetails.assignment_description || (
-                        <span className="text-blue-600 italic">No description provided.</span>
-                      )}
-                    </div>
+                {/* File Summary */}
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span className="font-medium text-blue-900">Upload Summary</span>
                   </div>
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="bg-green-100 p-2 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      </div>
-                      <h5 className="font-semibold text-green-900">Grading Rubric</h5>
-                    </div>
-                    <div className="text-green-800 text-sm leading-relaxed max-h-32 overflow-y-auto">
-                      {existingGradeModal.gradeDetails.assignment_rubric || (
-                        <span className="text-green-600 italic">No rubric provided.</span>
-                      )}
-                    </div>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p>Student: <span className="font-medium">{filePreview.studentName}</span></p>
+                    <p>Files: <span className="font-medium">{filePreview.files.length} image{filePreview.files.length !== 1 ? 's' : ''}</span></p>
+                    <p>Total Size: <span className="font-medium">
+                      {(filePreview.files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(2)} MB
+                    </span></p>
+                    <p className="text-xs text-blue-600 mt-2">
+                      These files will be combined into a single PDF for grading.
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Grade ID: {existingGradeModal.gradeDetails.id}</span>
-                </div>
-                {existingGradeModal.gradeDetails.ai_generated && (
-                  <div className="flex items-center gap-1 text-purple-600">
-                    <Brain className="w-4 h-4" />
-                    <span>AI Graded</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end space-x-3 p-6 border-t bg-gray-50">
                 <button
-                  onClick={() => {
-                    // Copy grade details to clipboard
-                    const gradeText = `Grade: ${existingGradeModal.gradeDetails.points_earned}/${existingGradeModal.gradeDetails.max_points} (${existingGradeModal.gradeDetails.percentage}%)\nStudent: ${existingGradeModal.gradeDetails.student_name}\nAssignment: ${existingGradeModal.gradeDetails.assignment_title}`;
-                    navigator.clipboard.writeText(gradeText);
-                  }}
+                  onClick={cancelUploadPreview}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors text-sm font-medium"
                 >
-                  Copy Summary
+                  Cancel
                 </button>
                 <button
-                  onClick={() => setExistingGradeModal({ isOpen: false })}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  onClick={confirmUploadWithPreview}
+                  disabled={isProcessing || filePreview.files.length === 0}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium flex items-center space-x-2"
                 >
-                  Close
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Upload & Create PDF ({filePreview.files.length} files)</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Grading Details Modal - Shows grades and allows updates */}
-      {gradingDetailsModal.isOpen && gradingDetailsModal.gradeDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-purple-50 to-pink-50">
-              <div className="flex items-center gap-4">
-                <div className="bg-purple-100 p-3 rounded-xl">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Grade Details</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">{gradingDetailsModal.gradeDetails.student_name || 'Student'}</span>
-                    <span className="mx-2">•</span>
-                    <span>Assignment Grade</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setGradingDetailsModal({
-                  isOpen: false,
-                  studentId: null,
-                  studentName: '',
-                  gradeDetails: null
-                })}
-                className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-10rem)]">
-              <div className="space-y-6">
-                {/* Grade Summary */}
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-purple-900">Grade Summary</h4>
-                    <div className="text-2xl font-bold text-purple-600">
-                      {gradingDetailsModal.gradeDetails.points_earned || 'N/A'} / {gradingDetailsModal.gradeDetails.max_points || 'N/A'}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-purple-700 font-medium">Percentage:</span>
-                      <span className="ml-2 text-purple-900">{gradingDetailsModal.gradeDetails.percentage ? `${gradingDetailsModal.gradeDetails.percentage}%` : 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-purple-700 font-medium">Assignment:</span>
-                      <span className="ml-2 text-purple-900">{gradingDetailsModal.gradeDetails.assignment_title || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feedback Details */}
-                {gradingDetailsModal.gradeDetails.feedback && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">Feedback</h4>
-                    <div className="prose prose-sm max-w-none">
-                      <pre className="whitespace-pre-wrap font-sans text-gray-700">
-                        {gradingDetailsModal.gradeDetails.feedback}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {/* Grading Date */}
-                {gradingDetailsModal.gradeDetails.graded_date && (
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Graded on:</span> {new Date(gradingDetailsModal.gradeDetails.graded_date).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
-              <button
-                onClick={() => setGradingDetailsModal({
-                  isOpen: false,
-                  studentId: null,
-                  studentName: '',
-                  gradeDetails: null
-                })}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors font-medium"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  if (gradingDetailsModal.studentId) {
-                    handleGradeUpdate(gradingDetailsModal.studentId);
-                  }
-                }}
-                disabled={updatingGrade}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium flex items-center space-x-2"
-              >
-                {updatingGrade ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Updating...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                    <span>Update Grade</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* File Preview Modal */}
-      {filePreview.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center gap-4">
-                <div className="bg-blue-100 p-3 rounded-xl">
-                  <Image className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Preview Files</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {filePreview.files.length} file{filePreview.files.length !== 1 ? 's' : ''} selected for {filePreview.studentName}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={cancelUploadPreview}
-                className="text-gray-400 hover:text-gray-600 p-2"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Preview Content */}
-            <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
-              {filePreview.files.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filePreview.files.map((file, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-3 border relative">
-                      {/* Remove button for individual files */}
-                      <button
-                        onClick={() => removeFileFromPreview(index)}
-                        className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 transition-colors"
-                        title="Remove this file"
-                      >
-                        ×
-                      </button>
-
-                      {/* Image Preview */}
-                      <div className="aspect-square bg-white rounded-lg mb-2 overflow-hidden">
-                        <img
-                          src={filePreview.previews[index]}
-                          alt={file.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-
-                      {/* File Info */}
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-gray-900 truncate" title={file.name}>
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {file.type.split('/')[1].toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add More Files Button */}
-              <div className="mt-6 flex justify-center">
-                <div className="relative">
-                  <input
-                    type="file"
-                    id={`add-more-files-${filePreview.studentId}`}
-                    multiple
-                    accept="image/*"
-                    onChange={handleAddMoreFiles}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center space-x-2 transition-colors">
-                    <Upload className="w-4 h-4" />
-                    <span>Add More Files</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* File Summary */}
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-blue-900">Upload Summary</span>
-                </div>
-                <div className="text-sm text-blue-800 space-y-1">
-                  <p>Student: <span className="font-medium">{filePreview.studentName}</span></p>
-                  <p>Files: <span className="font-medium">{filePreview.files.length} image{filePreview.files.length !== 1 ? 's' : ''}</span></p>
-                  <p>Total Size: <span className="font-medium">
-                    {(filePreview.files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(2)} MB
-                  </span></p>
-                  <p className="text-xs text-blue-600 mt-2">
-                    These files will be combined into a single PDF for grading.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end space-x-3 p-6 border-t bg-gray-50">
-              <button
-                onClick={cancelUploadPreview}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors text-sm font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmUploadWithPreview}
-                disabled={isProcessing || filePreview.files.length === 0}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium flex items-center space-x-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Uploading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    <span>Upload & Create PDF ({filePreview.files.length} files)</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

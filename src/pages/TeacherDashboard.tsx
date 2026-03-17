@@ -158,40 +158,6 @@ export const TeacherDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Dashboard
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                AI-powered insights for {user?.name || 'Educator'}
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              {/* <div className="bg-blue-100 px-3 py-1 rounded-full">
-                <span className="text-blue-800 text-sm font-medium">
-                  {backendConnected ? 'Backend Connected' : 'K.A.N.A. Active'}
-                </span>
-              </div>
-              {backendConnected && teacherData && (
-                <div className="bg-green-100 px-3 py-1 rounded-full">
-                  <span className="text-green-800 text-sm font-medium">
-                    {teacherData.name || 'Teacher'}
-                  </span>
-                </div> */}
-
-              <button
-                onClick={() => navigate('/')}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                Back to Brain Ink
-              </button>
-            </div>
-          </div>
-        </header>
-
         {/* Content Area */}
         <main className="flex-1 overflow-auto">
           {renderContent()}
