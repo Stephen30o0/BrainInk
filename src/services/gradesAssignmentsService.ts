@@ -47,6 +47,24 @@ export interface Grade {
     source?: string; // 'manual' | 'whatsapp' | 'ai'
 }
 
+export interface GradeDetail {
+    id: number;
+    assignment_id: number;
+    assignment_title: string;
+    assignment_description?: string;
+    assignment_rubric?: string;
+    student_id: number;
+    student_name: string;
+    points_earned: number;
+    max_points: number;
+    percentage: number;
+    feedback?: string;
+    graded_date?: string;
+    teacher_id?: number;
+    ai_generated?: boolean;
+    ai_confidence?: number;
+}
+
 export interface StudentGradeReport {
     student_id: number;
     student_name: string;
@@ -305,6 +323,22 @@ class GradesAssignmentsService {
         } catch (error) {
             console.error('❌ Failed to get assignment grades:', error);
             return [];
+        }
+    }
+
+    /**
+     * Get full grade details for a specific grade entry
+     */
+    public async getGradeDetails(gradeId: number): Promise<GradeDetail> {
+        try {
+            console.log('📄 Getting grade details:', gradeId);
+            const response = await this.makeAuthenticatedRequest(`/study-area/academic/grades/view/${gradeId}`);
+            const detail = await response.json();
+            console.log('✅ Retrieved grade details');
+            return detail;
+        } catch (error) {
+            console.error('❌ Failed to get grade details:', error);
+            throw error;
         }
     }
 

@@ -1,572 +1,654 @@
-import React, { useState, useEffect } from 'react';
-import { User, Send, TrendingUp, Brain, Calendar, Target, Loader2, AlertTriangle } from 'lucide-react';
-import { teacherService } from '../../services/teacherService';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+    Send,
+    TrendingUp,
+    TrendingDown,
+    Brain,
+    Calendar,
+    Target,
+    Loader2,
+    AlertTriangle,
+    Users,
+    Filter,
+    Search,
+    RefreshCw,
+    BookOpen,
+    Award,
+    Mail
+} from 'lucide-react';
+import { teacherService, type Student } from '../../services/teacherService';
 
-interface StudentProfile {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string;
-  joinDate: string;
-  overallGrade: number;
-  subjects: {
-    name: string;
+interface StudentGrade {
+    id: string;
+    assignmentTitle: string;
     score: number;
-    progress: number;
-    recentNotes: string[];
-    weakAreas: string[];
-    strengths: string[];
-  }[];
-  learningStyle: string;
-  goals: string[];
-  recentActivity: {
-    date: string;
-    action: string;
-    subject: string;
-    score?: number;
-  }[];
-  kanaInsights: {
-    type: 'strength' | 'weakness' | 'recommendation';
-    message: string;
-    priority: 'high' | 'medium' | 'low';
-  }[];
+    maxPoints: number;
+    percentage: number;
+    feedback?: string;
+    gradedAt?: string;
+    gradedBy?: string;
+}
+
+interface SubjectSummary {
+    name: string;
+    studentsCount: number;
 }
 
 export const StudentProfiles: React.FC = () => {
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
-  const [showImprovementPlan, setShowImprovementPlan] = useState(false);
-  const [studentProfiles, setStudentProfiles] = useState<StudentProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [studentGrades, setStudentGrades] = useState<any[]>([]);
-  const [loadingGrades, setLoadingGrades] = useState(false);
+    const [students, setStudents] = useState<Student[]>([]);
+    const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'excellent' | 'good' | 'needs_attention' | 'struggling'>('all');
+    const [sortBy, setSortBy] = useState<'name' | 'score' | 'status'>('name');
+    const [showImprovementPlan, setShowImprovementPlan] = useState(false);
 
-  useEffect(() => {
-    loadStudentProfiles();
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Listen for class student changes
-    const handleClassStudentsChanged = (event: any) => {
-      console.log('Class students changed, refreshing student profiles...', event.detail);
-      setTimeout(() => loadStudentProfiles(), 500); // Small delay to ensure data is saved
+    const [studentGrades, setStudentGrades] = useState<StudentGrade[]>([]);
+    const [loadingGrades, setLoadingGrades] = useState(false);
+
+    const getOverallGrade = (student: Student): number => {
+        const xp = student.stats?.total_xp ?? student.progress?.total_xp ?? student.totalXP ?? 0;
+        return Math.min(100, Math.max(0, Math.round(xp / 20)));
     };
 
-    // Listen for grade updates
-    const handleGradesUpdated = (event: any) => {
-      console.log('Student grades updated, refreshing profiles...', event.detail);
-      loadStudentProfiles();
-      if (selectedStudent) {
-        loadStudentGrades(selectedStudent);
-      }
+    const getStudentStatus = (student: Student): 'excellent' | 'good' | 'needs_attention' | 'struggling' => {
+        const score = getOverallGrade(student);
+        if (score >= 90) return 'excellent';
+        if (score >= 80) return 'good';
+        if (score >= 65) return 'needs_attention';
+        return 'struggling';
     };
 
-    window.addEventListener('classStudentsChanged', handleClassStudentsChanged);
-    window.addEventListener('studentGradesUpdated', handleGradesUpdated);
-
-    return () => {
-      window.removeEventListener('classStudentsChanged', handleClassStudentsChanged);
-      window.removeEventListener('studentGradesUpdated', handleGradesUpdated);
+    const getStudentTrend = (student: Student): 'up' | 'down' | 'stable' => {
+        const streak = student.progress?.login_streak ?? 0;
+        if (streak >= 7) return 'up';
+        if (streak <= 1) return 'down';
+        return 'stable';
     };
-  }, [selectedStudent]);
 
-  // Load grades when student is selected
-  useEffect(() => {
-    if (selectedStudent) {
-      loadStudentGrades(selectedStudent);
-    }
-  }, [selectedStudent]);
+    const loadStudents = async () => {
+        try {
+            setLoading(true);
+            setError(null);
 
-  const loadStudentProfiles = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('🔄 Loading student profiles...');
+            const data = await teacherService.getAllStudents();
+            setStudents(data);
 
-      const students = await teacherService.getAllStudents();
-      console.log(`👥 Retrieved ${students?.length || 0} students for profiles`);
+            if (data.length > 0 && !selectedStudentId) {
+                setSelectedStudentId(data[0].id.toString());
+            }
+        } catch (err) {
+            console.error('Failed to load students:', err);
+            setError('Failed to load class and student data. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      if (!students || students.length === 0) {
-        console.log('⚠️ No students found for profiles');
-        setStudentProfiles([]);
-        return;
-      }
+    const loadStudentGrades = async (studentId: string) => {
+        try {
+            setLoadingGrades(true);
 
-      // Transform BrainInk students to StudentProfile format using optimized approach
-      const profiles: StudentProfile[] = await Promise.all(
-        students.map(async (student) => {
-          console.log(`🎯 Creating profile for: ${student.fname} ${student.lname} (ID: ${student.id})`);
+            const assignments = await teacherService.getMyAssignments();
+            if (!assignments || assignments.length === 0) {
+                setStudentGrades([]);
+                return;
+            }
 
-          // Generate realistic mock data instead of trying to access forbidden endpoints
-          const mockGradeAverage = 70 + Math.random() * 25; // 70-95% range
-          const roundedAverage = Math.round(mockGradeAverage);
-          const overallGrade = student.totalXP ? Math.min(100, Math.max(50, Math.round(student.totalXP / 10))) : roundedAverage;
+            const gradesPerAssignment = await Promise.all(
+                assignments.map(async (assignment: any) => {
+                    const assignmentId = Number(assignment.id);
+                    if (!Number.isFinite(assignmentId)) {
+                        return [] as any[];
+                    }
+                    const grades = await teacherService.getMyAssignmentGrades(assignmentId);
+                    return grades.map((grade) => ({ grade, assignment }));
+                })
+            );
 
-          // Get teacher's subjects for realistic subject display
-          const teacherSubjects = await teacherService.getMySubjects();
-          console.log(`📚 Teacher subjects for ${student.fname}: ${teacherSubjects?.length || 0}`);
+            const merged = gradesPerAssignment
+                .flat()
+                .filter(({ grade }) => Number(grade.student_id) === Number(studentId))
+                .map(({ grade, assignment }): StudentGrade => {
+                    const score = Number(grade.score ?? grade.points_earned ?? 0);
+                    const maxPoints = Number(grade.max_points ?? assignment.max_points ?? assignment.maxPoints ?? 0);
+                    const safeMax = maxPoints > 0 ? maxPoints : 1;
 
-          // Create subjects from teacher's available subjects
-          const subjects = teacherSubjects?.slice(0, 3).map((subject: any, index: number) => {
-            const baseScore = overallGrade + (Math.random() - 0.5) * 20;
-            const subjectScore = Math.max(40, Math.min(100, Math.round(baseScore)));
+                    return {
+                        id: `${assignment.id}-${grade.id}`,
+                        assignmentTitle: assignment.title || grade.assignment?.title || `Assignment ${assignment.id}`,
+                        score,
+                        maxPoints: safeMax,
+                        percentage: Math.round((score / safeMax) * 100),
+                        feedback: grade.feedback || undefined,
+                        gradedAt: grade.graded_date || grade.gradedAt || assignment.created_date,
+                        gradedBy: grade.graded_by ? `Teacher #${grade.graded_by}` : 'Teacher'
+                    };
+                })
+                .sort((a, b) => {
+                    const aDate = a.gradedAt ? new Date(a.gradedAt).getTime() : 0;
+                    const bDate = b.gradedAt ? new Date(b.gradedAt).getTime() : 0;
+                    return bDate - aDate;
+                });
 
-            return {
-              name: subject.name || `Subject ${index + 1}`,
-              score: subjectScore,
-              progress: Math.min(100, Math.max(0, subjectScore)),
-              recentNotes: [
-                `Recent work in ${subject.name || `Subject ${index + 1}`}`,
-                `Assignment feedback available`,
-                `Progress tracking active`
-              ],
-              weakAreas: student.weaknesses?.slice(0, 2) || ['Practice needed', 'Time management'],
-              strengths: student.strengths?.slice(0, 2) || ['Shows effort', 'Regular participation']
-            };
-          }) || [
-              {
-                name: 'General Study',
-                score: overallGrade,
-                progress: Math.min(100, Math.max(0, overallGrade)),
-                recentNotes: ['Recent assignment completed', 'Feedback provided', 'Progress tracked'],
-                weakAreas: student.weaknesses?.slice(0, 2) || ['Assessment completion'],
-                strengths: student.strengths?.slice(0, 2) || ['Regular participation']
-              }
-            ];
+            setStudentGrades(merged);
+        } catch (err) {
+            console.error('Failed to load student grades:', err);
+            setStudentGrades([]);
+        } finally {
+            setLoadingGrades(false);
+        }
+    };
 
-          const result = {
-            id: student.id.toString(),
-            name: `${student.fname} ${student.lname}`,
-            email: student.email || `${student.username}@brainink.com`,
-            avatar: student.avatar || '👨‍🎓',
-            joinDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Random date within last year
-            overallGrade,
-            subjects: subjects,
-            learningStyle: student.learningStyle || 'Adaptive',
-            goals: ['Improve performance', 'Complete learning objectives'],
-            recentActivity: student.recentActivity?.map(activity => ({
-              date: new Date(activity.timestamp).toISOString().split('T')[0],
-              action: activity.title,
-              subject: activity.subject || 'General',
-              score: activity.score
-            })) || [
-                {
-                  date: new Date().toISOString().split('T')[0],
-                  action: 'Active in BrainInk',
-                  subject: 'General'
+    useEffect(() => {
+        loadStudents();
+
+        const handleClassStudentsChanged = () => {
+            setTimeout(() => {
+                loadStudents();
+            }, 500);
+        };
+
+        const handleGradesUpdated = () => {
+            loadStudents();
+            if (selectedStudentId) {
+                loadStudentGrades(selectedStudentId);
+            }
+        };
+
+        window.addEventListener('classStudentsChanged', handleClassStudentsChanged as EventListener);
+        window.addEventListener('studentGradesUpdated', handleGradesUpdated as EventListener);
+
+        return () => {
+            window.removeEventListener('classStudentsChanged', handleClassStudentsChanged as EventListener);
+            window.removeEventListener('studentGradesUpdated', handleGradesUpdated as EventListener);
+        };
+    }, [selectedStudentId]);
+
+    useEffect(() => {
+        if (selectedStudentId) {
+            loadStudentGrades(selectedStudentId);
+        }
+    }, [selectedStudentId]);
+
+    const filteredStudents = useMemo(() => {
+        return students
+            .filter((student) => {
+                const fullName = `${student.fname} ${student.lname}`.toLowerCase();
+                const matchesSearch = fullName.includes(searchTerm.toLowerCase());
+                const matchesFilter = filterStatus === 'all' || getStudentStatus(student) === filterStatus;
+                return matchesSearch && matchesFilter;
+            })
+            .sort((a, b) => {
+                if (sortBy === 'score') {
+                    return getOverallGrade(b) - getOverallGrade(a);
                 }
-              ],
-            kanaInsights: [
-              {
-                type: 'strength' as const,
-                message: student.strengths?.join(', ') || 'Consistent participation',
-                priority: 'medium' as const
-              },
-              {
-                type: 'recommendation' as const,
-                message: `Learning style: ${student.learningStyle || 'Adaptive'} - Continue with current approach`,
-                priority: 'low' as const
-              },
-              {
-                type: 'recommendation' as const,
-                message: `Current estimated average: ${overallGrade}% - ${subjects.length} subjects tracked`,
-                priority: 'medium' as const
-              }
-            ]
-          };
+                if (sortBy === 'status') {
+                    const statusOrder = { excellent: 0, good: 1, needs_attention: 2, struggling: 3 };
+                    return statusOrder[getStudentStatus(a)] - statusOrder[getStudentStatus(b)];
+                }
+                return `${a.fname} ${a.lname}`.localeCompare(`${b.fname} ${b.lname}`);
+            });
+    }, [students, searchTerm, filterStatus, sortBy]);
 
-          console.log(`✅ Created profile for ${result.name}: ${result.overallGrade}% average, ${result.subjects.length} subjects`);
-          return result;
-        })
-      );
+    const selectedStudent = useMemo(
+        () => students.find((student) => student.id.toString() === selectedStudentId),
+        [students, selectedStudentId]
+    );
 
-      setStudentProfiles(profiles);
-      if (profiles.length > 0 && !selectedStudent) {
-        setSelectedStudent(profiles[0].id);
-      }
+    const classStats = useMemo(() => {
+        const total = students.length;
+        const excellent = students.filter((student) => getStudentStatus(student) === 'excellent').length;
+        const good = students.filter((student) => getStudentStatus(student) === 'good').length;
+        const needsAttention = students.filter((student) => getStudentStatus(student) === 'needs_attention').length;
+        const struggling = students.filter((student) => getStudentStatus(student) === 'struggling').length;
+        const averageScore = total > 0 ? Math.round(students.reduce((sum, student) => sum + getOverallGrade(student), 0) / total) : 0;
 
-      console.log(`✅ Student profiles loading complete! Generated ${profiles.length} profiles`);
+        return { total, excellent, good, needsAttention, struggling, averageScore };
+    }, [students]);
 
-    } catch (err) {
-      console.error('❌ Error loading student profiles:', err);
-      setError('Failed to load student profiles. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStudentGrades = async (studentId: string) => {
-    try {
-      setLoadingGrades(true);
-      console.log(`🔄 Loading grades for student ${studentId}...`);
-
-      // Instead of trying to access individual student grades (which causes 403),
-      // we'll use teacher-authorized assignment data and create realistic grade display
-      const myAssignments = await teacherService.getMyAssignments();
-      console.log(`📚 Teacher has ${myAssignments?.length || 0} assignments`);
-
-      if (myAssignments && myAssignments.length > 0) {
-        // Create realistic mock grades based on teacher's assignments
-        const mockGrades = myAssignments.slice(0, 8).map((assignment: any, index: number) => {
-          const baseScore = 70 + Math.random() * 25; // 70-95% range
-          const maxPoints = assignment.maxPoints || 100;
-          const actualScore = Math.round((baseScore / 100) * maxPoints);
-
-          return {
-            id: assignment.id || index,
-            title: assignment.title || `Assignment ${index + 1}`,
-            grade: actualScore,
-            maxPoints: maxPoints,
-            gradedBy: 'K.A.N.A. AI',
-            gradedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(), // Random date within last 30 days
-            feedback: assignment.description ?
-              `Good work on ${assignment.title}. ${assignment.description.substring(0, 100)}...` :
-              `Well done on this assignment. Shows understanding of key concepts. Keep up the good work!`,
-            gradingCriteria: [
-              { category: 'Understanding', score: Math.round(actualScore * 0.4), maxScore: Math.round(maxPoints * 0.4) },
-              { category: 'Accuracy', score: Math.round(actualScore * 0.35), maxScore: Math.round(maxPoints * 0.35) },
-              { category: 'Presentation', score: Math.round(actualScore * 0.25), maxScore: Math.round(maxPoints * 0.25) }
-            ]
-          };
+    const subjectSummaries = useMemo(() => {
+        const counts: Record<string, number> = {};
+        students.forEach((student) => {
+            (student.currentSubjects || []).forEach((subject) => {
+                counts[subject] = (counts[subject] || 0) + 1;
+            });
         });
 
-        setStudentGrades(mockGrades);
-        console.log(`✅ Generated ${mockGrades.length} mock grades for student ${studentId}`);
-      } else {
-        setStudentGrades([]);
-        console.log('📝 No assignments available for grade generation');
-      }
+        return Object.entries(counts)
+            .map(([name, studentsCount]) => ({ name, studentsCount } as SubjectSummary))
+            .sort((a, b) => b.studentsCount - a.studentsCount)
+            .slice(0, 6);
+    }, [students]);
 
-    } catch (error) {
-      console.error('❌ Failed to load student grades:', error);
-      setStudentGrades([]);
-    } finally {
-      setLoadingGrades(false);
-    }
-  };
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'excellent': return 'bg-green-100 text-green-800 border-green-200';
+            case 'good': return 'bg-blue-100 text-blue-800 border-blue-200';
+            case 'needs_attention': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            case 'struggling': return 'bg-red-100 text-red-800 border-red-200';
+            default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+    };
 
-  const currentStudent = studentProfiles.find(s => s.id === selectedStudent);
+    const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
+        if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-600" />;
+        if (trend === 'down') return <TrendingDown className="w-4 h-4 text-red-600" />;
+        return <div className="w-4 h-4 rounded-full bg-gray-400" />;
+    };
 
-  const handleSendMessage = () => {
-    console.log('Sending message to student:', selectedStudent);
-  };
+    const handleSendMessage = () => {
+        if (selectedStudent) {
+            console.log('Send message to:', `${selectedStudent.fname} ${selectedStudent.lname}`);
+        }
+    };
 
-  const generateImprovementPlan = () => {
-    setShowImprovementPlan(true);
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'border-red-200 bg-red-50 text-red-800';
-      case 'medium': return 'border-yellow-200 bg-yellow-50 text-yellow-800';
-      case 'low': return 'border-green-200 bg-green-50 text-green-800';
-      default: return 'border-gray-200 bg-gray-50 text-gray-800';
-    }
-  };
-
-  const getInsightIcon = (type: string) => {
-    switch (type) {
-      case 'strength': return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'weakness': return <AlertTriangle className="w-4 h-4 text-red-600" />;
-      case 'recommendation': return <Brain className="w-4 h-4 text-blue-600" />;
-      default: return <User className="w-4 h-4 text-gray-600" />;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading student profiles...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-4" />
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={loadStudentProfiles}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentStudent) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center py-12">
-          <p className="text-gray-600">No student selected</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Student Profiles</h2>
-          <p className="text-gray-600 mt-1">Detailed analytics and AI insights for individual students</p>
-        </div>
-        <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
-          <Brain className="w-5 h-5 text-blue-600" />
-          <span className="text-blue-800 font-medium">K.A.N.A. Analysis</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Student Selection Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Students</h3>
-            <div className="space-y-2">
-              {studentProfiles.map((student) => (
-                <button
-                  key={student.id}
-                  onClick={() => setSelectedStudent(student.id)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedStudent === student.id
-                      ? 'border-blue-200 bg-blue-50 text-blue-900'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{student.avatar}</span>
-                    <div>
-                      <p className="font-medium">{student.name}</p>
-                      <p className="text-sm text-gray-600">{student.overallGrade}% avg</p>
+    if (loading) {
+        return (
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                        <p className="text-gray-600">Loading class and student data...</p>
                     </div>
-                  </div>
-                </button>
-              ))}
+                </div>
             </div>
-          </div>
-        </div>
+        );
+    }
 
-        {/* Student Details */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Student Header */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+    if (error) {
+        return (
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-4" />
+                        <p className="text-red-600 mb-4">{error}</p>
+                        <button
+                            onClick={loadStudents}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!selectedStudent) {
+        return (
+            <div className="p-6 space-y-6">
+                <div className="text-center py-12">
+                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
+                    <p className="text-gray-600">Add students to your class to view combined insights.</p>
+                </div>
+            </div>
+        );
+    }
+
+    const selectedStatus = getStudentStatus(selectedStudent);
+    const selectedTrend = getStudentTrend(selectedStudent);
+    const selectedGrade = getOverallGrade(selectedStudent);
+
+    return (
+        <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <span className="text-4xl">{currentStudent.avatar}</span>
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{currentStudent.name}</h3>
-                  <p className="text-gray-600">{currentStudent.email}</p>
-                  <div className="flex items-center space-x-4 mt-2">
-                    <span className="flex items-center text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Joined {currentStudent.joinDate}
-                    </span>
-                    <span className="text-2xl font-bold text-blue-600">{currentStudent.overallGrade}%</span>
-                  </div>
+                    <h2 className="text-3xl font-bold text-gray-900">Class & Student Profiles</h2>
+                    <p className="text-gray-600 mt-1">Unified class overview and per-student performance using live teacher data</p>
                 </div>
-              </div>
-              <div className="flex space-x-2">
                 <button
-                  onClick={handleSendMessage}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    onClick={loadStudents}
+                    disabled={loading}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Refresh data"
                 >
-                  <Send className="w-4 h-4 mr-2" />
-                  Message
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
                 </button>
-                <button
-                  onClick={generateImprovementPlan}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  <Target className="w-4 h-4 mr-2" />
-                  Improvement Plan
-                </button>
-              </div>
             </div>
-          </div>
 
-          {/* Subject Performance */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Subject Performance</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentStudent.subjects.map((subject, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="font-medium text-gray-900">{subject.name}</h5>
-                    <span className="text-lg font-bold text-blue-600">{subject.score}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${subject.progress}%` }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm font-medium text-green-700">Strengths:</p>
-                      <p className="text-sm text-gray-600">{subject.strengths.join(', ')}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-red-700">Areas to improve:</p>
-                      <p className="text-sm text-gray-600">{subject.weakAreas.join(', ')}</p>
-                    </div>
-                  </div>
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-gray-900">{classStats.total}</div>
+                    <div className="text-sm text-gray-600">Total Students</div>
                 </div>
-              ))}
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-green-600">{classStats.excellent}</div>
+                    <div className="text-sm text-gray-600">Excellent</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{classStats.good}</div>
+                    <div className="text-sm text-gray-600">Good</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-yellow-600">{classStats.needsAttention}</div>
+                    <div className="text-sm text-gray-600">Needs Attention</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-red-600">{classStats.struggling}</div>
+                    <div className="text-sm text-gray-600">Struggling</div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+                    <div className="text-2xl font-bold text-purple-600">{classStats.averageScore}%</div>
+                    <div className="text-sm text-gray-600">Class Average</div>
+                </div>
             </div>
-          </div>
 
-          {/* Graded Assignments */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-semibold text-gray-900">Graded Assignments</h4>
-              {loadingGrades && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
-            </div>
-
-            {studentGrades.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p>No graded assignments yet</p>
-                <p className="text-sm">Upload and grade student work to see results here</p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {studentGrades.map((grade, index) => (
-                  <div key={grade.id || index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900">{grade.title}</h5>
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-lg font-bold ${(grade.grade / grade.maxPoints) >= 0.9 ? 'text-green-600' :
-                            (grade.grade / grade.maxPoints) >= 0.8 ? 'text-blue-600' :
-                              (grade.grade / grade.maxPoints) >= 0.7 ? 'text-yellow-600' :
-                                'text-red-600'
-                          }`}>
-                          {grade.grade}/{grade.maxPoints}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          ({Math.round((grade.grade / grade.maxPoints) * 100)}%)
-                        </span>
-                      </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <div className="relative flex-1">
+                        <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search students..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                     </div>
 
-                    <div className="text-sm text-gray-600 mb-2">
-                      Graded by {grade.gradedBy} on {new Date(grade.gradedAt).toLocaleDateString()}
+                    <div className="flex items-center space-x-2">
+                        <Filter className="w-5 h-5 text-gray-400" />
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'excellent' | 'good' | 'needs_attention' | 'struggling')}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="all">All Students</option>
+                            <option value="excellent">Excellent</option>
+                            <option value="good">Good</option>
+                            <option value="needs_attention">Needs Attention</option>
+                            <option value="struggling">Struggling</option>
+                        </select>
                     </div>
 
-                    {grade.feedback && (
-                      <div className="bg-blue-50 p-3 rounded-lg text-sm text-gray-700">
-                        {grade.feedback.length > 150
-                          ? `${grade.feedback.substring(0, 150)}...`
-                          : grade.feedback}
-                      </div>
-                    )}
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as 'name' | 'score' | 'status')}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="name">Sort by Name</option>
+                        <option value="score">Sort by Score</option>
+                        <option value="status">Sort by Status</option>
+                    </select>
+                </div>
+            </div>
 
-                    {grade.gradingCriteria && grade.gradingCriteria.length > 0 && (
-                      <div className="mt-3 space-y-1">
-                        <p className="text-xs font-medium text-gray-700">Grade Breakdown:</p>
-                        {grade.gradingCriteria.slice(0, 3).map((criteria: any, criteriaIndex: number) => (
-                          <div key={criteriaIndex} className="flex justify-between text-xs text-gray-600">
-                            <span>{criteria.category}</span>
-                            <span>{criteria.score}/{criteria.maxScore}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Students</h3>
+                        <div className="space-y-2 max-h-[32rem] overflow-y-auto">
+                            {filteredStudents.map((student) => {
+                                const status = getStudentStatus(student);
+                                const grade = getOverallGrade(student);
+
+                                return (
+                                    <button
+                                        key={student.id}
+                                        onClick={() => setSelectedStudentId(student.id.toString())}
+                                        className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedStudentId === student.id.toString()
+                                            ? 'border-blue-200 bg-blue-50 text-blue-900'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <div className="flex items-center space-x-3">
+                                            <span className="text-2xl">{student.avatar || '👨‍🎓'}</span>
+                                            <div>
+                                                <p className="font-medium">{student.fname} {student.lname}</p>
+                                                <p className="text-sm text-gray-600">{grade}% avg</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2">
+                                            <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full border ${getStatusColor(status)}`}>
+                                                {status.replace('_', ' ').toUpperCase()}
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+
+                            {filteredStudents.length === 0 && (
+                                <p className="text-sm text-gray-500">No students match your filters.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">Subject Coverage</h3>
+                        {subjectSummaries.length === 0 ? (
+                            <p className="text-sm text-gray-500">No subject assignments found.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {subjectSummaries.map((subject) => (
+                                    <div key={subject.name} className="flex items-center justify-between text-sm bg-gray-50 px-3 py-2 rounded-lg">
+                                        <span className="font-medium text-gray-800">{subject.name}</span>
+                                        <span className="text-gray-600">{subject.studentsCount} student{subject.studentsCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="lg:col-span-3 space-y-6">
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                                <span className="text-4xl">{selectedStudent.avatar || '👨‍🎓'}</span>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900">{selectedStudent.fname} {selectedStudent.lname}</h3>
+                                    <p className="text-gray-600">{selectedStudent.email || selectedStudent.username}</p>
+                                    <div className="flex items-center space-x-4 mt-2">
+                                        <span className="flex items-center text-sm text-gray-600">
+                                            <Calendar className="w-4 h-4 mr-1" />
+                                            Last Active: {selectedStudent.lastActive || 'N/A'}
+                                        </span>
+                                        <span className="text-2xl font-bold text-blue-600">{selectedGrade}%</span>
+                                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(selectedStatus)}`}>
+                                            {selectedStatus.replace('_', ' ').toUpperCase()}
+                                        </span>
+                                        {getTrendIcon(selectedTrend)}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={handleSendMessage}
+                                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Message
+                                </button>
+                                <button
+                                    onClick={() => setShowImprovementPlan(true)}
+                                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    <Target className="w-4 h-4 mr-2" />
+                                    Improvement Plan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Subjects</h4>
+                        {selectedStudent.currentSubjects && selectedStudent.currentSubjects.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {selectedStudent.currentSubjects.map((subject) => (
+                                    <span key={subject} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-800 border border-blue-200">
+                                        <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+                                        {subject}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500">No subjects assigned.</p>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold text-gray-900">Graded Assignments</h4>
+                            {loadingGrades && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
+                        </div>
+
+                        {studentGrades.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <p>No graded assignments found for this student.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                                {studentGrades.map((grade) => (
+                                    <div key={grade.id} className="border border-gray-200 rounded-lg p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h5 className="font-medium text-gray-900">{grade.assignmentTitle}</h5>
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`text-lg font-bold ${(grade.score / grade.maxPoints) >= 0.9 ? 'text-green-600' :
+                                                    (grade.score / grade.maxPoints) >= 0.8 ? 'text-blue-600' :
+                                                        (grade.score / grade.maxPoints) >= 0.7 ? 'text-yellow-600' :
+                                                            'text-red-600'
+                                                    }`}>
+                                                    {grade.score}/{grade.maxPoints}
+                                                </span>
+                                                <span className="text-sm text-gray-500">({grade.percentage}%)</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-sm text-gray-600 mb-2">
+                                            Graded by {grade.gradedBy || 'Teacher'}
+                                            {grade.gradedAt ? ` on ${new Date(grade.gradedAt).toLocaleDateString()}` : ''}
+                                        </div>
+
+                                        {grade.feedback && (
+                                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-gray-700">
+                                                {grade.feedback.length > 180 ? `${grade.feedback.substring(0, 180)}...` : grade.feedback}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">K.A.N.A. Data Insights</h4>
+                        <div className="space-y-3">
+                            {(selectedStudent.strengths && selectedStudent.strengths.length > 0) && (
+                                <div className="p-4 rounded-lg border border-green-200 bg-green-50 text-green-800">
+                                    <div className="flex items-start space-x-3">
+                                        <TrendingUp className="w-4 h-4 mt-0.5" />
+                                        <div>
+                                            <p className="font-medium">Strengths</p>
+                                            <p className="text-sm mt-1">{selectedStudent.strengths.join(', ')}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(selectedStudent.weaknesses && selectedStudent.weaknesses.length > 0) && (
+                                <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-800">
+                                    <div className="flex items-start space-x-3">
+                                        <AlertTriangle className="w-4 h-4 mt-0.5" />
+                                        <div>
+                                            <p className="font-medium">Areas to Improve</p>
+                                            <p className="text-sm mt-1">{selectedStudent.weaknesses.join(', ')}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+                                <div className="flex items-start space-x-3">
+                                    <Brain className="w-4 h-4 mt-0.5" />
+                                    <div>
+                                        <p className="font-medium">Learning Style</p>
+                                        <p className="text-sm mt-1">{selectedStudent.learningStyle || 'Not available'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h4>
+                        {selectedStudent.recentActivity && selectedStudent.recentActivity.length > 0 ? (
+                            <div className="space-y-3">
+                                {selectedStudent.recentActivity.map((activity, index) => (
+                                    <div key={`${activity.id}-${index}`} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{activity.title}</p>
+                                            <p className="text-sm text-gray-600">{activity.subject || 'General'} • {new Date(activity.timestamp).toLocaleDateString()}</p>
+                                        </div>
+                                        {typeof activity.score === 'number' && (
+                                            <span className="font-medium text-blue-600">{activity.score}%</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500">No recent activity found.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {showImprovementPlan && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Improvement Plan for {selectedStudent.fname} {selectedStudent.lname}
+                        </h3>
+
+                        <div className="space-y-4">
+                            <div className="p-4 bg-blue-50 rounded-lg">
+                                <h4 className="font-medium text-blue-900 flex items-center">
+                                    <Award className="w-4 h-4 mr-2" />
+                                    Current Overall Score: {selectedGrade}%
+                                </h4>
+                                <p className="text-sm text-blue-700 mt-1">Learning style: {selectedStudent.learningStyle || 'Not available'}</p>
+                            </div>
+
+                            <div>
+                                <h4 className="font-medium text-gray-900 mb-2">Focus Areas</h4>
+                                {selectedStudent.weaknesses && selectedStudent.weaknesses.length > 0 ? (
+                                    <ul className="space-y-2">
+                                        {selectedStudent.weaknesses.map((weakness) => (
+                                            <li key={weakness} className="flex items-center space-x-2 text-sm text-gray-700">
+                                                <Target className="w-4 h-4 text-amber-600" />
+                                                <span>{weakness}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-sm text-gray-500">No specific weakness data available yet.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-3 mt-6">
+                            <button
+                                onClick={() => setShowImprovementPlan(false)}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={handleSendMessage}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                            >
+                                <Mail className="w-4 h-4 mr-2" />
+                                Send to Student
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
-          </div>
-
-          {/* K.A.N.A. Insights */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">K.A.N.A. AI Insights</h4>
-            <div className="space-y-3">
-              {currentStudent.kanaInsights.map((insight, index) => (
-                <div key={index} className={`p-4 rounded-lg border ${getPriorityColor(insight.priority)}`}>
-                  <div className="flex items-start space-x-3">
-                    {getInsightIcon(insight.type)}
-                    <div className="flex-1">
-                      <p className="font-medium capitalize">{insight.type}</p>
-                      <p className="text-sm mt-1">{insight.message}</p>
-                    </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-white bg-opacity-50">
-                      {insight.priority}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h4>
-            <div className="space-y-3">
-              {currentStudent.recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{activity.action}</p>
-                    <p className="text-sm text-gray-600">{activity.subject} • {activity.date}</p>
-                  </div>
-                  {activity.score && (
-                    <span className="font-medium text-blue-600">{activity.score}%</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
-      </div>
-
-      {/* Improvement Plan Modal */}
-      {showImprovementPlan && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              AI-Generated Improvement Plan for {currentStudent.name}
-            </h3>
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-900">Learning Style: {currentStudent.learningStyle}</h4>
-                <p className="text-sm text-blue-700 mt-1">
-                  Recommendations tailored to {currentStudent.learningStyle.toLowerCase()} learning preferences
-                </p>
-              </div>
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Suggested Actions:</h4>
-                <ul className="space-y-2">
-                  {currentStudent.goals.map((goal, index) => (
-                    <li key={index} className="flex items-center space-x-2">
-                      <Target className="w-4 h-4 text-green-600" />
-                      <span className="text-gray-700">{goal}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowImprovementPlan(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Close
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                Send Plan to Student
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
 };

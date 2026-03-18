@@ -9,7 +9,6 @@ import {
   LogOut,
   UserPlus,
   FileText,
-  CheckSquare,
   Map,
   ChevronLeft,
   ChevronRight,
@@ -48,27 +47,15 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
     },
     {
       id: 'class',
-      label: 'Class Overview',
+      label: 'Class & Students',
       icon: Users,
-      description: 'Class Performance'
-    },
-    {
-      id: 'students',
-      label: 'Student Profiles',
-      icon: User,
-      description: 'Individual Progress'
+      description: 'Overview + Profiles'
     },
     {
       id: 'assignments',
       label: 'Assignment Manager',
       icon: FileText,
       description: 'Create & Manage Assignments'
-    },
-    {
-      id: 'grading',
-      label: 'Grading Dashboard',
-      icon: CheckSquare,
-      description: 'Grade Assignments'
     },
     {
       id: 'syllabus',
@@ -136,7 +123,7 @@ export const TeacherSidebar: React.FC<TeacherSidebarProps> = ({
         <div className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = activeTab === item.id || (item.id === 'class' && activeTab === 'students');
 
             return (
               <button

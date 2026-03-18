@@ -3,7 +3,6 @@ export { AssignmentManager } from './AssignmentManager';
 export { GradingDashboard } from './GradingDashboard';
 
 // Export existing teacher components
-export { ClassOverview } from './ClassOverview';
 export { TeacherOverview } from './TeacherOverview';
 export { ClassManagement } from './ClassManagement';
 export { StudentProfiles } from './StudentProfiles';

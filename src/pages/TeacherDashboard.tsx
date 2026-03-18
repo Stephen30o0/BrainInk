@@ -3,13 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { TeacherSidebar } from '../components/teacher/TeacherSidebar';
 import { TeacherOverview } from '../components/teacher/TeacherOverview';
 import { UploadAnalyze } from '../components/teacher/UploadAnalyze';
-import { ClassOverview } from '../components/teacher/ClassOverview';
-import { StudentProfiles } from '../components/teacher/StudentProfiles';
+import { StudentProfiles } from '../components/teacher';
 import { AISuggestions } from '../components/teacher/AISuggestions';
 import { TeacherSettings } from '../components/teacher/TeacherSettings';
 import { ClassManagement } from '../components/teacher/ClassManagement';
 import { AssignmentManager } from '../components/teacher/AssignmentManager';
-import { GradingDashboard } from '../components/teacher/GradingDashboard';
 import { TeacherSyllabus } from '../components/teacher/TeacherSyllabus';
 import { Reports } from '../components/teacher/Reports';
 import { WhatsAppPanel } from '../components/teacher/WhatsAppPanel';
@@ -120,13 +118,13 @@ export const TeacherDashboard: React.FC = () => {
       case 'upload':
         return <UploadAnalyze />;
       case 'class':
-        return <ClassOverview />;
+        return <StudentProfiles />;
       case 'students':
         return <StudentProfiles />;
       case 'assignments':
         return <AssignmentManager />;
       case 'grading':
-        return <GradingDashboard />;
+        return <AssignmentManager />;
       case 'syllabus':
         return <TeacherSyllabus />;
       case 'ai-suggestions':

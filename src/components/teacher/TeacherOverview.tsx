@@ -1,978 +1,585 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Users,
-  AlertTriangle,
-  CheckCircle,
-  Brain,
-  School,
-  RefreshCw,
-  TrendingUp,
-  Clock,
-  BookOpen,
-  Award,
-  Target,
-  Activity,
-  BarChart3,
-  Upload,
-  FileText,
-  UserPlus
+    Users,
+    AlertTriangle,
+    ClipboardList,
+    BarChart3,
+    Upload,
+    FileText,
+    UserPlus,
+    Loader2
 } from 'lucide-react';
-import { teacherService, KanaRecommendation } from '../../services/teacherService';
+import { teacherService } from '../../services/teacherService';
 
-interface ClassMetrics {
-  totalStudents: number;
-  activeStudents: number;
-  completionRate: number;
-  strugglingStudents: number;
-  topPerformers: number;
+type DetailPanelKey = 'students' | 'attention' | 'todo' | 'performance' | null;
+
+interface TeacherStudent {
+    id: number;
+    name?: string;
+    fname?: string;
+    lname?: string;
+    user?: {
+        fname?: string;
+        lname?: string;
+        email?: string;
+    };
+    is_active?: boolean;
 }
 
-interface ClassroomData {
-  id: string;
-  name: string;
-  subjects: SubjectData[];
-  totalStudents: number;
+interface TeacherAssignment {
+    id: number;
+    title: string;
+    subject_id: number;
+    subject_name?: string;
+    max_points?: number;
+    due_date?: string;
+    graded_count?: number;
+    average_score?: number;
 }
 
-interface SubjectData {
-  id: string;
-  name: string;
-  average: number;
-  studentCount: number;
-  assignmentCount: number;
-  completionRate: number;
+interface SubjectWithStudents {
+    id: number;
+    name: string;
+    student_count?: number;
+    students?: Array<{ id?: number }>;
 }
 
-interface GradingMetrics {
-  totalAssignments: number;
-  totalGrades: number;
-  averageClassScore: number;
-  gradingProgress: number;
-  assignmentsNeedingGrading: number;
-  recentActivity: any[];
+interface AttentionGradeItem {
+    assignmentId: number;
+    assignmentTitle: string;
+    points: number;
+    maxPoints: number;
+    percentage: number;
+    gradedDate?: string;
 }
 
-interface RecentActivity {
-  id: string;
-  studentName: string;
-  action: string;
-  subject: string;
-  timestamp: string;
-  score?: number;
-  needsAttention: boolean;
+interface AttentionStudentItem {
+    studentId: number;
+    studentName: string;
+    grades: AttentionGradeItem[];
+    lowestPercentage: number;
 }
+
+interface TodoItem {
+    assignmentId: number;
+    assignmentTitle: string;
+    subjectName: string;
+    dueDate?: string;
+    pendingSubmissions: number;
+    gradedCount: number;
+    expectedCount: number;
+}
+
+const getStudentName = (student: TeacherStudent): string => {
+    return (
+        student.name ||
+        `${student.fname || ''} ${student.lname || ''}`.trim() ||
+        `${student.user?.fname || ''} ${student.user?.lname || ''}`.trim() ||
+        `Student ${student.id}`
+    );
+};
+
+const formatDate = (iso?: string): string => {
+    if (!iso) {
+        return 'No due date';
+    }
+    return new Date(iso).toLocaleDateString();
+};
 
 export const TeacherOverview: React.FC = () => {
-  const [metrics, setMetrics] = useState<ClassMetrics | null>(null);
-  const [gradingMetrics, setGradingMetrics] = useState<GradingMetrics | null>(null);
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [kanaInsights, setKanaInsights] = useState<KanaRecommendation[]>([]);
-  const [classroomData, setClassroomData] = useState<ClassroomData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [students, setStudents] = useState<TeacherStudent[]>([]);
+    const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+    const [subjectStudentCounts, setSubjectStudentCounts] = useState<Record<number, number>>({});
+    const [subjectCountsLoading, setSubjectCountsLoading] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Listen for class student changes
-    const handleClassStudentsChanged = (event: any) => {
-      console.log('Class students changed, refreshing dashboard...', event.detail);
-      setTimeout(() => loadDashboardData(), 500); // Small delay to ensure data is saved
+    const [activePanel, setActivePanel] = useState<DetailPanelKey>(null);
+
+    const [attentionLoading, setAttentionLoading] = useState(false);
+    const [attentionLoaded, setAttentionLoaded] = useState(false);
+    const [attentionStudents, setAttentionStudents] = useState<AttentionStudentItem[]>([]);
+
+    useEffect(() => {
+        loadDashboardData();
+
+        const handleClassStudentsChanged = () => {
+            loadDashboardData();
+        };
+
+        window.addEventListener('classStudentsChanged', handleClassStudentsChanged);
+        return () => window.removeEventListener('classStudentsChanged', handleClassStudentsChanged);
+    }, []);
+
+    const loadDashboardData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            // Load only essential data first for faster first paint.
+            const [studentsResult, assignmentsResult] = await Promise.allSettled([
+                teacherService.getMyStudentsAcrossSubjects(),
+                teacherService.getMyAssignments()
+            ]);
+
+            const rawStudents = studentsResult.status === 'fulfilled' ? (studentsResult.value || []) : [];
+            const rawAssignments = assignmentsResult.status === 'fulfilled' ? (assignmentsResult.value || []) : [];
+
+            setStudents(rawStudents as TeacherStudent[]);
+            setAssignments(rawAssignments as TeacherAssignment[]);
+
+            // Reset calculated panel data after a fresh dashboard load.
+            setAttentionLoaded(false);
+            setAttentionStudents([]);
+        } catch (err) {
+            console.error('Dashboard load failed:', err);
+            setError('Failed to load dashboard data. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    window.addEventListener('classStudentsChanged', handleClassStudentsChanged);
+    const loadSubjectStudentCounts = async () => {
+        try {
+            setSubjectCountsLoading(true);
+            const subjects = await teacherService.getMySubjectsWithStudents();
+            const counts: Record<number, number> = {};
 
-    return () => {
-      window.removeEventListener('classStudentsChanged', handleClassStudentsChanged);
+            (subjects as SubjectWithStudents[]).forEach((subject) => {
+                const fromCount = typeof subject.student_count === 'number' ? subject.student_count : undefined;
+                const fromList = Array.isArray(subject.students) ? subject.students.length : 0;
+                counts[subject.id] = fromCount ?? fromList;
+            });
+
+            setSubjectStudentCounts(counts);
+        } catch (err) {
+            console.error('Failed to load subject student counts:', err);
+        } finally {
+            setSubjectCountsLoading(false);
+        }
     };
-  }, []);
 
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('🚀 Starting optimized dashboard data loading...');
-
-      // PHASE 1: Load essential data first (fast)
-      const [subjects, students] = await Promise.allSettled([
-        teacherService.getMySubjectsWithStudents(),
-        teacherService.getMyStudentsAcrossSubjects()
-      ]);
-
-      // Extract essential results
-      const subjectsData = subjects.status === 'fulfilled' ? subjects.value : [];
-      const studentsData = students.status === 'fulfilled' ? students.value : [];
-
-      console.log('✅ Phase 1 loaded:', {
-        subjects: subjectsData.length,
-        students: studentsData.length
-      });
-
-      // Calculate basic metrics immediately
-      const totalStudents = studentsData.length;
-      const activeStudents = studentsData.filter((s: any) => s.is_active !== false).length;
-
-      // Set basic metrics right away to show immediate feedback
-      const basicMetrics: ClassMetrics = {
-        totalStudents,
-        activeStudents,
-        completionRate: 0, // Will be updated in phase 2
-        strugglingStudents: Math.ceil(totalStudents * 0.2), // Initial estimate
-        topPerformers: Math.max(0, activeStudents - Math.ceil(totalStudents * 0.2))
-      };
-      setMetrics(basicMetrics);
-
-      // PHASE 2: Load secondary data (can be slower)
-      const [assignments, analytics, completionRateData] = await Promise.allSettled([
-        teacherService.getMyAssignments().catch(() => []),
-        teacherService.getGradingAnalytics().catch(() => ({
-          totalAssignments: 0,
-          totalGrades: 0,
-          averageClassScore: 0,
-          gradingProgress: 0,
-          assignmentsNeedingGrading: 0,
-          recentActivity: []
-        })),
-        teacherService.getOverallCompletionRate().catch(() => ({
-          overall_completion_rate: 0,
-          total_students: 0,
-          total_assignments: 0,
-          total_possible_submissions: 0,
-          total_actual_submissions: 0
-        }))
-      ]);
-
-      const assignmentsData = assignments.status === 'fulfilled' ? assignments.value : [];
-      const gradingAnalytics = analytics.status === 'fulfilled' ? analytics.value : {
-        totalAssignments: 0,
-        totalGrades: 0,
-        averageClassScore: 0,
-        gradingProgress: 0,
-        assignmentsNeedingGrading: 0,
-        recentActivity: []
-      };
-      const realCompletionRate = completionRateData.status === 'fulfilled' ? completionRateData.value : {
-        overall_completion_rate: 0,
-        total_students: 0,
-        total_assignments: 0,
-        total_possible_submissions: 0,
-        total_actual_submissions: 0
-      };
-
-      console.log('✅ Phase 2 loaded:', {
-        assignments: assignmentsData.length,
-        analytics: gradingAnalytics,
-        realCompletionRate: realCompletionRate.overall_completion_rate
-      });
-
-      // Update metrics with real completion data
-      const averageScore = gradingAnalytics.averageClassScore || 0;
-      const realCompletionRateValue = Math.round(realCompletionRate.overall_completion_rate || 0);
-
-      // Better struggling students calculation
-      let studentsNeedingAttention = 0;
-      if (averageScore > 0) {
-        if (averageScore < 70) {
-          studentsNeedingAttention = Math.ceil(totalStudents * 0.3);
-        } else if (averageScore < 80) {
-          studentsNeedingAttention = Math.ceil(totalStudents * 0.2);
-        } else {
-          studentsNeedingAttention = Math.ceil(totalStudents * 0.1);
-        }
-      } else {
-        // Default estimate when no grade data
-        studentsNeedingAttention = Math.ceil(totalStudents * 0.15);
-      }
-
-      // Update with final metrics - USE REAL COMPLETION RATE
-      const finalMetrics: ClassMetrics = {
-        totalStudents,
-        activeStudents,
-        completionRate: realCompletionRateValue, // REAL data from backend
-        strugglingStudents: studentsNeedingAttention,
-        topPerformers: Math.max(0, activeStudents - studentsNeedingAttention)
-      };
-      setMetrics(finalMetrics);
-
-      // PHASE 3: Load detailed classroom data (background)
-      loadRealClassroomData(subjectsData, assignmentsData);
-
-      // Set grading metrics
-      setGradingMetrics(gradingAnalytics);
-
-      // PHASE 4: Load recent activity (background)
-      loadRealRecentActivity(assignmentsData, studentsData);
-
-      // Generate K.A.N.A. insights
-      const recommendations: KanaRecommendation[] = [];
-
-      if (studentsNeedingAttention > 0) {
-        recommendations.push({
-          id: '1',
-          type: 'intervention',
-          priority: 'high',
-          title: 'Students Need Attention',
-          description: `${studentsNeedingAttention} students are struggling and need support`,
-          actionItems: ['Review recent assignments', 'Schedule one-on-one sessions'],
-          reasoning: 'Students with grades below 70%',
-          estimatedImpact: 'Improve class performance by 15-20%',
-          timeframe: '1-2 weeks',
-          generatedAt: new Date().toISOString()
-        });
-      }
-
-      if (realCompletionRateValue < 80) {
-        recommendations.push({
-          id: '2',
-          type: 'class',
-          priority: 'medium',
-          title: 'Low Assignment Completion',
-          description: `Assignment completion rate is ${realCompletionRateValue}%`,
-          actionItems: ['Send completion reminders', 'Extend deadlines if needed'],
-          reasoning: 'Below target completion rate of 85%',
-          estimatedImpact: 'Increase engagement and learning outcomes',
-          timeframe: '1 week',
-          generatedAt: new Date().toISOString()
-        });
-      }
-
-      setKanaInsights(recommendations);
-      console.log('✅ Dashboard loading complete!');
-
-    } catch (err) {
-      console.error('Error loading dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadRealClassroomData = async (subjects: any[], assignments: any[]) => {
-    try {
-      const classroomDataArray: ClassroomData[] = [];
-
-      console.log(`🚀 OPTIMIZED: Loading subject averages for ${subjects.length} subjects using dedicated endpoints...`);
-
-      // SUPER FAST: Use dedicated endpoint for each subject average
-      const subjectAveragePromises = subjects.map(async (subject) => {
-        try {
-          console.log(`📊 Getting average for subject: ${subject.name} (ID: ${subject.id})`);
-          const averageData = await teacherService.getSubjectAverage(subject.id);
-
-          console.log(`✅ ${subject.name} real data:`, {
-            average: averageData.average_percentage,
-            students: averageData.student_count,
-            assignments: averageData.assignment_count,
-            completion: averageData.completion_rate
-          });
-
-          const subjectData: SubjectData = {
-            id: subject.id.toString(),
-            name: subject.name,
-            average: Math.round(averageData.average_percentage || 0),
-            studentCount: averageData.student_count,
-            assignmentCount: averageData.assignment_count,
-            completionRate: Math.round(averageData.completion_rate || 0)
-          };
-
-          // Create classroom entry for each subject
-          return {
-            id: `classroom-${subject.id}`,
-            name: `${subject.name} Class`,
-            subjects: [subjectData],
-            totalStudents: averageData.student_count
-          };
-        } catch (error) {
-          console.error(`❌ Error getting average for subject ${subject.name}:`, error);
-
-          // Fallback with basic subject data
-          const studentCount = subject.students?.length || 0;
-          const subjectAssignments = assignments.filter(a => a.subject_id === subject.id);
-
-          const subjectData: SubjectData = {
-            id: subject.id.toString(),
-            name: subject.name,
-            average: 0, // Show 0 when no real data available
-            studentCount,
-            assignmentCount: subjectAssignments.length,
-            completionRate: 0
-          };
-
-          return {
-            id: `classroom-${subject.id}`,
-            name: `${subject.name} Class`,
-            subjects: [subjectData],
-            totalStudents: studentCount
-          };
-        }
-      });
-
-      // Load all subject averages in parallel (much faster!)
-      const classroomResults = await Promise.all(subjectAveragePromises);
-      classroomDataArray.push(...classroomResults);
-
-      setClassroomData(classroomDataArray);
-      console.log('🎯 REAL DATA: Classroom data loaded with ACTUAL averages from backend!');
-    } catch (error) {
-      console.error('Error loading real classroom data:', error);
-      setClassroomData([]);
-    }
-  }; const loadRealRecentActivity = async (assignments: any[], students: any[]) => {
-    try {
-      const activities: RecentActivity[] = [];
-
-      // Handle case when assignments are not available due to service issues
-      if (assignments.length === 0) {
-        console.log('📝 No assignments available, showing student activity instead');
-
-        // Add student enrollment activities if we have students but no assignments
-        for (const student of students.slice(0, 8)) {
-          activities.push({
-            id: `student-${student.id}`,
-            studentName: student.name || `${student.user?.fname} ${student.user?.lname}` || 'Student',
-            action: 'Active in class',
-            subject: 'Multiple Subjects',
-            timestamp: new Date().toLocaleDateString(),
-            needsAttention: false
-          });
-        }
-
-        setRecentActivity(activities);
-        return;
-      }
-
-      // Get recent grading activity from teacher's assignments
-      const recentAssignments = assignments.slice(0, 5); // Get 5 most recent assignments
-
-      for (const assignment of recentAssignments) {
-        try {
-          const assignmentGrades = await teacherService.getMyAssignmentGrades(assignment.id);
-
-          // Create activity entries for recent grades
-          for (const grade of assignmentGrades.slice(0, 2)) { // Take 2 recent grades per assignment
-            const student = students.find(s => s.id === grade.student_id);
-            if (student) {
-              const percentage = grade.assignment_max_points > 0
-                ? Math.round((grade.points_earned / grade.assignment_max_points) * 100)
-                : 0;
-
-              activities.push({
-                id: `${assignment.id}-${grade.id}`,
-                studentName: student.name || `${student.user?.fname} ${student.user?.lname}` || 'Student',
-                action: `Submitted assignment: ${assignment.title}`,
-                subject: assignment.subject_name || 'Subject',
-                timestamp: new Date(grade.graded_date || assignment.created_date).toLocaleDateString(),
-                score: percentage,
-                needsAttention: percentage < 70
-              });
+    const uniqueStudents = useMemo(() => {
+        const map = new Map<number, TeacherStudent>();
+        students.forEach((student) => {
+            if (!map.has(student.id)) {
+                map.set(student.id, student);
             }
-          }
-        } catch (error) {
-          console.log(`❌ Could not get grades for assignment ${assignment.id}:`, error);
-          // Add assignment creation activity if grades not available
-          activities.push({
-            id: `assignment-${assignment.id}`,
-            studentName: 'Teacher',
-            action: `Created assignment: ${assignment.title}`,
-            subject: assignment.subject_name || 'Subject',
-            timestamp: new Date(assignment.created_date).toLocaleDateString(),
-            needsAttention: false
-          });
-        }
-      }
+        });
+        return Array.from(map.values());
+    }, [students]);
 
-      // Add student enrollment activities if we have fewer activities
-      if (activities.length < 8) {
-        for (const student of students.slice(0, 8 - activities.length)) {
-          activities.push({
-            id: `student-${student.id}`,
-            studentName: student.name || `${student.user?.fname} ${student.user?.lname}` || 'Student',
-            action: 'Active in class',
-            subject: 'Multiple Subjects',
-            timestamp: new Date().toLocaleDateString(),
-            needsAttention: false
-          });
-        }
-      }
+    const studentsById = useMemo(() => {
+        const map = new Map<number, TeacherStudent>();
+        uniqueStudents.forEach((student) => map.set(student.id, student));
+        return map;
+    }, [uniqueStudents]);
 
-      setRecentActivity(activities.slice(0, 8));
-    } catch (error) {
-      console.error('Error loading real recent activity:', error);
-      setRecentActivity([]);
+    const totalStudents = uniqueStudents.length;
+    const activeStudents = uniqueStudents.filter((s) => s.is_active !== false).length;
+
+    const classPerformanceAverage = useMemo(() => {
+        const gradedAssignments = assignments.filter((a) => Number(a.graded_count || 0) > 0 && typeof a.average_score === 'number');
+        if (gradedAssignments.length === 0) {
+            return 0;
+        }
+
+        let weightedTotal = 0;
+        let weightedCount = 0;
+
+        gradedAssignments.forEach((assignment) => {
+            const weight = Math.max(assignment.graded_count || 0, 1);
+            weightedTotal += (assignment.average_score || 0) * weight;
+            weightedCount += weight;
+        });
+
+        if (weightedCount === 0) {
+            return 0;
+        }
+
+        return Math.round((weightedTotal / weightedCount) * 10) / 10;
+    }, [assignments]);
+
+    const todoItems = useMemo<TodoItem[]>(() => {
+        const items = assignments
+            .map((assignment) => {
+                const expectedCount = subjectStudentCounts[assignment.subject_id] ?? 0;
+                const gradedCount = assignment.graded_count || 0;
+                const pending = Math.max(0, expectedCount - gradedCount);
+
+                return {
+                    assignmentId: assignment.id,
+                    assignmentTitle: assignment.title,
+                    subjectName: assignment.subject_name || 'Unknown subject',
+                    dueDate: assignment.due_date,
+                    pendingSubmissions: pending,
+                    gradedCount,
+                    expectedCount
+                };
+            })
+            .filter((item) => item.pendingSubmissions > 0);
+
+        return items.sort((a, b) => {
+            if (!a.dueDate && !b.dueDate) return b.pendingSubmissions - a.pendingSubmissions;
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+    }, [assignments, subjectStudentCounts]);
+
+    const todoCount = todoItems.length;
+
+    const loadAttentionData = async () => {
+        if (attentionLoading || attentionLoaded) {
+            return;
+        }
+
+        try {
+            setAttentionLoading(true);
+
+            const assignmentsWithGrades = assignments.filter((a) => Number(a.graded_count || 0) > 0);
+            if (assignmentsWithGrades.length === 0) {
+                setAttentionStudents([]);
+                setAttentionLoaded(true);
+                return;
+            }
+
+            const gradeResponses = await Promise.allSettled(
+                assignmentsWithGrades.map((assignment) => teacherService.getMyAssignmentGrades(assignment.id))
+            );
+
+            const attentionMap = new Map<number, AttentionStudentItem>();
+
+            gradeResponses.forEach((response, index) => {
+                if (response.status !== 'fulfilled') {
+                    return;
+                }
+
+                const assignment = assignmentsWithGrades[index];
+                const maxPoints = assignment.max_points || 100;
+
+                response.value.forEach((grade: any) => {
+                    const safeMax = maxPoints > 0 ? maxPoints : 100;
+                    const percentage = Math.round((grade.points_earned / safeMax) * 100);
+
+                    if (percentage >= 50) {
+                        return;
+                    }
+
+                    const studentId = grade.student_id;
+                    const mappedStudent = studentsById.get(studentId);
+                    const fallbackName = mappedStudent ? getStudentName(mappedStudent) : `Student ${studentId}`;
+                    const studentName = grade.student_name || fallbackName;
+
+                    const gradeItem: AttentionGradeItem = {
+                        assignmentId: assignment.id,
+                        assignmentTitle: assignment.title,
+                        points: grade.points_earned,
+                        maxPoints: safeMax,
+                        percentage,
+                        gradedDate: grade.graded_date
+                    };
+
+                    const existing = attentionMap.get(studentId);
+                    if (existing) {
+                        existing.grades.push(gradeItem);
+                        existing.lowestPercentage = Math.min(existing.lowestPercentage, percentage);
+                    } else {
+                        attentionMap.set(studentId, {
+                            studentId,
+                            studentName,
+                            grades: [gradeItem],
+                            lowestPercentage: percentage
+                        });
+                    }
+                });
+            });
+
+            const result = Array.from(attentionMap.values())
+                .map((student) => ({
+                    ...student,
+                    grades: student.grades.sort((a, b) => a.percentage - b.percentage)
+                }))
+                .sort((a, b) => a.lowestPercentage - b.lowestPercentage || a.studentName.localeCompare(b.studentName));
+
+            setAttentionStudents(result);
+            setAttentionLoaded(true);
+        } catch (err) {
+            console.error('Failed to load needs-attention students:', err);
+            setAttentionStudents([]);
+            setAttentionLoaded(true);
+        } finally {
+            setAttentionLoading(false);
+        }
+    };
+
+    const needsAttentionCount = attentionLoaded ? attentionStudents.length : null;
+
+    const togglePanel = async (panel: Exclude<DetailPanelKey, null>) => {
+        setActivePanel((previous) => (previous === panel ? null : panel));
+
+        if (panel === 'attention' && !attentionLoaded) {
+            await loadAttentionData();
+        }
+
+        if (panel === 'todo' && !subjectCountsLoading && Object.keys(subjectStudentCounts).length === 0) {
+            await loadSubjectStudentCounts();
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-white flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+                    <p className="text-gray-600 text-sm mt-3">Loading dashboard...</p>
+                </div>
+            </div>
+        );
     }
-  };
 
-  if (loading) {
+    if (error) {
+        return (
+            <div className="min-h-screen bg-white flex items-center justify-center">
+                <div className="text-center max-w-md px-6">
+                    <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Dashboard</h3>
+                    <p className="text-gray-600 text-sm mb-4">{error}</p>
+                    <button
+                        onClick={loadDashboardData}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 text-sm mt-3">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Dashboard</h3>
-          <p className="text-gray-600 text-sm mb-4">{error}</p>
-          <button
-            onClick={loadDashboardData}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!metrics) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <Users className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Data Available</h3>
-          <p className="text-gray-600 text-sm mb-4">Your classroom data will appear here once students are assigned.</p>
-          <button
-            onClick={loadDashboardData}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-          >
-            Refresh Data
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <div className="max-w-none mx-auto space-y-6 lg:space-y-8 h-full">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <button
-              onClick={loadDashboardData}
-              disabled={loading}
-              className="flex items-center justify-center space-x-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors w-full sm:w-auto"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'upload' }))}
-              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <Upload className="w-6 h-6" />
-              <span className="text-lg font-semibold">Grade with Kana</span>
-            </button>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'assignments' }))}
-              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <FileText className="w-6 h-6" />
-              <span className="text-lg font-semibold">Create Assignment</span>
-            </button>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'students' }))}
-              className="flex items-center justify-center space-x-3 px-6 py-6 bg-blue-400 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-              <UserPlus className="w-6 h-6" />
-              <span className="text-lg font-semibold">Student Profiles</span>
-            </button>
-          </div>
-
-          {/* Service Status Notification */}
-          {gradingMetrics && gradingMetrics.totalAssignments === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                <div>
-                  <h3 className="text-sm font-medium text-yellow-800">Assignment Service Temporarily Unavailable</h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    The assignments service is experiencing issues (503 Service Unavailable).
-                    Student and subject data are still available. Please try refreshing in a few minutes.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Enhanced Metrics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {/* Total Students */}
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Total Students</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-gray-900">{metrics.totalStudents}</p>
-                  <div className="flex items-center mt-3">
-                    <div className="flex items-center text-sm text-green-600">
-                      <TrendingUp className="w-4 h-4 mr-1" />
-                      <span>{metrics.activeStudents} active</span>
+        <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 overflow-y-auto">
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'upload' }))}
+                            className="flex items-center justify-center space-x-3 px-6 py-5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                        >
+                            <Upload className="w-5 h-5" />
+                            <span className="text-xl font-semibold">Grade with Kana</span>
+                        </button>
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'assignments' }))}
+                            className="flex items-center justify-center space-x-3 px-6 py-5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                        >
+                            <FileText className="w-5 h-5" />
+                            <span className="text-xl font-semibold">Create Assignment</span>
+                        </button>
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('changeTab', { detail: 'students' }))}
+                            className="flex items-center justify-center space-x-3 px-6 py-5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                        >
+                            <UserPlus className="w-5 h-5" />
+                            <span className="text-xl font-semibold">Student Profiles</span>
+                        </button>
                     </div>
-                  </div>
-                </div>
-                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Users className="w-7 h-7 text-blue-600" />
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${metrics.totalStudents > 0 ? (metrics.activeStudents / metrics.totalStudents) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
 
-            {/* Completion Rate */}
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Completion Rate</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-gray-900">{metrics.completionRate}%</p>
-                  <div className="flex items-center mt-3">
-                    <div className="flex items-center text-sm text-green-600">
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      <span>On track</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
-                  <Target className="w-7 h-7 text-green-600" />
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${metrics.completionRate}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Students Needing Attention */}
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Need Attention</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-gray-900">{metrics.strugglingStudents}</p>
-                  <div className="flex items-center mt-3">
-                    <div className="flex items-center text-sm text-amber-600">
-                      <AlertTriangle className="w-4 h-4 mr-1" />
-                      <span>Requires support</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center">
-                  <AlertTriangle className="w-7 h-7 text-red-600" />
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-red-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${metrics.totalStudents > 0 ? (metrics.strugglingStudents / metrics.totalStudents) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Top Performers */}
-            <div className="bg-white p-6 sm:p-8 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Top Performers</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-gray-900">{metrics.topPerformers}</p>
-                  <div className="flex items-center mt-3">
-                    <div className="flex items-center text-sm text-emerald-600">
-                      <Award className="w-4 h-4 mr-1" />
-                      <span>Excelling</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-14 h-14 bg-emerald-100 rounded-xl flex items-center justify-center">
-                  <Award className="w-7 h-7 text-emerald-600" />
-                </div>
-              </div>
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-emerald-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${metrics.totalStudents > 0 ? (metrics.topPerformers / metrics.totalStudents) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
-            {/* Class Performance */}
-            <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="p-6 sm:p-8 border-b border-gray-200">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Class Performance</h2>
-                    <p className="text-sm text-gray-600">Subject averages and student counts</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <BarChart3 className="w-5 h-5 text-gray-500" />
-                    <span className="text-sm text-gray-500">Live Data</span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6 sm:p-8">
-                {classroomData.length === 0 ? (
-                  <div className="text-center py-12 sm:py-16">
-                    <School className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No class data available</h3>
-                    <p className="text-gray-600 text-sm sm:text-base">Your class performance will appear here once students complete assignments</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6 lg:space-y-8">
-                    {classroomData.map((classroom) => (
-                      <div key={classroom.id} className="border border-gray-100 rounded-lg p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
-                          <h3 className="font-semibold text-gray-900 flex items-center text-base sm:text-lg">
-                            <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
-                            {classroom.name}
-                          </h3>
-                          <span className="text-sm text-gray-500">{classroom.totalStudents} students</span>
-                        </div>
-                        <div className="space-y-4 sm:space-y-6">
-                          {classroom.subjects.map((subject) => (
-                            <div key={subject.id} className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-                                <div className="flex items-center space-x-3">
-                                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                    <span className="text-sm font-bold text-blue-600">
-                                      {subject.name.substring(0, 2).toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900 text-base sm:text-lg">{subject.name}</p>
-                                    <p className="text-sm text-gray-600">{subject.studentCount} students • {subject.assignmentCount} assignments</p>
-                                  </div>
-                                </div>
-                                <div className="text-left sm:text-right">
-                                  <div className="flex items-center space-x-2 mb-1">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${subject.average >= 80 ? 'bg-green-100 text-green-800' :
-                                      subject.average >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-red-100 text-red-800'
-                                      }`}>
-                                      {subject.average >= 80 ? '🎯' : subject.average >= 70 ? '📈' : '⚠️'} {subject.average}%
-                                    </span>
-                                  </div>
-                                  <p className="text-sm text-gray-600">{subject.completionRate}% complete</p>
-                                </div>
-                              </div>
-
-                              {/* Progress Bars */}
-                              <div className="space-y-3 sm:space-y-4">
-                                <div>
-                                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                                    <span>Class Average</span>
-                                    <span className="font-medium">{subject.average}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-3">
-                                    <div
-                                      className={`h-3 rounded-full transition-all duration-500 ${subject.average >= 80 ? 'bg-green-500' :
-                                        subject.average >= 70 ? 'bg-yellow-500' :
-                                          'bg-red-500'
-                                        }`}
-                                      style={{ width: `${subject.average}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                                    <span>Completion Rate</span>
-                                    <span className="font-medium">{subject.completionRate}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-3">
-                                    <div
-                                      className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                                      style={{ width: `${subject.completionRate}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* K.A.N.A. Insights */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <Brain className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">K.A.N.A. Insights</h2>
-                      <p className="text-xs text-gray-500">AI-powered recommendations</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  {kanaInsights.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Activity className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-gray-600 text-sm">No recommendations available</p>
-                      <p className="text-gray-500 text-xs mt-1">K.A.N.A. is analyzing your class data</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {kanaInsights.map((insight) => (
-                        <div key={insight.id} className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-start space-x-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${insight.priority === 'high' ? 'bg-red-100' : 'bg-yellow-100'
-                                }`}>
-                                {insight.priority === 'high' ? (
-                                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                                ) : (
-                                  <Clock className="w-4 h-4 text-yellow-600" />
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h3 className="font-medium text-gray-900">{insight.title}</h3>
-                                <p className="text-sm text-gray-600 mt-1">{insight.description}</p>
-                              </div>
-                            </div>
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${insight.priority === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                              {insight.priority}
-                            </span>
-                          </div>
-
-                          {/* Action Items */}
-                          <div className="mt-3 pl-11">
-                            <div className="space-y-1">
-                              {insight.actionItems.map((action, index) => (
-                                <div key={index} className="flex items-center text-sm text-gray-600">
-                                  <CheckCircle className="w-3 h-3 mr-2 text-gray-400" />
-                                  <span>{action}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="mt-2 pt-2 border-t border-gray-100">
-                              <p className="text-xs text-gray-500">
-                                <span className="font-medium">Impact:</span> {insight.estimatedImpact}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                <span className="font-medium">Timeline:</span> {insight.timeframe}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-                    <span className="text-sm text-gray-500">Last 24 hours</span>
-                  </div>
-                </div>
-                <div className="p-6">
-                  {recentActivity.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Activity className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-gray-600 text-sm">No recent activity</p>
-                      <p className="text-gray-500 text-xs mt-1">Student activities will appear here</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {recentActivity.slice(0, 6).map((activity) => (
-                        <div key={activity.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                          <div className="relative">
-                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                              <span className="text-xs font-bold text-white">
-                                {activity.studentName.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                              </span>
-                            </div>
-                            {activity.needsAttention && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                                <AlertTriangle className="w-2 h-2 text-white" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <button
+                            onClick={() => togglePanel('students')}
+                            className={`text-left bg-white p-6 rounded-xl border shadow-sm transition-all ${activePanel === 'students' ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200 hover:shadow-md'}`}
+                        >
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-gray-900 truncate">{activity.studentName}</p>
-                              {activity.score && (
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${activity.needsAttention
-                                  ? 'bg-red-100 text-red-800'
-                                  : activity.score >= 80
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                  {activity.score >= 80 ? '🎯' : activity.score >= 70 ? '📈' : '⚠️'} {activity.score}%
-                                </span>
-                              )}
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600 mb-2">Total Students</p>
+                                    <p className="text-4xl font-bold text-gray-900">{totalStudents}</p>
+                                    <p className="text-sm text-green-600 mt-2">{activeStudents} active</p>
+                                </div>
+                                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <Users className="w-6 h-6 text-blue-600" />
+                                </div>
                             </div>
+                        </button>
 
-                            <p className="text-sm text-gray-600 mt-1">{activity.action}</p>
-
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="inline-flex items-center text-xs text-gray-500">
-                                <BookOpen className="w-3 h-3 mr-1" />
-                                {activity.subject}
-                              </span>
-                              <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                        <button
+                            onClick={() => togglePanel('attention')}
+                            className={`text-left bg-white p-6 rounded-xl border shadow-sm transition-all ${activePanel === 'attention' ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-200 hover:shadow-md'}`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600 mb-2">Need Attention</p>
+                                    <p className="text-4xl font-bold text-gray-900">{needsAttentionCount === null ? '-' : needsAttentionCount}</p>
+                                    <p className="text-sm text-amber-600 mt-2">Below 50% in any assignment</p>
+                                </div>
+                                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                </div>
                             </div>
-                          </div>
+                        </button>
+
+                        <button
+                            onClick={() => togglePanel('todo')}
+                            className={`text-left bg-white p-6 rounded-xl border shadow-sm transition-all ${activePanel === 'todo' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200 hover:shadow-md'}`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600 mb-2">Teacher Todo</p>
+                                    <p className="text-4xl font-bold text-gray-900">{subjectCountsLoading ? '-' : todoCount}</p>
+                                    <p className="text-sm text-amber-600 mt-2">Assignments pending grading</p>
+                                </div>
+                                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                                    <ClipboardList className="w-6 h-6 text-amber-600" />
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => togglePanel('performance')}
+                            className={`text-left bg-white p-6 rounded-xl border shadow-sm transition-all ${activePanel === 'performance' ? 'border-emerald-300 ring-2 ring-emerald-100' : 'border-gray-200 hover:shadow-md'}`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600 mb-2">Class Performance</p>
+                                    <p className="text-4xl font-bold text-gray-900">{classPerformanceAverage}%</p>
+                                    <p className="text-sm text-emerald-600 mt-2">Average across graded work</p>
+                                </div>
+                                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                    <BarChart3 className="w-6 h-6 text-emerald-600" />
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    {activePanel === 'students' && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">Your Students</h3>
+                                <p className="text-sm text-gray-600">Students linked to your subjects</p>
+                            </div>
+                            <div className="p-6">
+                                {uniqueStudents.length === 0 ? (
+                                    <p className="text-sm text-gray-600">No students found.</p>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                        {uniqueStudents.map((student) => (
+                                            <div key={student.id} className="border border-gray-200 rounded-lg px-4 py-3">
+                                                <p className="font-medium text-gray-900">{getStudentName(student)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                      ))}
-
-                      {recentActivity.length > 6 && (
-                        <div className="text-center pt-2">
-                          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                            View all activity ({recentActivity.length} total)
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Enhanced Grading Overview */}
-          {gradingMetrics && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Grading Overview</h2>
-                    <p className="text-sm text-gray-600">Assignment and grading statistics</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <BarChart3 className="w-5 h-5 text-gray-500" />
-                    <span className="text-sm text-gray-500">Updated now</span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                  <div className="text-center bg-gray-50 rounded-lg p-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                      <BookOpen className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{gradingMetrics.totalAssignments}</p>
-                    <p className="text-sm text-gray-600">Total Assignments</p>
-                  </div>
-
-                  <div className="text-center bg-gray-50 rounded-lg p-4">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{gradingMetrics.totalGrades}</p>
-                    <p className="text-sm text-gray-600">Grades Given</p>
-                  </div>
-
-                  <div className="text-center bg-gray-50 rounded-lg p-4">
-                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                      <Target className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{Math.round(gradingMetrics.averageClassScore)}%</p>
-                    <p className="text-sm text-gray-600">Class Average</p>
-                    <div className="w-full bg-gray-200 rounded-full h-1 mt-2">
-                      <div
-                        className="bg-purple-600 h-1 rounded-full transition-all duration-300"
-                        style={{ width: `${gradingMetrics.averageClassScore}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div className="text-center bg-gray-50 rounded-lg p-4">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                      <TrendingUp className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{Math.round(gradingMetrics.gradingProgress)}%</p>
-                    <p className="text-sm text-gray-600">Grading Progress</p>
-                    <div className="w-full bg-gray-200 rounded-full h-1 mt-2">
-                      <div
-                        className="bg-emerald-600 h-1 rounded-full transition-all duration-300"
-                        style={{ width: `${gradingMetrics.gradingProgress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div className="text-center bg-gray-50 rounded-lg p-4">
-                    <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                      <Clock className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{gradingMetrics.assignmentsNeedingGrading}</p>
-                    <p className="text-sm text-gray-600">Need Grading</p>
-                    {gradingMetrics.assignmentsNeedingGrading > 0 && (
-                      <div className="flex items-center justify-center mt-2">
-                        <AlertTriangle className="w-3 h-3 text-amber-600 mr-1" />
-                        <span className="text-xs text-amber-600">Action needed</span>
-                      </div>
                     )}
-                  </div>
-                </div>
 
-                {/* Quick Stats */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Completion Rate</p>
-                      <p className="text-lg font-semibold text-gray-900">{Math.round(gradingMetrics.gradingProgress)}%</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Average Score</p>
-                      <p className="text-lg font-semibold text-gray-900">{Math.round(gradingMetrics.averageClassScore)}%</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Pending</p>
-                      <p className="text-lg font-semibold text-gray-900">{gradingMetrics.assignmentsNeedingGrading}</p>
-                    </div>
-                  </div>
+                    {activePanel === 'attention' && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">Students Needing Attention</h3>
+                                <p className="text-sm text-gray-600">Real grades below 50% in at least one assignment</p>
+                            </div>
+                            <div className="p-6">
+                                {attentionLoading ? (
+                                    <div className="text-center py-8 text-gray-600">
+                                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                                        Loading attention list...
+                                    </div>
+                                ) : attentionStudents.length === 0 ? (
+                                    <p className="text-sm text-gray-600">No students currently below 50%.</p>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {attentionStudents.map((student) => (
+                                            <div key={student.studentId} className="border border-red-100 rounded-lg p-4 bg-red-50/40">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="font-semibold text-gray-900">{student.studentName}</p>
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                                        Lowest {student.lowestPercentage}%
+                                                    </span>
+                                                </div>
+                                                <div className="mt-3 space-y-2">
+                                                    {student.grades.map((grade) => (
+                                                        <div key={`${student.studentId}-${grade.assignmentId}-${grade.gradedDate || ''}`} className="text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
+                                                            <span className="font-medium">{grade.assignmentTitle}</span>
+                                                            <span>{grade.points}/{grade.maxPoints}</span>
+                                                            <span className="text-red-700">{grade.percentage}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activePanel === 'todo' && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">Teacher Todo</h3>
+                                <p className="text-sm text-gray-600">Assignments that still need grading</p>
+                            </div>
+                            <div className="p-6">
+                                {subjectCountsLoading ? (
+                                    <div className="text-center py-8 text-gray-600">
+                                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                                        Loading todo items...
+                                    </div>
+                                ) : todoItems.length === 0 ? (
+                                    <p className="text-sm text-gray-600">No pending grading tasks right now.</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {todoItems.map((item) => (
+                                            <div key={item.assignmentId} className="border border-amber-100 rounded-lg p-4 bg-amber-50/40">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <p className="font-semibold text-gray-900">{item.assignmentTitle}</p>
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                                        {item.pendingSubmissions} pending
+                                                    </span>
+                                                </div>
+                                                <div className="mt-2 text-sm text-gray-600 flex flex-wrap gap-4">
+                                                    <span>{item.subjectName}</span>
+                                                    <span>Graded {item.gradedCount}/{item.expectedCount}</span>
+                                                    <span>Due {formatDate(item.dueDate)}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activePanel === 'performance' && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">Class Performance</h3>
+                                <p className="text-sm text-gray-600">Average score from graded assignments</p>
+                            </div>
+                            <div className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                    {assignments
+                                        .filter((assignment) => Number(assignment.graded_count || 0) > 0)
+                                        .sort((a, b) => (b.average_score || 0) - (a.average_score || 0))
+                                        .map((assignment) => (
+                                            <div key={assignment.id} className="border border-emerald-100 rounded-lg p-4 bg-emerald-50/40">
+                                                <p className="font-semibold text-gray-900">{assignment.title}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{assignment.subject_name || 'Unknown subject'}</p>
+                                                <p className="text-sm text-emerald-700 mt-2">
+                                                    Average {Math.round((assignment.average_score || 0) * 10) / 10}%
+                                                </p>
+                                            </div>
+                                        ))}
+                                </div>
+                                {assignments.filter((assignment) => Number(assignment.graded_count || 0) > 0).length === 0 && (
+                                    <p className="text-sm text-gray-600">No graded assignments yet.</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
-              </div>
             </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
