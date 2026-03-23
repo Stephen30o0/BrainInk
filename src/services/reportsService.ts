@@ -31,7 +31,7 @@ interface KanaReportRequest {
 }
 
 class ReportsService {
-    private pythonBackendUrl = 'https://brainink-backend.onrender.com';
+    private pythonBackendUrl = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
     private kanaBackendUrl = 'https://kana-backend-app.onrender.com';
 
     private getAuthHeaders() {

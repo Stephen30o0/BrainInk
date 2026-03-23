@@ -45,7 +45,7 @@ class UserRoleService {
     constructor() {
         // Use environment variable or fallback to localhost
         // Use import.meta.env for Vite-based applications
-        this.baseUrl = 'https://brainink-backend.onrender.com';
+        this.baseUrl = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
         console.log('🔗 UserRoleService initialized with baseUrl:', this.baseUrl);
     }
 

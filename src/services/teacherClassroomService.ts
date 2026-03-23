@@ -1,5 +1,5 @@
 // Backend API Configuration
-const BACKEND_URL = 'https://brainink-backend.onrender.com';
+const BACKEND_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
 
 // Force cache refresh - Updated: 2025-07-05 1:26 AM
 console.log('🔄 TeacherClassroomService loaded at:', new Date().toISOString());
@@ -61,15 +61,12 @@ class TeacherClassroomServiceClass {
 
         const headers: HeadersInit = {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',  // Force no caching
-            'Pragma': 'no-cache'
+            'Content-Type': 'application/json'
         };
 
         const config: RequestInit = {
             method,
-            headers,
-            cache: 'no-store'  // Force no caching
+            headers
         };
 
         if (body && (method === 'POST' || method === 'PUT')) {
@@ -256,7 +253,7 @@ class TeacherClassroomServiceClass {
             return students;
         } catch (error) {
             console.error('❌ Failed to get students in classroom:', error);
-            return [];
+            throw error;
         }
     }
 
@@ -304,7 +301,7 @@ class TeacherClassroomServiceClass {
             return students;
         } catch (error) {
             console.error('❌ Failed to get students in subject:', error);
-            return [];
+            throw error;
         }
     }
 
@@ -340,7 +337,7 @@ class TeacherClassroomServiceClass {
             return mergedStudents;
         } catch (error) {
             console.error('❌ Failed to get students in classroom and subject:', error);
-            return [];
+            throw error;
         }
     }
 

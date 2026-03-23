@@ -109,7 +109,7 @@ class APIService {
     private loadingPromise: Promise<void> | null = null;
 
     // API Base URLs
-    private readonly MAIN_API = 'https://brainink-backend.onrender.com/';
+    private readonly MAIN_API = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/';
     private readonly FRIENDS_API = 'https://brainink-backend-freinds-micro.onrender.com/friends';
     private readonly ACHIEVEMENTS_API = 'https://brainink-backend-achivements-micro.onrender.com';
 

@@ -98,7 +98,7 @@ export const ImageGallery: React.FC = () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/academic/teachers/my-subjects', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/teachers/my-subjects', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -136,7 +136,7 @@ export const ImageGallery: React.FC = () => {
         params.append('search', searchTerm.trim());
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/my-images?${params}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/images-management/my-images?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -150,7 +150,7 @@ export const ImageGallery: React.FC = () => {
         const imagesWithDataUrls = await Promise.all(
           (data.images || []).map(async (image: ImageData) => {
             try {
-              const fileResponse = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/${image.id}/file`, {
+              const fileResponse = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/images-management/${image.id}/file`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
 
@@ -216,7 +216,7 @@ export const ImageGallery: React.FC = () => {
         formData.append('subject_id', uploadSubjectId);
       }
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/images-management/upload', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/images-management/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -260,7 +260,7 @@ export const ImageGallery: React.FC = () => {
         formData.append('subject_id', editSubjectId);
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/update/${imageId}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/images-management/update/${imageId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -294,7 +294,7 @@ export const ImageGallery: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/images-management/delete/${imageId}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/images-management/delete/${imageId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

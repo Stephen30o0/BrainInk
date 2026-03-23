@@ -15,9 +15,11 @@ interface AnalysisResult {
   maxPoints?: number;
   gradingCriteria?: {
     category: string;
-    score: number;
-    maxScore: number;
+    score?: number;
+    maxScore?: number;
     feedback: string;
+    evidenceSnippet?: string;
+    scoreDisplay?: string;
   }[];
   overallFeedback?: string;
   improvementAreas?: string[];
@@ -276,6 +278,175 @@ export const UploadAnalyze: React.FC = () => {
     );
   };
 
+  const normalizeRubricCriteria = (payload: any): AnalysisResult['gradingCriteria'] => {
+    const rawCriteria = payload?.criterion_feedback || payload?.grading_criteria || payload?.rubric_scores || [];
+    if (!Array.isArray(rawCriteria)) {
+      return [];
+    }
+
+    return rawCriteria
+      .map((item: any) => {
+        if (typeof item === 'string') {
+          return {
+            category: 'Criterion',
+            feedback: item,
+          };
+        }
+
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+
+        const category = String(item.category || item.criterion || '').trim() || 'Criterion';
+        const parsedScore = Number(item.score ?? item.points_awarded);
+        const parsedMax = Number(item.maxScore ?? item.max_points);
+        const feedback = String(item.feedback || item.paragraph || '').trim();
+        const evidenceSnippet = String(item.evidence_snippet || item.evidenceSnippet || '').trim();
+        const scoreDisplay = String(item.score_display || '').trim();
+
+        return {
+          category,
+          score: Number.isFinite(parsedScore) ? parsedScore : undefined,
+          maxScore: Number.isFinite(parsedMax) ? parsedMax : undefined,
+          feedback,
+          evidenceSnippet: evidenceSnippet || undefined,
+          scoreDisplay: scoreDisplay || undefined,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  };
+
+  const stripRubricFeedbackMarker = (feedback: string): string => {
+    return feedback.replace(/^\s*\[RUBRIC_FEEDBACK_V2\]\s*/i, '').trim();
+  };
+
+  const parseRubricFeedbackText = (feedback: string): {
+    criteria: NonNullable<AnalysisResult['gradingCriteria']>;
+    overallConclusion: string;
+  } => {
+    const cleanFeedback = stripRubricFeedbackMarker(feedback);
+    const parsedCriteria: NonNullable<AnalysisResult['gradingCriteria']> = [];
+    let overallConclusion = '';
+
+    // Handle JSON-like payloads if they were persisted directly.
+    if (cleanFeedback.startsWith('{') || cleanFeedback.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(cleanFeedback);
+        const normalized = (normalizeRubricCriteria(parsed) ?? []) as NonNullable<AnalysisResult['gradingCriteria']>;
+        if (normalized.length > 0) {
+          return {
+            criteria: normalized,
+            overallConclusion: String(parsed?.overall_conclusion || parsed?.overallConclusion || '').trim(),
+          };
+        }
+      } catch {
+        // Ignore parse failures and continue with text parsing.
+      }
+    }
+
+    const lines = cleanFeedback
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const line of lines) {
+      const overallMatch = line.match(/^overall conclusion:\s*(.+)$/i);
+      if (overallMatch) {
+        overallConclusion = overallMatch[1].trim();
+        continue;
+      }
+
+      const criterionMatch = line.match(/^(.+?)\s*\((\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?)\):\s*(.+)$/i);
+      if (!criterionMatch) {
+        continue;
+      }
+
+      const category = criterionMatch[1].trim();
+      const scoreDisplay = criterionMatch[2].replace(/\s+/g, '');
+      let criterionText = criterionMatch[3].trim();
+      let evidenceSnippet: string | undefined;
+
+      const evidenceMatch = criterionText.match(/\s+Evidence:\s*"([^"]+)"\s*$/i) ||
+        criterionText.match(/\s+Evidence:\s*(.+)$/i);
+
+      if (evidenceMatch) {
+        evidenceSnippet = evidenceMatch[1].trim();
+        criterionText = criterionText.replace(evidenceMatch[0], '').trim();
+      }
+
+      parsedCriteria.push({
+        category,
+        feedback: criterionText,
+        scoreDisplay,
+        evidenceSnippet,
+      });
+    }
+
+    return {
+      criteria: parsedCriteria,
+      overallConclusion,
+    };
+  };
+
+  const renderRubricFeedback = (
+    criteria: NonNullable<AnalysisResult['gradingCriteria']>,
+    overallConclusion?: string
+  ): JSX.Element => {
+    return (
+      <div className="space-y-4">
+        {criteria.map((item, index) => (
+          <div key={`${item.category}-${index}`} className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h5 className="font-semibold text-gray-900">{item.category}</h5>
+              <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                {item.scoreDisplay || (typeof item.score === 'number' && typeof item.maxScore === 'number' ? `${item.score}/${item.maxScore}` : 'Scored')}
+              </span>
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed">{item.feedback}</p>
+            {item.evidenceSnippet && (
+              <p className="text-xs text-gray-500 mt-2 italic">Evidence: "{item.evidenceSnippet}"</p>
+            )}
+          </div>
+        ))}
+
+        {overallConclusion && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <h5 className="font-semibold text-indigo-900 mb-1">Overall conclusion</h5>
+            <p className="text-sm text-indigo-800 leading-relaxed">{overallConclusion}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const buildRubricFeedbackForStorage = (result: AnalysisResult): string => {
+    const detailed = String(result.detailedFeedback || '').trim();
+    if (detailed && /^\s*\[RUBRIC_FEEDBACK_V2\]/i.test(detailed)) {
+      return detailed;
+    }
+
+    const criteria = Array.isArray(result.gradingCriteria)
+      ? result.gradingCriteria.filter((item) => item && item.category && item.feedback)
+      : [];
+
+    if (criteria.length === 0) {
+      return detailed || String(result.overallFeedback || result.analysis || '').trim();
+    }
+
+    const lines = criteria.map((item) => {
+      const scoreDisplay = item.scoreDisplay ||
+        (typeof item.score === 'number' && typeof item.maxScore === 'number' ? `${item.score}/${item.maxScore}` : '0/0');
+      const evidencePart = item.evidenceSnippet ? ` Evidence: "${item.evidenceSnippet}"` : '';
+      return `${item.category} (${scoreDisplay}): ${item.feedback}${evidencePart}`;
+    });
+
+    if (result.overallFeedback && result.overallFeedback.trim()) {
+      lines.push(`Overall conclusion: ${result.overallFeedback.trim()}`);
+    }
+
+    return `[RUBRIC_FEEDBACK_V2]\n${lines.join('\n')}`;
+  };
+
   // Format comprehensive feedback to match new backend format
   const formatDetailedFeedback = (feedback: string): JSX.Element => {
     if (!feedback || feedback.trim() === '') {
@@ -292,6 +463,12 @@ export const UploadAnalyze: React.FC = () => {
 
     // Clean up the feedback and parse sections
     const cleanFeedback = feedback.replace(/\*\*/g, '').trim();
+
+    // Prioritize rubric paragraph rendering for V2 feedback.
+    const rubricFeedback = parseRubricFeedbackText(cleanFeedback);
+    if (rubricFeedback.criteria.length > 0) {
+      return renderRubricFeedback(rubricFeedback.criteria, rubricFeedback.overallConclusion);
+    }
 
     // Parse sections based on actual backend format
     const sections = {
@@ -1810,7 +1987,7 @@ export const UploadAnalyze: React.FC = () => {
         return null;
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/academic/grades/check/${assignmentId}/${studentId}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/grades/check/${assignmentId}/${studentId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1854,7 +2031,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/academic/grades/view/${gradeId}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/grades/view/${gradeId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1887,7 +2064,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/classrooms/my-assigned', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/classrooms/my-assigned', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1937,7 +2114,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/academic/teachers/my-subjects', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/teachers/my-subjects', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -2033,9 +2210,14 @@ export const UploadAnalyze: React.FC = () => {
       } else {
         setError('');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to load filtered students:', error);
-      setError('Failed to load students. Please try again.');
+      const message = String(error?.message || '').toLowerCase();
+      if (message.includes('failed to fetch') || message.includes('networkerror') || message.includes('cors')) {
+        setError('Unable to load students due to a CORS/network block from the API. Please verify API Gateway CORS headers for /study-area/classrooms/* and /study-area/academic/subjects/* include localhost:5173.');
+      } else {
+        setError(error?.message || 'Failed to load students. Please try again.');
+      }
     }
   };
 
@@ -2057,9 +2239,14 @@ export const UploadAnalyze: React.FC = () => {
       } else {
         setError('');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to load subject students:', error);
-      setError('Failed to load students. Please try again.');
+      const message = String(error?.message || '').toLowerCase();
+      if (message.includes('failed to fetch') || message.includes('networkerror') || message.includes('cors')) {
+        setError('Unable to load subject students due to a CORS/network block from the API. Please verify API Gateway CORS headers for /study-area/academic/subjects/* include localhost:5173.');
+      } else {
+        setError(error?.message || 'Failed to load students. Please try again.');
+      }
     }
   };
 
@@ -2073,7 +2260,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/teachers/my-students', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/teachers/my-students', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -2316,10 +2503,8 @@ export const UploadAnalyze: React.FC = () => {
                 if (gradingMode === 'auto' && result.grade !== undefined) {
                   // Auto mode: Use AI-generated grade directly
                   try {
-                    // Construct comprehensive feedback from available sources
-                    const feedbackToSubmit = result.detailedFeedback ||
-                      result.overallFeedback ||
-                      result.analysis ||
+                    // Construct canonical rubric feedback so persisted grade details keep the new format.
+                    const feedbackToSubmit = buildRubricFeedbackForStorage(result) ||
                       `Grade: ${result.grade}/${maxPoints} (${Math.round((result.grade / maxPoints) * 100)}%)`;
 
                     console.log('📝 Submitting grade with feedback:', {
@@ -2377,9 +2562,7 @@ export const UploadAnalyze: React.FC = () => {
                             console.warn(`🔄 All retries exhausted for ${student.username} - storing as manual grade`);
 
                             // Store as manual grade as fallback without showing error
-                            const feedbackToStore = result.detailedFeedback ||
-                              result.overallFeedback ||
-                              result.analysis ||
+                            const feedbackToStore = buildRubricFeedbackForStorage(result) ||
                               `Analysis completed for ${student.username}`;
 
                             setManualGrades(prev => ({
@@ -2410,9 +2593,7 @@ export const UploadAnalyze: React.FC = () => {
                   }
                 } else {
                   // Manual mode: Store grades for manual review
-                  const feedbackToStore = result.detailedFeedback ||
-                    result.overallFeedback ||
-                    result.analysis ||
+                  const feedbackToStore = buildRubricFeedbackForStorage(result) ||
                     `Analysis completed for ${student.username}`;
 
                   setManualGrades(prev => ({
@@ -2547,7 +2728,7 @@ export const UploadAnalyze: React.FC = () => {
 
           // Parse grading data if available
           const result: AnalysisResult = {
-            extractedText: data.extracted_text || 'No text extracted from PDF',
+            extractedText: typeof data.extracted_text === 'string' ? data.extracted_text.trim() : '',
             analysis: data.analysis || 'Analysis not available',
             knowledgeGaps: data.knowledge_gaps || [],
             recommendations: data.recommendations || [],
@@ -2558,8 +2739,8 @@ export const UploadAnalyze: React.FC = () => {
           if (assignmentType === 'grading') {
             result.grade = data.grade || data.score;
             result.maxPoints = maxPoints;
-            result.gradingCriteria = data.grading_criteria || data.rubric_scores;
-            result.overallFeedback = data.overall_feedback || data.feedback;
+            result.gradingCriteria = normalizeRubricCriteria(data);
+            result.overallFeedback = data.overall_conclusion || data.overall_feedback || data.feedback;
             result.detailedFeedback = data.detailed_feedback || data.comprehensive_feedback || data.analysis;
             result.improvementAreas = data.improvement_areas || data.areas_for_improvement;
             result.strengths = data.strengths || data.student_strengths;
@@ -2675,7 +2856,7 @@ export const UploadAnalyze: React.FC = () => {
 
         // Parse grading data if available
         const result: AnalysisResult = {
-          extractedText: data.extracted_text || 'No text extracted',
+          extractedText: typeof data.extracted_text === 'string' ? data.extracted_text.trim() : '',
           analysis: data.analysis || 'Analysis not available',
           knowledgeGaps: data.knowledge_gaps || [],
           recommendations: data.recommendations || [],
@@ -2686,8 +2867,8 @@ export const UploadAnalyze: React.FC = () => {
         if (assignmentType === 'grading') {
           result.grade = data.grade || data.score;
           result.maxPoints = maxPoints;
-          result.gradingCriteria = data.grading_criteria || data.rubric_scores;
-          result.overallFeedback = data.overall_feedback || data.feedback;
+          result.gradingCriteria = normalizeRubricCriteria(data);
+          result.overallFeedback = data.overall_conclusion || data.overall_feedback || data.feedback;
           result.detailedFeedback = data.detailed_feedback || data.comprehensive_feedback || data.analysis;
           result.improvementAreas = data.improvement_areas || data.areas_for_improvement;
           result.strengths = data.strengths || data.student_strengths;
@@ -2879,7 +3060,7 @@ export const UploadAnalyze: React.FC = () => {
         console.log(`📸 Processing ${imageFiles.length} images with bulk grading`);
         const imageResult = await processBulkImages(imageFiles, assignment);
         if (imageResult) {
-          bulkResults.push(...imageResult.results);
+          bulkResults.push(...(imageResult.grading_results || []));
         }
       }
 
@@ -2888,13 +3069,13 @@ export const UploadAnalyze: React.FC = () => {
         console.log(`📄 Processing ${pdfFiles.length} PDFs with bulk grading`);
         const pdfResult = await processBulkPDFs(pdfFiles, assignment);
         if (pdfResult) {
-          bulkResults.push(...pdfResult.results);
+          bulkResults.push(...(pdfResult.grading_results || []));
         }
       }
 
       // Convert bulk results to analysis results format
       const analysisResults: AnalysisResult[] = bulkResults.map((result) => ({
-        extractedText: result.extracted_text || 'Text extracted via bulk processing',
+        extractedText: typeof result.extracted_text === 'string' ? result.extracted_text.trim() : '',
         analysis: result.analysis || result.feedback || 'Analysis completed via bulk processing',
         knowledgeGaps: result.knowledge_gaps || [],
         recommendations: result.recommendations || [],
@@ -2902,8 +3083,8 @@ export const UploadAnalyze: React.FC = () => {
         targetStudent: selectedStudent,
         grade: result.grade || result.score,
         maxPoints: assignment.max_points,
-        gradingCriteria: result.grading_criteria || result.rubric_scores || [],
-        overallFeedback: result.overall_feedback || result.feedback,
+        gradingCriteria: normalizeRubricCriteria(result),
+        overallFeedback: result.overall_conclusion || result.overall_feedback || result.feedback,
         improvementAreas: result.improvement_areas || result.areas_for_improvement || [],
         strengths: result.strengths || result.student_strengths || [],
         // Enhanced feedback types from index.js
@@ -2979,7 +3160,7 @@ export const UploadAnalyze: React.FC = () => {
     }
   };
 
-  const callKanaDirectGradingApi = async (studentIds: number[]) => {
+  const callGradeClassApi = async (studentIds: number[]) => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       throw new Error('Authentication required');
@@ -2989,151 +3170,34 @@ export const UploadAnalyze: React.FC = () => {
       throw new Error('Please select an assignment before grading');
     }
 
-    const assignment = assignments.find(a => a.id.toString() === selectedAssignment);
-    if (!assignment) {
-      throw new Error('Selected assignment was not found');
+    if (!selectedSubject) {
+      throw new Error('Please select a subject before grading');
     }
 
-    const KANA_BACKEND_BASE_URL = 'https://kana-backend-app.onrender.com';
-    const BRAININK_BACKEND_BASE_URL = 'https://brainink-backend.onrender.com';
+    const BRAININK_BACKEND_BASE_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
 
-    const blobToBase64 = (blob: Blob): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          const base64 = result?.split(',')[1];
-          if (!base64) {
-            reject(new Error('Failed to convert PDF to base64'));
-            return;
-          }
-          resolve(base64);
-        };
-        reader.onerror = () => reject(new Error('Failed to read PDF file'));
-        reader.readAsDataURL(blob);
-      });
-    };
+    const response = await fetch(`${BRAININK_BACKEND_BASE_URL}/study-area/academic/grades/grade-class`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        subject_id: parseInt(selectedSubject),
+        assignment_id: parseInt(selectedAssignment),
+        student_ids: studentIds,
+        grade_all_students: false
+      })
+    });
 
-    const grading_results: any[] = [];
-
-    for (const studentId of studentIds) {
-      const student = filteredStudents.find(s => s.id === studentId) || students.find(s => s.id === studentId);
-      const studentName = student ? `${student.fname} ${student.lname}` : `Student ${studentId}`;
-
-      try {
-        const pdfResponse = await fetch(
-          `${BRAININK_BACKEND_BASE_URL}/study-area/bulk-upload/assignment/${selectedAssignment}/student/${studentId}/pdf`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/pdf'
-            }
-          }
-        );
-
-        if (!pdfResponse.ok) {
-          const errorText = await pdfResponse.text();
-          grading_results.push({
-            student_id: studentId,
-            student_name: studentName,
-            success: false,
-            error: `Failed to fetch student PDF: ${pdfResponse.status} - ${errorText}`
-          });
-          continue;
-        }
-
-        const pdfBlob = await pdfResponse.blob();
-        const pdfBase64 = await blobToBase64(pdfBlob);
-
-        const kanaRequestBody = {
-          pdf_data: pdfBase64,
-          pdf_analysis: true,
-          grading_mode: true,
-          task_type: 'grade_assignment',
-          assignment_title: assignment.title || assignmentTitle || 'Assignment',
-          max_points: assignment.max_points || maxPoints || 100,
-          grading_rubric: assignment.rubric || gradingRubric || 'Standard academic grading criteria',
-          student_context: `Bulk grading assignment for student: ${studentName}`,
-          analysis_type: 'pdf_assignment_grading'
-        };
-
-        const kanaResponse = await fetch(`${KANA_BACKEND_BASE_URL}/kana-direct`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(kanaRequestBody)
-        });
-
-        if (!kanaResponse.ok) {
-          const errorText = await kanaResponse.text();
-          grading_results.push({
-            student_id: studentId,
-            student_name: studentName,
-            success: false,
-            error: `K.A.N.A. grading failed: ${kanaResponse.status} - ${errorText}`
-          });
-          continue;
-        }
-
-        const kanaData = await kanaResponse.json();
-        const rawScore = Number(kanaData.grade ?? kanaData.score ?? 0);
-        const maxScore = assignment.max_points || maxPoints || 100;
-        const computedPercentage = Math.round((rawScore / maxScore) * 100);
-        const percentage = kanaData.percentage || computedPercentage;
-        const letterGrade = kanaData.letter_grade || (
-          percentage >= 90 ? 'A' :
-            percentage >= 80 ? 'B' :
-              percentage >= 70 ? 'C' :
-                percentage >= 60 ? 'D' : 'F'
-        );
-
-        const gradingResult: any = {
-          student_id: studentId,
-          student_name: studentName,
-          success: true,
-          score: rawScore,
-          points_earned: rawScore,
-          max_points: maxScore,
-          percentage,
-          letter_grade: letterGrade,
-          feedback: kanaData.overall_feedback || kanaData.feedback || kanaData.analysis,
-          detailed_feedback: kanaData.detailed_feedback || kanaData.comprehensive_feedback || kanaData.analysis,
-          summary_feedback: kanaData.summary_feedback || kanaData.feedback,
-          strengths: kanaData.strengths || kanaData.student_strengths || [],
-          improvement_areas: kanaData.improvement_areas || kanaData.areas_for_improvement || [],
-          knowledge_gaps: kanaData.knowledge_gaps || [],
-          recommendations: kanaData.recommendations || [],
-          grading_criteria: kanaData.grading_criteria || kanaData.rubric_scores || []
-        };
-
-        if (gradingMode === 'auto') {
-          try {
-            await gradesAssignmentsService.createGrade({
-              assignment_id: assignment.id,
-              student_id: studentId,
-              points_earned: rawScore,
-              feedback: gradingResult.feedback || 'Auto-graded via K.A.N.A.'
-            });
-          } catch (saveError: any) {
-            gradingResult.success = false;
-            gradingResult.error = saveError?.message || 'Failed to save grade to backend';
-          }
-        }
-
-        grading_results.push(gradingResult);
-      } catch (error: any) {
-        grading_results.push({
-          student_id: studentId,
-          student_name: studentName,
-          success: false,
-          error: error?.message || 'Unexpected grading error'
-        });
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const detail = errorData?.detail || `Grade-class request failed (${response.status})`;
+      throw new Error(detail);
     }
 
-    return { grading_results };
+    const data = await response.json();
+    return { grading_results: data.grading_results || [] };
   };
 
   const processBulkImages = async (imageFiles: File[], assignment: any) => {
@@ -3143,8 +3207,8 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing image grading through K.A.N.A. direct for student ${selectedStudentId}`);
-      const result = await callKanaDirectGradingApi([selectedStudentId]);
+      console.log(`📤 Routing image grading through backend grade-class (Gemma) for student ${selectedStudentId}`);
+      const result = await callGradeClassApi([selectedStudentId]);
       console.log('✅ Bulk image grading completed:', result);
       return result;
 
@@ -3161,8 +3225,8 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing PDF grading through K.A.N.A. direct for student ${selectedStudentId}`);
-      const result = await callKanaDirectGradingApi([selectedStudentId]);
+      console.log(`📤 Routing PDF grading through backend grade-class (Gemma) for student ${selectedStudentId}`);
+      const result = await callGradeClassApi([selectedStudentId]);
       console.log('✅ Bulk PDF grading completed:', result);
       return result;
 
@@ -3204,7 +3268,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Authentication required');
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${assignmentId}/students`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${assignmentId}/students`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -3322,7 +3386,7 @@ export const UploadAnalyze: React.FC = () => {
       console.log('📤 Uploading', bulkUploadFiles.length, 'files for student:', selectedBulkStudent);
 
       // Call the correct bulk upload endpoint for images
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/bulk-upload-to-pdf', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload-to-pdf', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -3377,7 +3441,7 @@ export const UploadAnalyze: React.FC = () => {
         return;
       }
 
-      const gradeResult = await callKanaDirectGradingApi([parseInt(studentId)]);
+      const gradeResult = await callGradeClassApi([parseInt(studentId)]);
       console.log('✅ Auto-grading completed:', gradeResult);
 
       const gradingResults = gradeResult.grading_results || [];
@@ -3387,7 +3451,7 @@ export const UploadAnalyze: React.FC = () => {
         const student = bulkUploadModal.students?.find(s => s.student_id.toString() === studentId);
         const studentName = student?.student_name || `Student ${studentId}`;
 
-        console.log('✅ Grade successfully saved through K.A.N.A. direct flow');
+        console.log('✅ Grade successfully saved through backend Gemma flow');
 
         setError('');
         setSuccess(`✅ Grade submitted: ${studentName} - ${result.score}/${assignment.max_points} (${result.percentage || Math.round((result.score / assignment.max_points) * 100)}%)`);
@@ -3436,7 +3500,7 @@ export const UploadAnalyze: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/pdf'
@@ -3482,7 +3546,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Authentication required');
       }
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${assignmentId}/student/${studentId}/pdf`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -3523,7 +3587,7 @@ export const UploadAnalyze: React.FC = () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${selectedAssignment}/students`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${selectedAssignment}/students`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -3726,7 +3790,7 @@ export const UploadAnalyze: React.FC = () => {
         formData.append('files', file);
       });
 
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/bulk-upload-to-pdf', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload-to-pdf', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -3817,7 +3881,7 @@ export const UploadAnalyze: React.FC = () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${selectedAssignment}/students`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${selectedAssignment}/students`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -3993,11 +4057,11 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Assignment not found');
       }
 
-      setProcessingStep('Routing grading through K.A.N.A. direct...');
+      setProcessingStep('Routing grading through backend Gemma service...');
       setProcessingProgress(45);
 
-      const gradingResults = await callKanaDirectGradingApi(selectedStudents);
-      console.log('✅ K.A.N.A. direct bulk grading completed:', gradingResults);
+      const gradingResults = await callGradeClassApi(selectedStudents);
+      console.log('✅ Gemma bulk grading completed:', gradingResults);
 
       const mappedResults = gradingResults.grading_results || [];
       const successfulSubmissions = mappedResults.filter((item: any) => item.success !== false);
@@ -4012,36 +4076,91 @@ export const UploadAnalyze: React.FC = () => {
       if (failedSubmissions.length > 0) {
         message += `⚠️ ${failedSubmissions.length} students failed to grade. `;
       }
-      message += `🤖 Powered by K.A.N.A. AI with detailed feedback for each student.`;
+      message += `🤖 Powered by Gemma AI with detailed feedback for each student.`;
 
       setSuccess(message);
       setProcessingStep('Grading complete!');
       setProcessingProgress(100);
 
-      // Create analysis results from grading data
-      const analysisResults: AnalysisResult[] = mappedResults.map((result: any) => ({
-        extractedText: 'Bulk grading completed through K.A.N.A. direct.',
-        analysis: result.feedback || result.detailed_feedback || 'Automated grading completed',
-        knowledgeGaps: result.knowledge_gaps || [],
-        recommendations: result.recommendations || [],
-        confidence: 95,
-        targetStudent: result.student_name,
-        grade: result.score || result.points_earned,
-        maxPoints: assignment.max_points,
-        overallFeedback: result.feedback || result.detailed_feedback,
-        percentage: result.percentage || Math.round((result.score / assignment.max_points) * 100),
-        letterGrade: result.letter_grade || (
-          result.percentage >= 90 ? 'A' :
-            result.percentage >= 80 ? 'B' :
-              result.percentage >= 70 ? 'C' :
-                result.percentage >= 60 ? 'D' : 'F'
-        ),
-        detailedFeedback: result.detailed_feedback,
-        summaryFeedback: result.summary_feedback,
-        strengths: result.strengths || [],
-        improvementAreas: result.improvement_areas || result.knowledge_gaps || [],
-        gradingCriteria: result.grading_criteria || []
-      }));
+      // Create analysis results from grading data with strict numeric parsing.
+      const analysisResults: AnalysisResult[] = mappedResults.map((result: any) => {
+        const parsedGrade = Number(result.score ?? result.points_earned);
+        const hasValidGrade = Number.isFinite(parsedGrade);
+
+        const parsedMaxPoints = Number(result.max_points ?? assignment.max_points ?? maxPoints);
+        const resolvedMaxPoints = Number.isFinite(parsedMaxPoints) && parsedMaxPoints > 0
+          ? parsedMaxPoints
+          : (assignment.max_points || maxPoints || 100);
+
+        const parsedPercentage = Number(result.percentage);
+        const resolvedPercentage = Number.isFinite(parsedPercentage)
+          ? parsedPercentage
+          : (hasValidGrade && resolvedMaxPoints > 0
+            ? Math.round((parsedGrade / resolvedMaxPoints) * 100)
+            : undefined);
+
+        const resolvedFeedback = String(
+          result.feedback || result.detailed_feedback || result.summary_feedback || ''
+        ).trim();
+        const detailedFeedbackText = String(result.detailed_feedback || '').trim();
+
+        const shouldShowOverallFeedback = Boolean(
+          resolvedFeedback && (
+            !detailedFeedbackText ||
+            (detailedFeedbackText !== resolvedFeedback && !detailedFeedbackText.startsWith(resolvedFeedback))
+          )
+        );
+
+        const extractedTextCandidates = [
+          result.extracted_text,
+          result.extractedText,
+          result.submission_text,
+          result.ocr_text,
+          result.raw_feedback,
+        ];
+        const resolvedExtractedText = extractedTextCandidates
+          .find((value: unknown) => typeof value === 'string' && value.trim().length > 0);
+
+        const isSuccessful = result.success !== false && hasValidGrade;
+        const computedLetterGrade = typeof result.letter_grade === 'string' && result.letter_grade.trim()
+          ? result.letter_grade
+          : (Number.isFinite(resolvedPercentage)
+            ? (resolvedPercentage! >= 90 ? 'A' :
+              resolvedPercentage! >= 80 ? 'B' :
+                resolvedPercentage! >= 70 ? 'C' :
+                  resolvedPercentage! >= 60 ? 'D' : 'F')
+            : undefined);
+
+        return {
+          extractedText: isSuccessful
+            ? ((resolvedExtractedText as string) || '')
+            : '',
+          analysis: resolvedFeedback || (isSuccessful
+            ? 'Automated grading completed.'
+            : 'Grading failed. Please retry this student.'),
+          knowledgeGaps: Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : [],
+          recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
+          confidence: Number.isFinite(Number(result.confidence))
+            ? Number(result.confidence)
+            : (isSuccessful ? 95 : 0),
+          targetStudent: result.student_name,
+          grade: hasValidGrade ? parsedGrade : undefined,
+          maxPoints: resolvedMaxPoints,
+          overallFeedback: shouldShowOverallFeedback ? resolvedFeedback : undefined,
+          percentage: Number.isFinite(resolvedPercentage) ? resolvedPercentage : undefined,
+          letterGrade: computedLetterGrade,
+          detailedFeedback: detailedFeedbackText || undefined,
+          summaryFeedback: result.summary_feedback,
+          strengths: Array.isArray(result.strengths) ? result.strengths : [],
+          improvementAreas: Array.isArray(result.improvement_areas)
+            ? result.improvement_areas
+            : (Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : []),
+          gradingCriteria: normalizeRubricCriteria(result),
+          needs_retry: !isSuccessful,
+          error: !isSuccessful ? (result.error || 'No valid score was returned from Gemma grading.') : undefined,
+          raw_feedback: typeof result.raw_feedback === 'string' ? result.raw_feedback : undefined,
+        };
+      });
 
       setAnalysisResults(analysisResults);
 
@@ -4094,7 +4213,7 @@ export const UploadAnalyze: React.FC = () => {
       }
 
       // Fetch the PDF file from backend
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/bulk-upload/assignment/${selectedAssignment}/student/${student.student_id}/pdf`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload/assignment/${selectedAssignment}/student/${student.student_id}/pdf`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -4126,7 +4245,7 @@ export const UploadAnalyze: React.FC = () => {
       setBulkUploadExistingModal(false);
 
       console.log('✅ Selected bulk file successfully:', pdfFile.name);
-      setSuccess(`Selected ${student.student_name}'s PDF file. Ready to grade with K.A.N.A.`);
+      setSuccess(`Selected ${student.student_name}'s PDF file. Ready to grade with Gemma.`);
 
       // Auto-clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
@@ -4206,7 +4325,7 @@ export const UploadAnalyze: React.FC = () => {
       formData.append('student_id', selectedStudent);
 
       const token = localStorage.getItem('access_token');
-      const response = await fetch('https://brainink-backend.onrender.com/study-area/bulk-upload-to-pdf', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/bulk-upload-to-pdf', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -4265,7 +4384,7 @@ export const UploadAnalyze: React.FC = () => {
       }
 
       // Load assignment images using the backend endpoint
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/assignment-images/assignment/${selectedAssignment}/summary`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/assignment-images/assignment/${selectedAssignment}/summary`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -4327,7 +4446,7 @@ export const UploadAnalyze: React.FC = () => {
       console.log('Fetching image using API endpoint for image ID:', image.id);
 
       // Use the correct backend endpoint to get the actual image file
-      const fileUrl = `https://brainink-backend.onrender.com/study-area/assignment-images/file/${image.id}`;
+      const fileUrl = `https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/assignment-images/file/${image.id}`;
       console.log('Fetching image file from:', fileUrl);
 
       let response, blob, file;
@@ -4490,7 +4609,7 @@ export const UploadAnalyze: React.FC = () => {
 
       console.log('📝 Sending update data:', updateData);
 
-      const response = await fetch(`https://brainink-backend.onrender.com/study-area/academic/assignments/${assignment.id}`, {
+      const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/assignments/${assignment.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -4974,7 +5093,7 @@ export const UploadAnalyze: React.FC = () => {
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>{assignmentType === 'grading' ? 'Grading with K.A.N.A.' : 'Analyzing with K.A.N.A.'}</span>
+                    <span>{assignmentType === 'grading' ? 'Grading with Gemma' : 'Analyzing with Gemma'}</span>
                   </div>
                   <div className="w-full">
                     <div className="mb-1 flex justify-between text-xs text-white/80">
@@ -4992,7 +5111,7 @@ export const UploadAnalyze: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <Send className="h-4 w-4" />
-                  {assignmentType === 'grading' ? 'Grade with K.A.N.A.' : 'Analyze with K.A.N.A.'}
+                  {assignmentType === 'grading' ? 'Grade with Gemma' : 'Analyze with Gemma'}
                   {selectedStudents.length > 1 && ` (${selectedStudents.length} students)`}
                 </div>
               )}
@@ -5098,30 +5217,39 @@ export const UploadAnalyze: React.FC = () => {
                             Retry Grading
                           </button>
                         </div>
-                      ) : result.grade !== undefined ? (
+                      ) : Number.isFinite(result.grade) ? (
                         <div className="mb-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-700">Grade</span>
-                            <span className="text-sm font-bold text-gray-900">
-                              {result.grade}/{result.maxPoints || maxPoints}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${(result.grade / (result.maxPoints || maxPoints)) >= 0.9 ? 'bg-green-500' :
-                                (result.grade / (result.maxPoints || maxPoints)) >= 0.8 ? 'bg-blue-500' :
-                                  (result.grade / (result.maxPoints || maxPoints)) >= 0.7 ? 'bg-yellow-500' :
-                                    'bg-red-500'
-                                }`}
-                              style={{
-                                width: `${Math.max(5, (result.grade / (result.maxPoints || maxPoints)) * 100)}%`
-                              }}
-                            ></div>
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            {Math.round((result.grade / (result.maxPoints || maxPoints)) * 100)}%
-                            {result.letterGrade && ` (${result.letterGrade})`}
-                          </div>
+                          {(() => {
+                            const maxScore = result.maxPoints || maxPoints;
+                            const ratio = maxScore > 0 ? (result.grade! / maxScore) : 0;
+                            const percentage = Math.round(ratio * 100);
+                            return (
+                              <>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-medium text-gray-700">Grade</span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {result.grade}/{result.maxPoints || maxPoints}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full transition-all duration-300 ${ratio >= 0.9 ? 'bg-green-500' :
+                                      ratio >= 0.8 ? 'bg-blue-500' :
+                                        ratio >= 0.7 ? 'bg-yellow-500' :
+                                          'bg-red-500'
+                                      }`}
+                                    style={{
+                                      width: `${Math.max(5, ratio * 100)}%`
+                                    }}
+                                  ></div>
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {percentage}%
+                                  {result.letterGrade && ` (${result.letterGrade})`}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       ) : null}
 
@@ -5331,13 +5459,22 @@ export const UploadAnalyze: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-3xl font-bold text-blue-600">
-                          {fullAnalysisModal.analysis.grade}/{fullAnalysisModal.analysis.maxPoints}
+                          {Number.isFinite(fullAnalysisModal.analysis.grade)
+                            ? fullAnalysisModal.analysis.grade
+                            : 'N/A'}
+                          /
+                          {fullAnalysisModal.analysis.maxPoints || maxPoints}
                         </div>
                         <div className="text-lg text-gray-600">
-                          {fullAnalysisModal.analysis.percentage}% - {fullAnalysisModal.analysis.letterGrade}
+                          {Number.isFinite(fullAnalysisModal.analysis.percentage)
+                            ? `${fullAnalysisModal.analysis.percentage}%`
+                            : 'Not available'}
+                          {fullAnalysisModal.analysis.letterGrade ? ` - ${fullAnalysisModal.analysis.letterGrade}` : ''}
                         </div>
                         <div className="text-sm text-green-600 font-medium">
-                          Confidence: {fullAnalysisModal.analysis.confidence}%
+                          Confidence: {Number.isFinite(fullAnalysisModal.analysis.confidence)
+                            ? `${fullAnalysisModal.analysis.confidence}%`
+                            : 'N/A'}
                         </div>
                       </div>
                     </div>
@@ -5351,69 +5488,51 @@ export const UploadAnalyze: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Complete Feedback Display - Shows ALL Available Content */}
+                  {/* Rubric-Based Feedback */}
                   <div className="bg-white border border-gray-200 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                      Complete Feedback (All Available Data)
+                      Rubric Feedback
                     </h3>
 
-                    {/* Show ALL feedback content - combine all fields to ensure nothing is missed */}
-                    <div className="prose prose-sm max-w-none text-gray-700 space-y-6">
+                    {fullAnalysisModal.analysis.gradingCriteria && fullAnalysisModal.analysis.gradingCriteria.length > 0 ? (
+                      <div className="space-y-4">
+                        {fullAnalysisModal.analysis.gradingCriteria.map((criteria, index) => {
+                          const scoreText = criteria.scoreDisplay || (
+                            Number.isFinite(criteria.score) && Number.isFinite(criteria.maxScore)
+                              ? `${criteria.score}/${criteria.maxScore}`
+                              : (Number.isFinite(criteria.score) ? `${criteria.score}` : 'Not scored')
+                          );
+                          return (
+                            <div key={index} className="text-sm text-gray-800 leading-relaxed">
+                              <p>
+                                <span className="font-semibold text-gray-900">{criteria.category}</span>
+                                <span className="text-blue-700 font-semibold"> ({scoreText})</span>
+                                <span>: {criteria.feedback || 'No detailed feedback provided for this criterion.'}</span>
+                              </p>
+                              {criteria.evidenceSnippet && criteria.evidenceSnippet !== 'N/A' && (
+                                <p className="text-xs text-gray-600 mt-1 italic">
+                                  Evidence: "{criteria.evidenceSnippet}"
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
 
-                      {/* Overall Feedback */}
-                      {fullAnalysisModal.analysis.overallFeedback && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Overall Feedback:</h4>
-                          <div className="whitespace-pre-line bg-gray-50 p-4 rounded border-l-4 border-blue-500">
-                            {fullAnalysisModal.analysis.overallFeedback}
+                        {(fullAnalysisModal.analysis.overallFeedback || fullAnalysisModal.analysis.summaryFeedback || fullAnalysisModal.analysis.detailedFeedback) && (
+                          <div className="pt-3 border-t border-gray-200">
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              <span className="font-semibold text-gray-900">Overall conclusion:</span>{' '}
+                              {fullAnalysisModal.analysis.overallFeedback || fullAnalysisModal.analysis.summaryFeedback || fullAnalysisModal.analysis.detailedFeedback}
+                            </p>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Detailed Feedback */}
-                      {fullAnalysisModal.analysis.detailedFeedback && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Detailed Feedback:</h4>
-                          <div className="whitespace-pre-line bg-purple-50 p-4 rounded border-l-4 border-purple-500">
-                            {fullAnalysisModal.analysis.detailedFeedback}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Analysis Field */}
-                      {fullAnalysisModal.analysis.analysis && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Analysis:</h4>
-                          <div className="whitespace-pre-line bg-green-50 p-4 rounded border-l-4 border-green-500">
-                            {fullAnalysisModal.analysis.analysis}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Summary Feedback */}
-                      {fullAnalysisModal.analysis.summaryFeedback && (
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-2">Summary Feedback:</h4>
-                          <div className="whitespace-pre-line bg-yellow-50 p-4 rounded border-l-4 border-yellow-500">
-                            {fullAnalysisModal.analysis.summaryFeedback}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Raw JSON Backup - Shows absolutely everything */}
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Complete Raw Data (Backup View):</h4>
-                        <details className="bg-black text-green-400 p-4 rounded font-mono text-xs">
-                          <summary className="cursor-pointer text-white hover:text-green-300 mb-2">
-                            Click to expand complete JSON data
-                          </summary>
-                          <pre className="overflow-auto max-h-96 whitespace-pre-wrap">
-                            {JSON.stringify(fullAnalysisModal.analysis, null, 2)}
-                          </pre>
-                        </details>
+                        )}
                       </div>
-                    </div>
+                    ) : (
+                      <div className="text-sm text-gray-600">
+                        No rubric paragraph feedback was returned for this submission.
+                      </div>
+                    )}
                   </div>
 
                   {/* Knowledge Gaps */}
@@ -5488,23 +5607,7 @@ export const UploadAnalyze: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Grading Criteria */}
-                  {fullAnalysisModal.analysis.gradingCriteria && fullAnalysisModal.analysis.gradingCriteria.length > 0 && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                        Grading Criteria
-                      </h3>
-                      <ul className="space-y-2">
-                        {fullAnalysisModal.analysis.gradingCriteria.map((criteria, index) => (
-                          <li key={index} className="text-gray-700 flex items-start">
-                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                            {typeof criteria === 'string' ? criteria : JSON.stringify(criteria)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {/* Grading Criteria intentionally rendered in the Rubric-Based Feedback section above. */}
                 </div>
               </div>
             </div>
@@ -6422,11 +6525,7 @@ export const UploadAnalyze: React.FC = () => {
                   {gradingDetailsModal.gradeDetails.feedback && (
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                       <h4 className="font-semibold text-gray-900 mb-3">Feedback</h4>
-                      <div className="prose prose-sm max-w-none">
-                        <pre className="whitespace-pre-wrap font-sans text-gray-700">
-                          {gradingDetailsModal.gradeDetails.feedback}
-                        </pre>
-                      </div>
+                      {formatDetailedFeedback(gradingDetailsModal.gradeDetails.feedback)}
                     </div>
                   )}
 

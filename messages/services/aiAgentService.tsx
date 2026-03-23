@@ -260,7 +260,7 @@ class AIAgentService {
       
       try {
         // Try to get data from main backend microservice
-        const MAIN_BACKEND_API = 'https://brainink-backend.onrender.com';
+        const MAIN_BACKEND_API = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
         const response = await fetch(`${MAIN_BACKEND_API}/api/user-stats/${walletAddress}`, {
           method: 'GET',
           headers: {
@@ -518,7 +518,7 @@ class AIAgentService {
   async awardXP(userAddress: string, amount: number, reason: string): Promise<boolean> {
     try {
       // Use main backend for XP awards to keep all user data centralized
-      const MAIN_BACKEND_API = 'https://brainink-backend.onrender.com';
+      const MAIN_BACKEND_API = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
       const response = await fetch(`${MAIN_BACKEND_API}/api/award-xp`, {
         method: 'POST',
         headers: {

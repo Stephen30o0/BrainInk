@@ -324,7 +324,7 @@ export const ProfilePanel = () => {
     }
 
     try {
-      const response = await fetch('https://brainink-backend.onrender.com/update-profile', {
+      const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/update-profile', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

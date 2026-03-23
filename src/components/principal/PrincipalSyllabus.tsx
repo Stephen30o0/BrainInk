@@ -78,8 +78,8 @@ export const PrincipalSyllabus: React.FC = () => {
             console.log('🔑 Access token found:', !!token);
 
             // Load syllabuses
-            console.log('📚 Fetching syllabuses from: https://brainink-backend.onrender.com/study-area/syllabuses');
-            const syllabusResponse = await fetch('https://brainink-backend.onrender.com/study-area/syllabuses', {
+            console.log('📚 Fetching syllabuses from: https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/syllabuses');
+            const syllabusResponse = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/syllabuses', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -100,8 +100,8 @@ export const PrincipalSyllabus: React.FC = () => {
             setSyllabuses(Array.isArray(syllabusData) ? syllabusData : []);
 
             // Load subjects
-            console.log('🎯 Fetching subjects from: https://brainink-backend.onrender.com/study-area/academic/subjects/my-school');
-            const subjectsResponse = await fetch('https://brainink-backend.onrender.com/study-area/academic/subjects/my-school', {
+            console.log('🎯 Fetching subjects from: https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/subjects/my-school');
+            const subjectsResponse = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/subjects/my-school', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -133,7 +133,7 @@ export const PrincipalSyllabus: React.FC = () => {
     const testConnection = async () => {
         try {
             console.log('🔍 Testing backend connection...');
-            const response = await fetch('https://brainink-backend.onrender.com/', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/', {
                 method: 'GET',
             });
             console.log('🔗 Backend connection test:', response.status);
@@ -587,7 +587,7 @@ const CreateSyllabusModal: React.FC<{
             setLoading(true);
             setError(null);
 
-            const response = await fetch('https://brainink-backend.onrender.com/study-area/syllabuses', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/syllabuses', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

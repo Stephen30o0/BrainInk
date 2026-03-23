@@ -264,7 +264,7 @@ export const AssignmentManager: React.FC = () => {
 
             // Keep rubric update on academic endpoint where rubric is handled.
             const token = localStorage.getItem('access_token');
-            const response = await fetch(`https://brainink-backend.onrender.com/study-area/academic/assignments/${editAssignment.id}`, {
+            const response = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/academic/assignments/${editAssignment.id}`, {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${token}`,

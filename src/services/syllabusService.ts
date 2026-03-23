@@ -3,7 +3,7 @@
  * Handles syllabus management API calls for both principals and teachers
  */
 
-const BACKEND_URL = 'https://brainink-backend.onrender.com';
+const BACKEND_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
 
 // Types
 export interface SyllabusWeeklyPlan {
@@ -449,16 +449,6 @@ class SyllabusService {
         try {
             console.log('📚 Creating syllabus...');
 
-            const formData = new FormData();
-            formData.append('title', syllabusData.title);
-            formData.append('description', syllabusData.description);
-            formData.append('subject_id', syllabusData.subject_id.toString());
-            formData.append('term_length_weeks', syllabusData.term_length_weeks.toString());
-
-            if (syllabusData.textbook_file) {
-                formData.append('textbook_file', syllabusData.textbook_file);
-            }
-
             const token = this.getAuthToken();
             if (!token) {
                 throw new Error('Authentication required');
@@ -468,8 +458,14 @@ class SyllabusService {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-                body: formData,
+                body: JSON.stringify({
+                    title: syllabusData.title,
+                    description: syllabusData.description,
+                    subject_id: syllabusData.subject_id,
+                    term_length_weeks: syllabusData.term_length_weeks,
+                }),
             });
 
             if (!response.ok) {
@@ -478,6 +474,17 @@ class SyllabusService {
             }
 
             const newSyllabus = await response.json();
+
+            // Upload textbook as a second step when provided.
+            if (syllabusData.textbook_file) {
+                await this.uploadTextbook(newSyllabus.id, syllabusData.textbook_file);
+                try {
+                    return await this.getSyllabus(newSyllabus.id);
+                } catch {
+                    // Fall back to the original create response if refresh fails.
+                }
+            }
+
             console.log('✅ Syllabus created successfully:', newSyllabus);
             return newSyllabus;
         } catch (error) {
@@ -650,12 +657,12 @@ class SyllabusService {
     // ============ UTILITY METHODS ============
 
     /**
-     * Process textbook through K.A.N.A. AI
+     * Process textbook through Gemma AI
      * Endpoint: POST /study-area/syllabuses/{syllabus_id}/process-textbook
      */
     async processTextbook(syllabusId: number): Promise<void> {
         try {
-            console.log(`🧠 Processing textbook for syllabus ${syllabusId} through K.A.N.A...`);
+            console.log(`🧠 Processing textbook for syllabus ${syllabusId} through Gemma...`);
 
             await this.makeAuthenticatedRequest(`/study-area/syllabuses/${syllabusId}/process-textbook`, {
                 method: 'POST',

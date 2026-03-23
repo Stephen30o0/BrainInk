@@ -24,7 +24,7 @@ interface MatchResult {
 }
 
 class TribeMatchingService {
-  private readonly BACKEND_API_BASE = 'https://brainink-backend.onrender.com';
+  private readonly BACKEND_API_BASE = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
   
   constructor() {
     // Frontend service - connects to backend API

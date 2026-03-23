@@ -3,7 +3,7 @@
  * Handles school and role selection after authentication
  */
 
-const BACKEND_URL = 'https://brainink-backend.onrender.com';
+const BACKEND_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
 
 export interface School {
     id: number;

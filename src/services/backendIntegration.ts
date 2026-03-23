@@ -4,7 +4,7 @@
  */
 
 // Backend API URLs
-const BRAININK_BACKEND_URL = 'https://brainink-backend.onrender.com'; // Your FastAPI backend
+const BRAININK_BACKEND_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com'; // Your FastAPI backend
 const KANA_BACKEND_URL = 'http://localhost:10000'; // K.A.N.A. AI backend
 
 export interface BackendConfig {

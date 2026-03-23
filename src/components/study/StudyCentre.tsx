@@ -416,10 +416,68 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
       strengths: '',
       improvements: '',
       recommendations: '',
+      rubricCriteria: [] as Array<{ criterion: string; score: string; text: string; evidence?: string }>,
       fullText: feedback
     };
 
     try {
+      const normalized = (feedback || '').replace(/^\[RUBRIC_FEEDBACK_V2\]\s*/i, '').trim();
+
+      // Handle JSON payloads if feedback was persisted as JSON text.
+      if (normalized.startsWith('{') && normalized.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(normalized);
+          const criteria = Array.isArray(parsed?.criterion_feedback) ? parsed.criterion_feedback : [];
+          if (criteria.length > 0) {
+            sections.rubricCriteria = criteria.map((item: any) => ({
+              criterion: String(item?.criterion || '').trim() || 'Criterion',
+              score: String(item?.score_display || `${item?.points_awarded ?? 0}/${item?.max_points ?? 0}`),
+              text: String(item?.paragraph || '').trim(),
+              evidence: String(item?.evidence_snippet || '').trim() || undefined,
+            }));
+            sections.overall = String(parsed?.overall_conclusion || '').trim();
+            return sections;
+          }
+        } catch {
+          // Fall through to plain-text parsing.
+        }
+      }
+
+      // Parse rubric paragraph format:
+      // Criterion (x/y): explanation... Evidence: "..."
+      const lines = normalized
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      for (const line of lines) {
+        const overallMatch = line.match(/^Overall conclusion:\s*(.+)$/i);
+        if (overallMatch) {
+          sections.overall = overallMatch[1].trim();
+          continue;
+        }
+
+        const criterionMatch = line.match(/^(.+?)\s*\((\d+\/?\d*)\):\s*(.+)$/);
+        if (criterionMatch) {
+          const criterion = criterionMatch[1].trim();
+          const score = criterionMatch[2].trim();
+          const body = criterionMatch[3].trim();
+          const evidenceMatch = body.match(/\s+Evidence:\s*"([\s\S]+)"$/i);
+          const text = evidenceMatch ? body.replace(/\s+Evidence:\s*"([\s\S]+)"$/i, '').trim() : body;
+          const evidence = evidenceMatch ? evidenceMatch[1].trim() : undefined;
+
+          sections.rubricCriteria.push({ criterion, score, text, evidence });
+          continue;
+        }
+      }
+
+      if (sections.rubricCriteria.length > 0) {
+        if (!sections.overall) {
+          sections.overall = 'Rubric-based feedback generated from your submission.';
+        }
+        return sections;
+      }
+
       // Try to parse structured feedback
       if (feedback.includes('Strengths:') || feedback.includes('Areas for improvement:')) {
         const parts = feedback.split(/(?=Strengths:|Areas for improvement:|Recommendations:|Overall:)/i);
@@ -658,7 +716,37 @@ export const StudyCentre: React.FC<StudyCentreProps> = ({
                     </div>
 
                     {/* Feedback Sections */}
-                    {feedback.overall && (
+                    {feedback.rubricCriteria.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <MessageSquare className="w-5 h-5 text-blue-600" />
+                          <h3 className="font-semibold text-gray-900">Rubric Feedback</h3>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                          {feedback.rubricCriteria.map((item, index) => (
+                            <div key={index} className="text-sm text-gray-800 leading-relaxed">
+                              <p>
+                                <span className="font-semibold text-gray-900">{item.criterion}</span>
+                                <span className="text-blue-700 font-semibold"> ({item.score})</span>
+                                <span>: {item.text}</span>
+                              </p>
+                              {item.evidence && item.evidence !== 'N/A' && (
+                                <p className="text-xs text-gray-600 mt-1 italic">Evidence: "{item.evidence}"</p>
+                              )}
+                            </div>
+                          ))}
+                          {feedback.overall && (
+                            <div className="pt-2 border-t border-blue-200">
+                              <p className="text-sm text-gray-800">
+                                <span className="font-semibold text-gray-900">Overall conclusion:</span> {feedback.overall}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {feedback.overall && feedback.rubricCriteria.length === 0 && (
                       <div className="space-y-3">
                         <div className="flex items-center space-x-2">
                           <MessageSquare className="w-5 h-5 text-blue-600" />

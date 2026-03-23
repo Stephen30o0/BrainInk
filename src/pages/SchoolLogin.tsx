@@ -48,7 +48,7 @@ export const SchoolLogin = () => {
                     throw new Error('No credential received from Google');
                 }
 
-                const apiResponse = await fetch(`https://brainink-backend.onrender.com/google-login`, {
+                const apiResponse = await fetch(`https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/google-login`, {
                     method: "POST",
                     credentials: "include",
                     headers: {
@@ -107,7 +107,7 @@ export const SchoolLogin = () => {
         setError('');
 
         try {
-            const response = await fetch('https://brainink-backend.onrender.com/login', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/login', {
                 method: "POST",
                 credentials: "include",
                 headers: {

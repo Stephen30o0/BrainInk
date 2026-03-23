@@ -34,7 +34,7 @@ export interface QuizAttempt {
     feedback: string;
 }
 
-export interface KanaQuizRequest {
+export interface GemmaQuizRequest {
     weaknessAreas: string[];
     subject: string;
     studentLevel: string;
@@ -43,7 +43,7 @@ export interface KanaQuizRequest {
 }
 
 class QuizGeneratorServiceClass {
-    private baseUrl = 'https://brainink-backend.onrender.com';
+    private baseUrl = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
     private storageKey = 'generated_quizzes';
 
     /**
@@ -76,50 +76,52 @@ class QuizGeneratorServiceClass {
         forceRefresh: boolean = false
     ): Promise<GeneratedQuiz | null> {
         try {
-            console.log('🧠 Generating quiz from assignment feedback...');
+            console.log('🧠 Generating quiz from assignment feedback with Gemma...');
 
-            // Call the backend to generate quiz using Kana AI v2 (with fallback to v1)
-            let response = await fetch(`${this.baseUrl}/study-area/modules/quizzes/generate-with-kana-v2`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    assignment_id: assignmentId,
-                    student_id: studentId,
-                    feedback,
-                    weakness_areas: weaknessAreas,
-                    subject,
-                    grade,
-                    force_refresh: forceRefresh
-                })
-            });
+            const requestBody = {
+                assignment_id: assignmentId,
+                student_id: studentId,
+                feedback,
+                weakness_areas: weaknessAreas,
+                subject,
+                grade,
+                force_refresh: forceRefresh
+            };
 
-            // Fallback to v1 endpoint if v2 is not available
-            if (!response.ok) {
-                console.log('🔄 V2 endpoint failed, trying V1 fallback...');
-                response = await fetch(`${this.baseUrl}/study-area/modules/quizzes/generate-with-kana`, {
+            // Try Gemma routes first, then legacy aliases to avoid breaking older deployments.
+            const generationEndpoints = [
+                '/study-area/modules/quizzes/generate-with-gemma-v2',
+                '/study-area/modules/quizzes/generate-with-gemma',
+                '/study-area/modules/quizzes/generate-with-nova-v2',
+                '/study-area/modules/quizzes/generate-with-nova',
+                '/study-area/modules/quizzes/generate-with-kana-v2',
+                '/study-area/modules/quizzes/generate-with-kana'
+            ];
+
+            let response: Response | null = null;
+            for (const endpoint of generationEndpoints) {
+                response = await fetch(`${this.baseUrl}${endpoint}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        assignment_id: assignmentId,
-                        student_id: studentId,
-                        feedback,
-                        weakness_areas: weaknessAreas,
-                        subject,
-                        grade
-                    })
+                    body: JSON.stringify(requestBody)
                 });
+
+                if (response.ok) {
+                    break;
+                }
+
+                console.warn(`⚠️ Quiz generation endpoint failed: ${endpoint} (${response.status})`);
             }
 
-            if (!response.ok) {
-                throw new Error(`Backend responded with ${response.status}: ${response.statusText}`);
+            if (!response || !response.ok) {
+                const statusText = response ? `${response.status}: ${response.statusText}` : 'No response';
+                throw new Error(`Backend responded with ${statusText}`);
             }
 
             const quiz = await response.json();
-            console.log('✅ Quiz generated successfully via backend:', quiz.id);
+            console.log('✅ Quiz generated successfully via Gemma backend:', quiz.id);
 
             // Save to local storage as backup
             try {
@@ -142,7 +144,7 @@ class QuizGeneratorServiceClass {
             return quiz;
 
         } catch (error) {
-            console.error('❌ Failed to generate quiz via backend:', error);
+            console.error('❌ Failed to generate quiz via Gemma backend:', error);
 
             // Fallback: generate locally
             console.log('🔄 Using local fallback generation...');
@@ -198,7 +200,7 @@ class QuizGeneratorServiceClass {
     }
 
     /**
-     * Generate fallback questions when Kana AI is unavailable
+    * Generate fallback questions when Gemma backend is unavailable
      */
     private generateFallbackQuestions(weaknessAreas: string[], subject: string, difficulty: string): QuizQuestion[] {
         const questions: QuizQuestion[] = [];

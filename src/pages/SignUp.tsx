@@ -49,9 +49,9 @@ export const SignUp = () => {
   // Get the correct backend URL based on environment
   const getBackendUrl = () => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'https://brainink-backend.onrender.com'; // Use production backend even in dev
+      return 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com'; // Use production backend even in dev
     }
-    return 'https://brainink-backend.onrender.com';
+    return 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
   };
 
   // Function to handle successful authentication

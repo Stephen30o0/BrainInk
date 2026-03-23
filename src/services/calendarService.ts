@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'https://brainink-backend.onrender.com/study-area/calendar';
+const BASE_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/study-area/calendar';
 
 // Create axios instance with auth token
 const createApiClient = () => {

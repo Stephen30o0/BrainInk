@@ -3,7 +3,7 @@
  * Handles all principal-specific API operations
  */
 
-const BACKEND_URL = 'https://brainink-backend.onrender.com';
+const BACKEND_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
 
 export interface SchoolAnalytics {
     school_info: {

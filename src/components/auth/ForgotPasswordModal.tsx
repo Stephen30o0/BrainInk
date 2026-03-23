@@ -40,7 +40,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
         setError('');
 
         try {
-            const response = await fetch('https://brainink-backend.onrender.com/forgot-password', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/forgot-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -68,7 +68,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
         setError('');
 
         try {
-            const response = await fetch('https://brainink-backend.onrender.com/verify-reset-code', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/verify-reset-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
         }
 
         try {
-            const response = await fetch('https://brainink-backend.onrender.com/reset-password', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/reset-password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -142,7 +142,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
         setError('');
 
         try {
-            const response = await fetch('https://brainink-backend.onrender.com/resend-reset-code', {
+            const response = await fetch('https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com/resend-reset-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
