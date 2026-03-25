@@ -2685,7 +2685,7 @@ export const UploadAnalyze: React.FC = () => {
             analysis_type: 'pdf_student_notes'
           };
 
-          console.log('Sending PDF request to K.A.N.A.:', {
+          console.log('Sending PDF request for analysis/grading:', {
             ...requestBody,
             pdf_data: `[${pdfData.length} characters of base64 PDF data]`
           });
@@ -2709,8 +2709,8 @@ export const UploadAnalyze: React.FC = () => {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('K.A.N.A. PDF response error:', response.status, errorText);
-            throw new Error(`K.A.N.A. PDF analysis failed: ${response.status} - ${errorText}`);
+            console.error('PDF response error:', response.status, errorText);
+            throw new Error(`PDF analysis failed: ${response.status} - ${errorText}`);
           }
 
           const data = await response.json();
@@ -2813,7 +2813,7 @@ export const UploadAnalyze: React.FC = () => {
           analysis_type: 'student_notes'
         };
 
-        console.log('Sending request to K.A.N.A.:', {
+        console.log('Sending request for analysis/grading:', {
           ...requestBody,
           image_data: `[${imageData.length} characters of base64 data]`
         });
@@ -2837,8 +2837,8 @@ export const UploadAnalyze: React.FC = () => {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('K.A.N.A. response error:', response.status, errorText);
-          throw new Error(`K.A.N.A. analysis failed: ${response.status} - ${errorText}`);
+          console.error('Analysis response error:', response.status, errorText);
+          throw new Error(`Analysis failed: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
@@ -3207,7 +3207,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing image grading through backend grade-class (Gemma) for student ${selectedStudentId}`);
+      console.log(`📤 Routing image grading through backend grade-class for student ${selectedStudentId}`);
       const result = await callGradeClassApi([selectedStudentId]);
       console.log('✅ Bulk image grading completed:', result);
       return result;
@@ -3225,7 +3225,7 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Please select a student before grading');
       }
 
-      console.log(`📤 Routing PDF grading through backend grade-class (Gemma) for student ${selectedStudentId}`);
+      console.log(`📤 Routing PDF grading through backend grade-class for student ${selectedStudentId}`);
       const result = await callGradeClassApi([selectedStudentId]);
       console.log('✅ Bulk PDF grading completed:', result);
       return result;
@@ -3451,7 +3451,7 @@ export const UploadAnalyze: React.FC = () => {
         const student = bulkUploadModal.students?.find(s => s.student_id.toString() === studentId);
         const studentName = student?.student_name || `Student ${studentId}`;
 
-        console.log('✅ Grade successfully saved through backend Gemma flow');
+        console.log('✅ Grade successfully saved through backend grading flow');
 
         setError('');
         setSuccess(`✅ Grade submitted: ${studentName} - ${result.score}/${assignment.max_points} (${result.percentage || Math.round((result.score / assignment.max_points) * 100)}%)`);
@@ -4057,11 +4057,11 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Assignment not found');
       }
 
-      setProcessingStep('Routing grading through backend Gemma service...');
+      setProcessingStep('Routing grading through backend service...');
       setProcessingProgress(45);
 
       const gradingResults = await callGradeClassApi(selectedStudents);
-      console.log('✅ Gemma bulk grading completed:', gradingResults);
+      console.log('✅ Bulk grading completed:', gradingResults);
 
       const mappedResults = gradingResults.grading_results || [];
       const successfulSubmissions = mappedResults.filter((item: any) => item.success !== false);
@@ -4076,7 +4076,7 @@ export const UploadAnalyze: React.FC = () => {
       if (failedSubmissions.length > 0) {
         message += `⚠️ ${failedSubmissions.length} students failed to grade. `;
       }
-      message += `🤖 Powered by Gemma AI with detailed feedback for each student.`;
+      message += `🤖 Detailed feedback has been generated for each student.`;
 
       setSuccess(message);
       setProcessingStep('Grading complete!');
@@ -4157,7 +4157,7 @@ export const UploadAnalyze: React.FC = () => {
             : (Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : []),
           gradingCriteria: normalizeRubricCriteria(result),
           needs_retry: !isSuccessful,
-          error: !isSuccessful ? (result.error || 'No valid score was returned from Gemma grading.') : undefined,
+          error: !isSuccessful ? (result.error || 'No valid score was returned from grading.') : undefined,
           raw_feedback: typeof result.raw_feedback === 'string' ? result.raw_feedback : undefined,
         };
       });
@@ -4245,7 +4245,7 @@ export const UploadAnalyze: React.FC = () => {
       setBulkUploadExistingModal(false);
 
       console.log('✅ Selected bulk file successfully:', pdfFile.name);
-      setSuccess(`Selected ${student.student_name}'s PDF file. Ready to grade with Gemma.`);
+      setSuccess(`Selected ${student.student_name}'s PDF file. Ready to grade.`);
 
       // Auto-clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
@@ -5093,7 +5093,7 @@ export const UploadAnalyze: React.FC = () => {
                 <div className="flex flex-col items-center gap-3">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>{assignmentType === 'grading' ? 'Grading with Gemma' : 'Analyzing with Gemma'}</span>
+                    <span>{assignmentType === 'grading' ? 'Grading' : 'Analyzing'}</span>
                   </div>
                   <div className="w-full">
                     <div className="mb-1 flex justify-between text-xs text-white/80">
@@ -5111,7 +5111,7 @@ export const UploadAnalyze: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <Send className="h-4 w-4" />
-                  {assignmentType === 'grading' ? 'Grade with Gemma' : 'Analyze with Gemma'}
+                  {assignmentType === 'grading' ? 'Grade' : 'Analyze'}
                   {selectedStudents.length > 1 && ` (${selectedStudents.length} students)`}
                 </div>
               )}
@@ -5845,7 +5845,7 @@ export const UploadAnalyze: React.FC = () => {
                     Assignment: <strong>{assignments.find(a => a.id.toString() === selectedAssignment)?.title}</strong>
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    Select student files to grade with K.A.N.A. The selected files will appear in the main upload area.
+                    Select student files to grade. The selected files will appear in the main upload area.
                   </p>
                 </div>
 
@@ -6071,7 +6071,7 @@ export const UploadAnalyze: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      This rubric will be used by K.A.N.A. AI for automated grading
+                      This rubric will be used for automated grading
                     </p>
                   </div>
                 </div>
