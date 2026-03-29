@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { ProfileCustomizationModalProvider } from './contexts/ProfileCustomizationModalContext';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Old landing sections (no longer used on marketing pages)
@@ -41,6 +41,7 @@ const OnboardingPage = lazy(() => import('./pages/marketing/OnboardingPage'));
 const ContactUs = lazy(() => import('./pages/marketing/ContactUs'));
 const GetStarted = lazy(() => import('./pages/GetStarted'));
 const DashboardRedirect = lazy(() => import('./pages/DashboardRedirect'));
+const TermsAndPrivacyPage = lazy(() => import('./pages/TermsAndPrivacyPage'));
 
 export function App() {
   return (
@@ -60,6 +61,7 @@ export function App() {
                       <Route path="/help" element={<HelpCenterPage />} />
                       <Route path="/onboarding" element={<OnboardingPage />} />
                       <Route path="/contact" element={<ContactUs />} />
+                      <Route path="/terms-and-privacy" element={<TermsAndPrivacyPage />} />
                       <Route path="/signup" element={<SignUp />} />
                       <Route path="/login" element={<SignUp />} />
                       <Route path="/school-login" element={<SchoolLogin />} />

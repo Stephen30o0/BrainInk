@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { UserPlus, Lock, Mail, User } from "lucide-react"
+import { Link } from 'react-router-dom'
 
 interface SignUp2Props {
   onSignUp?: (firstName: string, lastName: string, username: string, email: string, password: string) => void
@@ -32,6 +33,7 @@ const SignUp2: React.FC<SignUp2Props> = ({
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false)
   const [internalError, setInternalError] = useState("")
 
   const error = externalError || internalError
@@ -58,6 +60,10 @@ const SignUp2: React.FC<SignUp2Props> = ({
         setInternalError("Please enter a valid email address.")
         return
       }
+      if (!hasAcceptedTerms) {
+        setInternalError("Please agree to the Brain Ink Terms & Privacy Policy to create your account.")
+        return
+      }
     } else {
       if (!username || !password) {
         setInternalError("Please enter both username and password.")
@@ -75,6 +81,13 @@ const SignUp2: React.FC<SignUp2Props> = ({
   }
 
   const handleGoogleAuth = () => {
+    if (isSignUp && !hasAcceptedTerms) {
+      setInternalError("Please agree to the Brain Ink Terms & Privacy Policy to continue.")
+      return
+    }
+
+    setInternalError("")
+
     if (onGoogleSignUp) {
       onGoogleSignUp()
     }
@@ -202,6 +215,32 @@ const SignUp2: React.FC<SignUp2Props> = ({
               onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
+
+          {isSignUp && (
+            <label className="flex items-start gap-2 text-xs text-stone-600 leading-5 mt-1">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500"
+                checked={hasAcceptedTerms}
+                onChange={(e) => setHasAcceptedTerms(e.target.checked)}
+                disabled={isLoading}
+              />
+              <span>
+                By creating an account, I agree to the{' '}
+                <Link to="/terms-and-privacy#eula" className="underline hover:text-stone-900 font-medium">
+                  Brain Ink EULA
+                </Link>{' '}
+                and{' '}
+                <Link
+                  to="/terms-and-privacy#privacy-policy"
+                  className="underline hover:text-stone-900 font-medium"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+          )}
 
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
