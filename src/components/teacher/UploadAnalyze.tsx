@@ -98,7 +98,27 @@ interface ExistingGradeModal {
   gradeDetails?: any;
 }
 
+interface LiveGradingProgress {
+  active: boolean;
+  totalStudents: number;
+  completedStudents: number;
+  successfulStudents: number;
+  failedStudents: number;
+  currentStudentName: string;
+  currentStudentId: number | null;
+}
+
 type UploadStepId = 'classroom' | 'subject' | 'assignment' | 'settings' | 'students';
+
+const createInitialLiveGradingProgress = (): LiveGradingProgress => ({
+  active: false,
+  totalStudents: 0,
+  completedStudents: 0,
+  successfulStudents: 0,
+  failedStudents: 0,
+  currentStudentName: '',
+  currentStudentId: null,
+});
 
 export const UploadAnalyze: React.FC = () => {
   // Original state
@@ -109,6 +129,9 @@ export const UploadAnalyze: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingStep, setProcessingStep] = useState('');
+  const [liveGradingProgress, setLiveGradingProgress] = useState<LiveGradingProgress>(
+    createInitialLiveGradingProgress()
+  );
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
@@ -3160,7 +3183,10 @@ export const UploadAnalyze: React.FC = () => {
     }
   };
 
-  const callGradeClassApi = async (studentIds: number[]) => {
+  const callGradeClassApi = async (
+    studentIds: number[],
+    options: { startIndex?: number; maxStudentsPerRequest?: number } = {}
+  ) => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       throw new Error('Authentication required');
@@ -3175,29 +3201,152 @@ export const UploadAnalyze: React.FC = () => {
     }
 
     const BRAININK_BACKEND_BASE_URL = 'https://znd2y0sjxf.execute-api.eu-west-1.amazonaws.com';
+    const endpoint = `${BRAININK_BACKEND_BASE_URL}/study-area/academic/grades/grade-class`;
+    const normalizedStudentIds = studentIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+    const requestedStartIndex = Number.isFinite(Number(options.startIndex))
+      ? Math.max(0, Number(options.startIndex))
+      : 0;
 
-    const response = await fetch(`${BRAININK_BACKEND_BASE_URL}/study-area/academic/grades/grade-class`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        subject_id: parseInt(selectedSubject),
-        assignment_id: parseInt(selectedAssignment),
-        student_ids: studentIds,
-        grade_all_students: false
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const detail = errorData?.detail || `Grade-class request failed (${response.status})`;
-      throw new Error(detail);
+    if (normalizedStudentIds.length === 0) {
+      throw new Error('No valid students were provided for grading.');
     }
 
-    const data = await response.json();
-    return { grading_results: data.grading_results || [] };
+    const invokeGradeClass = async (
+      ids: number[],
+      invokeOptions: { startIndex?: number; maxStudentsPerRequest?: number } = {}
+    ) => {
+      const startIndex = Number.isFinite(Number(invokeOptions.startIndex))
+        ? Math.max(0, Number(invokeOptions.startIndex))
+        : 0;
+      const maxStudentsPerRequest = Number.isFinite(Number(invokeOptions.maxStudentsPerRequest))
+        ? Math.max(0, Number(invokeOptions.maxStudentsPerRequest))
+        : 0;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subject_id: parseInt(selectedSubject),
+          assignment_id: parseInt(selectedAssignment),
+          student_ids: ids,
+          grade_all_students: false,
+          start_index: startIndex,
+          max_students_per_request: maxStudentsPerRequest
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const detail = errorData?.detail || `Grade-class request failed (${response.status})`;
+        const requestError = new Error(detail) as Error & { status?: number };
+        requestError.status = response.status;
+        throw requestError;
+      }
+
+      const data = await response.json();
+      return {
+        grading_results: Array.isArray(data.grading_results) ? data.grading_results : [],
+        has_more: Boolean(data.has_more),
+        next_index: Number.isFinite(Number(data.next_index))
+          ? Number(data.next_index)
+          : startIndex,
+        total_students: Number.isFinite(Number(data.total_students))
+          ? Number(data.total_students)
+          : ids.length,
+        processed_student_ids: Array.isArray(data.processed_student_ids)
+          ? data.processed_student_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+          : [],
+        remaining_student_ids: Array.isArray(data.remaining_student_ids)
+          ? data.remaining_student_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+          : [],
+      };
+    };
+
+    const buildFallbackFailure = (studentId: number, reason: string) => {
+      const student = filteredStudents.find((item) => item.id === studentId);
+      const studentName = student ? `${student.fname} ${student.lname}` : `Student ${studentId}`;
+
+      return {
+        student_id: studentId,
+        student_name: studentName,
+        success: false,
+        score: null,
+        points_earned: null,
+        max_points: maxPoints,
+        percentage: null,
+        feedback: reason,
+        detailed_feedback: reason,
+        error: reason,
+      };
+    };
+
+    try {
+      return await invokeGradeClass(normalizedStudentIds, options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Grade-class request failed';
+      const statusCode = Number((error as { status?: number })?.status || 0);
+      const fallbackStudentIds = normalizedStudentIds.slice(requestedStartIndex);
+      const shouldFallbackToSingleStudent =
+        fallbackStudentIds.length > 1 &&
+        (statusCode >= 500 || /timeout|timed out|service unavailable|gateway|failed to fetch|network/i.test(message));
+
+      if (!shouldFallbackToSingleStudent) {
+        throw error;
+      }
+
+      console.warn('⚠️ Batch grade-class call failed. Retrying per student...', { statusCode, message });
+
+      const fallbackResults: any[] = [];
+      const processedStudentIds: number[] = [];
+      for (const studentId of fallbackStudentIds) {
+        try {
+          const singleStudentResponse = await invokeGradeClass(
+            [studentId],
+            { startIndex: 0, maxStudentsPerRequest: 1 }
+          );
+          if (singleStudentResponse.grading_results.length > 0) {
+            fallbackResults.push(...singleStudentResponse.grading_results);
+          } else {
+            fallbackResults.push(
+              buildFallbackFailure(studentId, 'No grading result was returned for this student.')
+            );
+          }
+
+          if (singleStudentResponse.processed_student_ids.length > 0) {
+            processedStudentIds.push(...singleStudentResponse.processed_student_ids);
+          } else {
+            processedStudentIds.push(studentId);
+          }
+        } catch (singleStudentError) {
+          const singleStudentMessage =
+            singleStudentError instanceof Error
+              ? singleStudentError.message
+              : 'Per-student retry failed during grading.';
+
+          fallbackResults.push(buildFallbackFailure(studentId, singleStudentMessage));
+          processedStudentIds.push(studentId);
+        }
+      }
+
+      return {
+        grading_results: fallbackResults,
+        has_more: false,
+        next_index: requestedStartIndex + fallbackStudentIds.length,
+        total_students: normalizedStudentIds.length,
+        processed_student_ids: processedStudentIds,
+        remaining_student_ids: normalizedStudentIds.slice(requestedStartIndex + fallbackStudentIds.length),
+        fallbackUsed: true,
+      };
+    }
   };
 
   const processBulkImages = async (imageFiles: File[], assignment: any) => {
@@ -4015,6 +4164,87 @@ export const UploadAnalyze: React.FC = () => {
     });
   };
 
+  const mapGradeResultsToAnalysisResults = (mappedResults: any[], assignment: any): AnalysisResult[] => {
+    return mappedResults.map((result: any) => {
+      const parsedGrade = Number(result.score ?? result.points_earned);
+      const hasValidGrade = Number.isFinite(parsedGrade);
+
+      const parsedMaxPoints = Number(result.max_points ?? assignment.max_points ?? maxPoints);
+      const resolvedMaxPoints = Number.isFinite(parsedMaxPoints) && parsedMaxPoints > 0
+        ? parsedMaxPoints
+        : (assignment.max_points || maxPoints || 100);
+
+      const parsedPercentage = Number(result.percentage);
+      const resolvedPercentage = Number.isFinite(parsedPercentage)
+        ? parsedPercentage
+        : (hasValidGrade && resolvedMaxPoints > 0
+          ? Math.round((parsedGrade / resolvedMaxPoints) * 100)
+          : undefined);
+
+      const resolvedFeedback = String(
+        result.feedback || result.detailed_feedback || result.summary_feedback || ''
+      ).trim();
+      const detailedFeedbackText = String(result.detailed_feedback || '').trim();
+
+      const shouldShowOverallFeedback = Boolean(
+        resolvedFeedback && (
+          !detailedFeedbackText ||
+          (detailedFeedbackText !== resolvedFeedback && !detailedFeedbackText.startsWith(resolvedFeedback))
+        )
+      );
+
+      const extractedTextCandidates = [
+        result.extracted_text,
+        result.extractedText,
+        result.submission_text,
+        result.ocr_text,
+        result.raw_feedback,
+      ];
+      const resolvedExtractedText = extractedTextCandidates
+        .find((value: unknown) => typeof value === 'string' && value.trim().length > 0);
+
+      const isSuccessful = result.success !== false && hasValidGrade;
+      const computedLetterGrade = typeof result.letter_grade === 'string' && result.letter_grade.trim()
+        ? result.letter_grade
+        : (Number.isFinite(resolvedPercentage)
+          ? (resolvedPercentage! >= 90 ? 'A' :
+            resolvedPercentage! >= 80 ? 'B' :
+              resolvedPercentage! >= 70 ? 'C' :
+                resolvedPercentage! >= 60 ? 'D' : 'F')
+          : undefined);
+
+      return {
+        extractedText: isSuccessful
+          ? ((resolvedExtractedText as string) || '')
+          : '',
+        analysis: resolvedFeedback || (isSuccessful
+          ? 'Automated grading completed.'
+          : 'Grading failed. Please retry this student.'),
+        knowledgeGaps: Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : [],
+        recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
+        confidence: Number.isFinite(Number(result.confidence))
+          ? Number(result.confidence)
+          : (isSuccessful ? 95 : 0),
+        targetStudent: result.student_name,
+        grade: hasValidGrade ? parsedGrade : undefined,
+        maxPoints: resolvedMaxPoints,
+        overallFeedback: shouldShowOverallFeedback ? resolvedFeedback : undefined,
+        percentage: Number.isFinite(resolvedPercentage) ? resolvedPercentage : undefined,
+        letterGrade: computedLetterGrade,
+        detailedFeedback: detailedFeedbackText || undefined,
+        summaryFeedback: result.summary_feedback,
+        strengths: Array.isArray(result.strengths) ? result.strengths : [],
+        improvementAreas: Array.isArray(result.improvement_areas)
+          ? result.improvement_areas
+          : (Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : []),
+        gradingCriteria: normalizeRubricCriteria(result),
+        needs_retry: !isSuccessful,
+        error: !isSuccessful ? (result.error || 'No valid score was returned from grading.') : undefined,
+        raw_feedback: typeof result.raw_feedback === 'string' ? result.raw_feedback : undefined,
+      };
+    });
+  };
+
   // Handle bulk grading with validation
   const handleBulkGrading = async () => {
     // Clear previous messages
@@ -4049,6 +4279,15 @@ export const UploadAnalyze: React.FC = () => {
     setIsProcessing(true);
     setProcessingProgress(0);
     setProcessingStep('Initializing grading process...');
+    setLiveGradingProgress({
+      active: true,
+      totalStudents: selectedStudents.length,
+      completedStudents: 0,
+      successfulStudents: 0,
+      failedStudents: 0,
+      currentStudentName: '',
+      currentStudentId: null,
+    });
     console.log(`🎓 Starting bulk grading for ${selectedStudents.length} students`);
 
     try {
@@ -4057,112 +4296,163 @@ export const UploadAnalyze: React.FC = () => {
         throw new Error('Assignment not found');
       }
 
-      setProcessingStep('Routing grading through backend service...');
-      setProcessingProgress(45);
+      const allStudentIds = [...selectedStudents];
+      const chunkSize = 1;
+      let startIndex = 0;
+      let expectedTotalStudents = allStudentIds.length;
+      let fallbackUsed = false;
+      const resultsByStudent = new Map<number, any>();
+      const nonStudentResults: any[] = [];
+      const processedStudents = new Set<number>();
 
-      const gradingResults = await callGradeClassApi(selectedStudents);
-      console.log('✅ Bulk grading completed:', gradingResults);
+      while (startIndex < expectedTotalStudents) {
+        const nextOrdinal = Math.min(processedStudents.size + 1, expectedTotalStudents);
+        const currentStudentId = Number(allStudentIds[startIndex]);
+        const currentStudent = (filteredStudents.length > 0 ? filteredStudents : students).find(
+          (student) => student.id === currentStudentId
+        );
+        const currentStudentName = currentStudent
+          ? `${currentStudent.fname} ${currentStudent.lname}`
+          : (Number.isFinite(currentStudentId) ? `Student ${currentStudentId}` : 'Student');
 
-      const mappedResults = gradingResults.grading_results || [];
-      const successfulSubmissions = mappedResults.filter((item: any) => item.success !== false);
-      const failedSubmissions = mappedResults.filter((item: any) => item.success === false);
+        setProcessingStep(`Grading student ${nextOrdinal} of ${expectedTotalStudents}...`);
+        setLiveGradingProgress((previous) => ({
+          ...previous,
+          active: true,
+          totalStudents: expectedTotalStudents,
+          currentStudentId: Number.isFinite(currentStudentId) ? currentStudentId : null,
+          currentStudentName,
+        }));
+
+        const gradingResults = await callGradeClassApi(allStudentIds, {
+          startIndex,
+          maxStudentsPerRequest: chunkSize,
+        });
+
+        fallbackUsed = fallbackUsed || gradingResults.fallbackUsed === true;
+
+        if (Number.isFinite(Number(gradingResults.total_students)) && Number(gradingResults.total_students) > 0) {
+          expectedTotalStudents = Number(gradingResults.total_students);
+        }
+
+        const batchResults = Array.isArray(gradingResults.grading_results)
+          ? gradingResults.grading_results
+          : [];
+
+        for (const result of batchResults) {
+          const studentId = Number(result?.student_id);
+          if (Number.isFinite(studentId)) {
+            resultsByStudent.set(studentId, result);
+          } else {
+            nonStudentResults.push(result);
+          }
+        }
+
+        const responseProcessedIds = Array.isArray(gradingResults.processed_student_ids)
+          ? gradingResults.processed_student_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+          : [];
+
+        const resultProcessedIds = batchResults
+          .map((result: any) => Number(result?.student_id))
+          .filter((id: number) => Number.isFinite(id));
+
+        const processedIdsThisBatch = responseProcessedIds.length > 0
+          ? responseProcessedIds
+          : resultProcessedIds;
+
+        if (processedIdsThisBatch.length === 0) {
+          throw new Error('Grading request returned no progress. Please retry.');
+        }
+
+        processedIdsThisBatch.forEach((studentId: number) => processedStudents.add(studentId));
+
+        const partialResults = [...Array.from(resultsByStudent.values()), ...nonStudentResults];
+        setAnalysisResults(mapGradeResultsToAnalysisResults(partialResults, assignment));
+
+        const completedCount = Math.min(processedStudents.size, expectedTotalStudents);
+        const progress = expectedTotalStudents > 0
+          ? Math.min(97, Math.round((completedCount / expectedTotalStudents) * 95))
+          : 97;
+
+        const successfulSoFar = partialResults.filter((item: any) => {
+          const gradeValue = Number(item?.score ?? item?.points_earned);
+          return item?.success !== false && Number.isFinite(gradeValue);
+        });
+        const failedSoFar = partialResults.filter((item: any) => {
+          const gradeValue = Number(item?.score ?? item?.points_earned);
+          return item?.success === false || !Number.isFinite(gradeValue);
+        });
+
+        setProcessingProgress(progress);
+        setProcessingStep(`Processed ${completedCount} of ${expectedTotalStudents} students...`);
+        setLiveGradingProgress((previous) => ({
+          ...previous,
+          active: true,
+          totalStudents: expectedTotalStudents,
+          completedStudents: completedCount,
+          successfulStudents: successfulSoFar.length,
+          failedStudents: failedSoFar.length,
+        }));
+
+        const nextIndex = Number(gradingResults.next_index);
+        if (Number.isFinite(nextIndex)) {
+          startIndex = Math.max(startIndex + 1, nextIndex);
+        } else {
+          startIndex += Math.max(1, processedIdsThisBatch.length);
+        }
+
+        if (gradingResults.has_more === false) {
+          break;
+        }
+      }
+
+      const mappedResults = [...Array.from(resultsByStudent.values()), ...nonStudentResults];
+      if (mappedResults.length === 0) {
+        throw new Error('Grading request completed but no results were returned. Please retry.');
+      }
+
+      const successfulSubmissions = mappedResults.filter((item: any) => {
+        const gradeValue = Number(item?.score ?? item?.points_earned);
+        return item?.success !== false && Number.isFinite(gradeValue);
+      });
+      const failedSubmissions = mappedResults.filter((item: any) => {
+        const gradeValue = Number(item?.score ?? item?.points_earned);
+        return item?.success === false || !Number.isFinite(gradeValue);
+      });
+      setLiveGradingProgress({
+        active: true,
+        totalStudents: expectedTotalStudents,
+        completedStudents: Math.min(processedStudents.size, expectedTotalStudents),
+        successfulStudents: successfulSubmissions.length,
+        failedStudents: failedSubmissions.length,
+        currentStudentName: 'Completed',
+        currentStudentId: null,
+      });
+
+      if (successfulSubmissions.length === 0) {
+        const firstFailure = failedSubmissions[0]?.error || failedSubmissions[0]?.feedback || 'Unable to grade students at this time.';
+        throw new Error(firstFailure);
+      }
 
       setProcessingStep('Finalizing results...');
-      setProcessingProgress(98);
+      setProcessingProgress(99);
 
-      // Show results
-      let message = `🎯 Bulk grading completed successfully! `;
+      let message = `🎯 Incremental grading completed! `;
+      if (fallbackUsed) {
+        message += `⚠️ Timeout detected; recovered by retrying students one-by-one. `;
+      }
       message += `✅ ${successfulSubmissions.length} students graded. `;
       if (failedSubmissions.length > 0) {
         message += `⚠️ ${failedSubmissions.length} students failed to grade. `;
       }
-      message += `🤖 Detailed feedback has been generated for each student.`;
+      message += `📊 Completed grades were shown while the rest continued processing.`;
 
       setSuccess(message);
       setProcessingStep('Grading complete!');
       setProcessingProgress(100);
-
-      // Create analysis results from grading data with strict numeric parsing.
-      const analysisResults: AnalysisResult[] = mappedResults.map((result: any) => {
-        const parsedGrade = Number(result.score ?? result.points_earned);
-        const hasValidGrade = Number.isFinite(parsedGrade);
-
-        const parsedMaxPoints = Number(result.max_points ?? assignment.max_points ?? maxPoints);
-        const resolvedMaxPoints = Number.isFinite(parsedMaxPoints) && parsedMaxPoints > 0
-          ? parsedMaxPoints
-          : (assignment.max_points || maxPoints || 100);
-
-        const parsedPercentage = Number(result.percentage);
-        const resolvedPercentage = Number.isFinite(parsedPercentage)
-          ? parsedPercentage
-          : (hasValidGrade && resolvedMaxPoints > 0
-            ? Math.round((parsedGrade / resolvedMaxPoints) * 100)
-            : undefined);
-
-        const resolvedFeedback = String(
-          result.feedback || result.detailed_feedback || result.summary_feedback || ''
-        ).trim();
-        const detailedFeedbackText = String(result.detailed_feedback || '').trim();
-
-        const shouldShowOverallFeedback = Boolean(
-          resolvedFeedback && (
-            !detailedFeedbackText ||
-            (detailedFeedbackText !== resolvedFeedback && !detailedFeedbackText.startsWith(resolvedFeedback))
-          )
-        );
-
-        const extractedTextCandidates = [
-          result.extracted_text,
-          result.extractedText,
-          result.submission_text,
-          result.ocr_text,
-          result.raw_feedback,
-        ];
-        const resolvedExtractedText = extractedTextCandidates
-          .find((value: unknown) => typeof value === 'string' && value.trim().length > 0);
-
-        const isSuccessful = result.success !== false && hasValidGrade;
-        const computedLetterGrade = typeof result.letter_grade === 'string' && result.letter_grade.trim()
-          ? result.letter_grade
-          : (Number.isFinite(resolvedPercentage)
-            ? (resolvedPercentage! >= 90 ? 'A' :
-              resolvedPercentage! >= 80 ? 'B' :
-                resolvedPercentage! >= 70 ? 'C' :
-                  resolvedPercentage! >= 60 ? 'D' : 'F')
-            : undefined);
-
-        return {
-          extractedText: isSuccessful
-            ? ((resolvedExtractedText as string) || '')
-            : '',
-          analysis: resolvedFeedback || (isSuccessful
-            ? 'Automated grading completed.'
-            : 'Grading failed. Please retry this student.'),
-          knowledgeGaps: Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : [],
-          recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
-          confidence: Number.isFinite(Number(result.confidence))
-            ? Number(result.confidence)
-            : (isSuccessful ? 95 : 0),
-          targetStudent: result.student_name,
-          grade: hasValidGrade ? parsedGrade : undefined,
-          maxPoints: resolvedMaxPoints,
-          overallFeedback: shouldShowOverallFeedback ? resolvedFeedback : undefined,
-          percentage: Number.isFinite(resolvedPercentage) ? resolvedPercentage : undefined,
-          letterGrade: computedLetterGrade,
-          detailedFeedback: detailedFeedbackText || undefined,
-          summaryFeedback: result.summary_feedback,
-          strengths: Array.isArray(result.strengths) ? result.strengths : [],
-          improvementAreas: Array.isArray(result.improvement_areas)
-            ? result.improvement_areas
-            : (Array.isArray(result.knowledge_gaps) ? result.knowledge_gaps : []),
-          gradingCriteria: normalizeRubricCriteria(result),
-          needs_retry: !isSuccessful,
-          error: !isSuccessful ? (result.error || 'No valid score was returned from grading.') : undefined,
-          raw_feedback: typeof result.raw_feedback === 'string' ? result.raw_feedback : undefined,
-        };
-      });
-
-      setAnalysisResults(analysisResults);
+      setAnalysisResults(mapGradeResultsToAnalysisResults(mappedResults, assignment));
 
       // Refresh grading status after successful grading
       setTimeout(async () => {
@@ -4192,12 +4482,19 @@ export const UploadAnalyze: React.FC = () => {
       setError(error instanceof Error ? error.message : 'Bulk grading failed');
       setProcessingStep('');
       setProcessingProgress(0);
+      setLiveGradingProgress((previous) => ({
+        ...previous,
+        active: false,
+        currentStudentName: '',
+        currentStudentId: null,
+      }));
     } finally {
       setIsProcessing(false);
       // Reset progress after a delay so users can see completion
       setTimeout(() => {
         setProcessingStep('');
         setProcessingProgress(0);
+        setLiveGradingProgress(createInitialLiveGradingProgress());
       }, 3000);
     }
   };
@@ -5075,6 +5372,41 @@ export const UploadAnalyze: React.FC = () => {
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
                 <CheckCircle className="h-4 w-4 flex-shrink-0" />
                 All selected students have uploads — ready to grade!
+              </div>
+            )}
+
+            {assignmentType === 'grading' && isProcessing && liveGradingProgress.active && (
+              <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-indigo-900">Live Grading Progress</h4>
+                  <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">
+                    {liveGradingProgress.completedStudents}/{Math.max(1, liveGradingProgress.totalStudents)} processed
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className="rounded-xl border border-indigo-100 bg-white p-3">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-indigo-500">Completed</div>
+                    <div className="mt-1 text-xl font-bold text-indigo-900">{liveGradingProgress.completedStudents}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-100 bg-white p-3">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-emerald-500">Successful</div>
+                    <div className="mt-1 text-xl font-bold text-emerald-700">{liveGradingProgress.successfulStudents}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-rose-100 bg-white p-3">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-rose-500">Failed</div>
+                    <div className="mt-1 text-xl font-bold text-rose-700">{liveGradingProgress.failedStudents}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-100 bg-white p-3">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-amber-600">Current Student</div>
+                    <div className="mt-1 truncate text-sm font-semibold text-amber-800">
+                      {liveGradingProgress.currentStudentName || 'Preparing...'}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
