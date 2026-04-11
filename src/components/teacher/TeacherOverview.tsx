@@ -7,9 +7,29 @@ import {
     Upload,
     FileText,
     UserPlus,
-    Loader2
+    Loader2,
+    Image,
+    Download,
+    X
 } from 'lucide-react';
 import { teacherService } from '../../services/teacherService';
+
+const assignmentUploadImages = [
+    {
+        id: 'assignment-upload-1',
+        title: 'Primary Algebra Foundations',
+        src: '/teacher-images/assignment-upload-1.jpeg',
+        alt: 'Sample assignment upload image 1',
+        downloadName: 'assignment-upload-sample-1.jpeg'
+    },
+    {
+        id: 'assignment-upload-2',
+        title: 'Algebra quiz',
+        src: '/teacher-images/assignment-upload-2.jpeg',
+        alt: 'Sample assignment upload image 2',
+        downloadName: 'assignment-upload-sample-2.jpeg'
+    }
+];
 
 type DetailPanelKey = 'students' | 'attention' | 'todo' | 'performance' | null;
 
@@ -100,6 +120,7 @@ export const TeacherOverview: React.FC = () => {
     const [attentionLoading, setAttentionLoading] = useState(false);
     const [attentionLoaded, setAttentionLoaded] = useState(false);
     const [attentionStudents, setAttentionStudents] = useState<AttentionStudentItem[]>([]);
+    const [imagesModalOpen, setImagesModalOpen] = useState(false);
 
     useEffect(() => {
         loadDashboardData();
@@ -385,6 +406,62 @@ export const TeacherOverview: React.FC = () => {
                         </button>
                     </div>
 
+                    {imagesModalOpen && (
+                        <div
+                            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+                            onClick={() => setImagesModalOpen(false)}
+                        >
+                            <div
+                                className="w-full max-w-5xl bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+                                onClick={(event) => event.stopPropagation()}
+                            >
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                                    <h3 className="text-lg font-semibold text-gray-900">Images</h3>
+                                    <button
+                                        onClick={() => setImagesModalOpen(false)}
+                                        className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                                        aria-label="Close images popup"
+                                    >
+                                        <X className="w-5 h-5 text-gray-600" />
+                                    </button>
+                                </div>
+
+                                <div className="p-6 max-h-[80vh] overflow-y-auto">
+                                    <p className="text-sm text-gray-700 mb-4">
+                                        These images are for uploading for the assignments.
+                                    </p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {assignmentUploadImages.map((image) => (
+                                            <div key={image.id} className="border border-gray-200 rounded-lg p-3">
+                                                <div className="relative">
+                                                    <img
+                                                        src={image.src}
+                                                        alt={image.alt}
+                                                        className="w-full h-64 object-cover rounded-md border border-gray-100"
+                                                    />
+                                                    <div className="absolute top-0 left-0 right-0 px-3 py-2 bg-white/95 border-b border-gray-200 rounded-t-md">
+                                                        <p className="text-sm font-semibold text-gray-900">{image.title}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3">
+                                                    <a
+                                                        href={image.src}
+                                                        download={image.downloadName}
+                                                        className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                        Download
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                         <button
                             onClick={() => togglePanel('students')}
@@ -448,6 +525,16 @@ export const TeacherOverview: React.FC = () => {
                                     <BarChart3 className="w-6 h-6 text-emerald-600" />
                                 </div>
                             </div>
+                        </button>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <button
+                            onClick={() => setImagesModalOpen(true)}
+                            className="flex items-center justify-center gap-3 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                        >
+                            <Image className="w-5 h-5" />
+                            <span className="text-lg font-semibold">Images</span>
                         </button>
                     </div>
 
